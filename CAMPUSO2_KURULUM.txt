@@ -1,0 +1,29 @@
+CAMPUSO2 VERCEL DÜZELTME PAKETİ
+
+1. Bu klasördeki package.json, tsconfig.json ve vercel.json dosyalarını kopyalayın.
+2. Masaüstündeki CampusO2 klasörünü açın.
+3. Üç dosyayı CampusO2 klasörünün doğrudan içine yapıştırın.
+4. Windows sorarsa "Hedefteki dosyaları değiştir" seçeneğini seçin.
+
+Doğru klasör yapısı:
+
+CampusO2
+|-- app
+|-- public
+|-- scripts
+|-- package.json
+|-- tsconfig.json
+|-- vercel.json
+|-- package-lock.json
+
+Ardından VS Code terminalinde:
+
+git add package.json tsconfig.json vercel.json
+git commit -m "Fix Vercel deployment"
+git push
+
+GitHub'a gönderilen değişiklikten sonra Vercel otomatik olarak yeniden dağıtım
+başlatır. Başlatmazsa Vercel içindeki Deployments ekranından Redeploy seçin.
+
+NOT: CampusO2 klasörünün içinde ikinci bir CampusO2 klasörü oluşturmamalısınız.
+package.json dosyası app, public ve scripts klasörleriyle aynı seviyede olmalıdır.

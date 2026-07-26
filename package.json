@@ -7,9 +7,10 @@
   },
   "scripts": {
     "install:ci": "bash scripts/install-ci.sh",
-    "dev": "vite",
+    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
     "build": "bash scripts/build-verified.sh",
-    "start": "vinext start",
+    "build:vercel": "next build",
+    "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "validate:artifact": "bash scripts/validate-artifact.sh",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
@@ -40,5 +41,5 @@
     "wrangler": "4.92.0"
   },
   "type": "module",
-  "displayName": "CampusO Dijital Kamp\u00fcs"
+  "displayName": "CampusO Dijital Kampüs"
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Role = "student" | "faculty";
+type Role = "student" | "faculty" | "admin";
 type View =
   | "home"
   | "courses"
@@ -15,7 +15,13 @@ type View =
   | "acadex"
   | "approvals"
   | "publications"
-  | "incentive";
+  | "incentive"
+  | "adminHome"
+  | "adminAcademics"
+  | "adminStudents"
+  | "adminCourses"
+  | "adminAnnouncements"
+  | "adminClubs";
 
 type IconName =
   | "home"
@@ -64,6 +70,15 @@ const facultyNav: { id: View; label: string; icon: IconName }[] = [
   { id: "incentive", label: "Akademik Teşvik", icon: "award" },
 ];
 
+const adminNav: { id: View; label: string; icon: IconName }[] = [
+  { id: "adminHome", label: "Genel Bakış", icon: "home" },
+  { id: "adminAcademics", label: "Akademisyenler", icon: "graduation" },
+  { id: "adminStudents", label: "Öğrenciler", icon: "users" },
+  { id: "adminCourses", label: "Ders Modülleri", icon: "book" },
+  { id: "adminAnnouncements", label: "Duyurular", icon: "bell" },
+  { id: "adminClubs", label: "Kulüpler", icon: "spark" },
+];
+
 const viewTitles: Record<View, string> = {
   home: "Genel Bakış",
   courses: "Dersler",
@@ -77,7 +92,120 @@ const viewTitles: Record<View, string> = {
   approvals: "Onay Merkezi",
   publications: "Yayınlarım",
   incentive: "Akademik Teşvik",
+  adminHome: "Yönetici Genel Bakış",
+  adminAcademics: "Akademisyen Yönetimi",
+  adminStudents: "Öğrenci Yönetimi",
+  adminCourses: "Ders Modülleri",
+  adminAnnouncements: "Duyuru Yönetimi",
+  adminClubs: "Kulüp Yönetimi",
 };
+
+const ADMIN_USERNAME = "aybücampuso123";
+const ADMIN_PASSWORD = "campuso123456";
+
+type Academic = {
+  id: string;
+  name: string;
+  title: string;
+  department: string;
+  email: string;
+  phone: string;
+};
+
+type StudentRecord = {
+  id: string;
+  name: string;
+  studentNo: string;
+  department: string;
+  year: string;
+  email: string;
+};
+
+type CourseModuleItem = {
+  id: string;
+  code: string;
+  name: string;
+  credit: string;
+  instructor: string;
+  department: string;
+};
+
+type Announcement = {
+  id: string;
+  title: string;
+  body: string;
+  audience: string;
+  date: string;
+};
+
+type Club = {
+  id: string;
+  name: string;
+  category: string;
+  advisor: string;
+  members: string;
+  description: string;
+};
+
+const initialAcademics: Academic[] = [
+  { id: "aca-1", name: "Dr. Ali İhsan Çetin", title: "Doktor Öğretim Üyesi", department: "Yönetim Bilişim Sistemleri", email: "ali.cetin@aybu.edu.tr", phone: "0312 000 00 01" },
+  { id: "aca-2", name: "Doç. Dr. Selin Ergün", title: "Doçent", department: "İşletme", email: "selin.ergun@aybu.edu.tr", phone: "0312 000 00 02" },
+  { id: "aca-3", name: "Dr. Onur Taş", title: "Doktor Öğretim Üyesi", department: "Bankacılık ve Finans", email: "onur.tas@aybu.edu.tr", phone: "0312 000 00 03" },
+];
+
+const initialAdminStudents: StudentRecord[] = [
+  { id: "stu-1", name: "Barış Uysal", studentNo: "19030411049", department: "Yönetim Bilişim Sistemleri", year: "3. Sınıf", email: "baris.uysal@ogrenci.aybu.edu.tr" },
+  { id: "stu-2", name: "Ece Yıldız", studentNo: "20030411077", department: "İşletme", year: "2. Sınıf", email: "ece.yildiz@ogrenci.aybu.edu.tr" },
+  { id: "stu-3", name: "Mert Kelemci", studentNo: "21030411112", department: "Bankacılık ve Finans", year: "1. Sınıf", email: "mert.kelemci@ogrenci.aybu.edu.tr" },
+];
+
+const initialAdminCourses: CourseModuleItem[] = [
+  { id: "crs-1", code: "MIS-800", name: "Araştırma Yöntemleri", credit: "3", instructor: "Dr. Ali İhsan Çetin", department: "Yönetim Bilişim Sistemleri" },
+  { id: "crs-2", code: "BUS-210", name: "Pazarlamaya Giriş", credit: "4", instructor: "Doç. Dr. Selin Ergün", department: "İşletme" },
+  { id: "crs-3", code: "BF-202", name: "Finansal Yönetim", credit: "4", instructor: "Dr. Onur Taş", department: "Bankacılık ve Finans" },
+];
+
+const initialAdminAnnouncements: Announcement[] = [
+  { id: "ann-1", title: "Güz Dönemi Ders Kayıtları Başladı", body: "2026-2027 güz dönemi ders kayıt işlemleri CampusO üzerinden yapılabilir.", audience: "Tüm kampüs", date: "01 Eylül 2026" },
+  { id: "ann-2", title: "Kariyer Günleri Etkinliği", body: "Kariyer Günleri 12 Temmuz'da konferans salonunda gerçekleştirilecektir.", audience: "Öğrenciler", date: "28 Haziran 2026" },
+];
+
+const initialClubs: Club[] = [
+  { id: "club-1", name: "Bilgi Sistemleri Kulübü", category: "Akademik", advisor: "Dr. Ali İhsan Çetin", members: "64", description: "Yazılım, veri ve bilişim sistemleri alanında öğrenci topluluğu." },
+  { id: "club-2", name: "Girişimcilik Kulübü", category: "Kariyer", advisor: "Doç. Dr. Selin Ergün", members: "48", description: "Girişimcilik projeleri ve start-up etkinlikleri düzenler." },
+  { id: "club-3", name: "Kampüs Kültür ve Sanat Kulübü", category: "Sosyal", advisor: "Dr. Onur Taş", members: "37", description: "Kampüs içi kültürel ve sanatsal etkinlikler organize eder." },
+];
+
+function usePersistentState<T>(key: string, initial: T) {
+  const [state, setState] = useState<T>(initial);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw) setState(JSON.parse(raw) as T);
+    } catch {
+      // ignore malformed storage
+    }
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    } catch {
+      // ignore storage errors (e.g. private mode)
+    }
+  }, [key, state, hydrated]);
+
+  return [state, setState] as const;
+}
+
+function makeId(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 const studentCourses = [
   { code: "BUS-202", name: "İşletme İçin İstatistik II", time: "Pzt · 10.00", progress: 72, tone: "blue" },
@@ -176,7 +304,7 @@ function Brand({ inverse = false }: { inverse?: boolean }) {
   );
 }
 
-function Landing({ onEnter }: { onEnter: (role: Role) => void }) {
+function Landing({ onEnter, onAdminLogin }: { onEnter: (role: Role) => void; onAdminLogin: () => void }) {
   return (
     <main className="landing">
       <nav className="landing-nav">
@@ -186,9 +314,14 @@ function Landing({ onEnter }: { onEnter: (role: Role) => void }) {
           <a href="#modules">Modüller</a>
           <a href="#acadex">Acadex</a>
         </div>
-        <button className="button button-ghost" onClick={() => onEnter("student")}>
-          Sisteme giriş <Icon name="arrow" size={17} />
-        </button>
+        <div className="landing-nav-actions">
+          <button className="admin-link" onClick={onAdminLogin}>
+            <Icon name="briefcase" size={15} /> Yönetici Girişi
+          </button>
+          <button className="button button-ghost" onClick={() => onEnter("student")}>
+            Sisteme giriş <Icon name="arrow" size={17} />
+          </button>
+        </div>
       </nav>
 
       <section className="hero" id="platform">
@@ -251,6 +384,54 @@ function Landing({ onEnter }: { onEnter: (role: Role) => void }) {
         <div><Icon name="qr" /><span><b>Akıllı yoklama</b><small>Hızlı ve güvenli QR takibi</small></span></div>
         <div id="acadex"><Icon name="spark" /><span><b>Acadex ağı</b><small>Danışman, araştırma ve yayın</small></span></div>
         <div><Icon name="users" /><span><b>Sosyal kampüs</b><small>Kulüpler, etkinlikler ve yaşam</small></span></div>
+      </section>
+    </main>
+  );
+}
+
+function AdminLogin({
+  onLogin,
+  onBack,
+  error,
+}: {
+  onLogin: (username: string, password: string) => void;
+  onBack: () => void;
+  error: string;
+}) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    onLogin(username.trim(), password);
+  }
+
+  return (
+    <main className="landing admin-login-screen">
+      <nav className="landing-nav">
+        <Brand />
+        <button className="button button-ghost" onClick={onBack}>
+          <Icon name="arrow" size={17} /> Girişe dön
+        </button>
+      </nav>
+      <section className="admin-login-hero">
+        <form className="admin-login-form panel" onSubmit={submit}>
+          <span className="admin-login-badge"><Icon name="briefcase" size={22} /></span>
+          <h1>Yönetici Girişi</h1>
+          <p>Akademisyen, öğrenci, ders modülü, duyuru ve kulüp yönetimi için giriş yapın.</p>
+          {error && <div className="admin-login-error"><Icon name="close" size={14} /> {error}</div>}
+          <label>
+            <span>Kullanıcı adı</span>
+            <input value={username} onChange={(event) => setUsername(event.target.value)} autoFocus required autoComplete="username" />
+          </label>
+          <label>
+            <span>Şifre</span>
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" />
+          </label>
+          <button className="button button-primary" type="submit">
+            Giriş yap <Icon name="arrow" size={16} />
+          </button>
+        </form>
       </section>
     </main>
   );
@@ -1227,6 +1408,357 @@ function IncentiveModule({ onToast }: { onToast: (message: string) => void }) {
   );
 }
 
+function initialsOf(name: string) {
+  return name
+    .split(" ")
+    .filter((part) => part.length > 1)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function AdminOverview({
+  academics,
+  students,
+  courses,
+  announcements,
+  clubs,
+  navigate,
+}: {
+  academics: Academic[];
+  students: StudentRecord[];
+  courses: CourseModuleItem[];
+  announcements: Announcement[];
+  clubs: Club[];
+  navigate: (view: View) => void;
+}) {
+  return (
+    <div className="dashboard-page">
+      <section className="welcome-banner admin-banner">
+        <div>
+          <span className="banner-kicker">YÖNETİCİ PANELİ</span>
+          <h2>Kampüs verilerini tek merkezden yönet.</h2>
+          <p>Akademisyen, öğrenci, ders modülü, duyuru ve kulüp kayıtlarını buradan ekleyip düzenleyebilirsin.</p>
+        </div>
+        <div className="gpa-orbit"><span>KAYIT</span><strong>{academics.length + students.length + courses.length + announcements.length + clubs.length}</strong><small>toplam</small></div>
+      </section>
+
+      <section className="stat-grid">
+        <StatCard icon="graduation" label="Akademisyen" value={String(academics.length)} detail="Kayıtlı akademisyen" tone="blue" />
+        <StatCard icon="users" label="Öğrenci" value={String(students.length)} detail="Kayıtlı öğrenci" tone="teal" />
+        <StatCard icon="book" label="Ders modülü" value={String(courses.length)} detail="Aktif ders" tone="navy" />
+        <StatCard icon="bell" label="Duyuru" value={String(announcements.length)} detail="Yayında" tone="coral" />
+      </section>
+
+      <div className="content-grid">
+        <section className="panel quick-panel">
+          <div className="section-heading"><div><span>YÖNETİM</span><h3>Hızlı erişim</h3></div></div>
+          <div className="quick-actions">
+            <button onClick={() => navigate("adminAcademics")}><span className="blue"><Icon name="graduation" /></span><b>Akademisyenler</b><small>Ekle / düzenle</small></button>
+            <button onClick={() => navigate("adminStudents")}><span className="teal"><Icon name="users" /></span><b>Öğrenciler</b><small>Ekle / düzenle</small></button>
+            <button onClick={() => navigate("adminCourses")}><span className="navy"><Icon name="book" /></span><b>Ders Modülleri</b><small>Ekle / düzenle</small></button>
+            <button onClick={() => navigate("adminAnnouncements")}><span className="coral"><Icon name="bell" /></span><b>Duyurular</b><small>Ekle / düzenle</small></button>
+            <button onClick={() => navigate("adminClubs")}><span className="blue"><Icon name="spark" /></span><b>Kulüpler</b><small>Ekle / düzenle</small></button>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="section-heading"><div><span>SON EKLENEN</span><h3>Akademisyenler</h3></div></div>
+          <div className="request-preview">
+            {academics.slice(0, 4).map((academic) => (
+              <div className="applicant-row" key={academic.id}><span className="avatar blue">{initialsOf(academic.name)}</span><span><b>{academic.name}</b><small>{academic.department}</small></span></div>
+            ))}
+            {academics.length === 0 && <p className="admin-empty">Henüz akademisyen eklenmedi.</p>}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function AcademicsManager({
+  academics,
+  onAdd,
+  onRemove,
+}: {
+  academics: Academic[];
+  onAdd: (item: Academic) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
+  const [department, setDepartment] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!name.trim() || !department.trim()) return;
+    onAdd({ id: makeId("aca"), name: name.trim(), title: title.trim() || "Öğretim Elemanı", department: department.trim(), email: email.trim(), phone: phone.trim() });
+    setName(""); setTitle(""); setDepartment(""); setEmail(""); setPhone("");
+    setShowForm(false);
+  }
+
+  return (
+    <div className="module-page">
+      <ModuleHeader eyebrow="YÖNETİCİ · AKADEMİSYENLER" title="Akademisyen Yönetimi" description="Kampüse yeni akademisyen ekle, iletişim bilgilerini kaydet ve kayıtları yönet.">
+        <button className="button button-primary" onClick={() => setShowForm(!showForm)}><Icon name={showForm ? "close" : "graduation"} size={17} /> {showForm ? "Vazgeç" : "Akademisyen ekle"}</button>
+      </ModuleHeader>
+
+      {showForm && (
+        <form className="admin-entity-form panel" onSubmit={submit}>
+          <label><span>Ad Soyad</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Dr. Ayşe Kaya" required /></label>
+          <label><span>Unvan</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Doktor Öğretim Üyesi" /></label>
+          <label><span>Bölüm</span><input value={department} onChange={(event) => setDepartment(event.target.value)} placeholder="Yönetim Bilişim Sistemleri" required /></label>
+          <label><span>E-posta</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="ayse.kaya@aybu.edu.tr" /></label>
+          <label><span>Telefon</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="0312 000 00 00" /></label>
+          <button className="button button-primary" type="submit">Kaydet <Icon name="arrow" size={16} /></button>
+        </form>
+      )}
+
+      <section className="admin-entity-list panel">
+        <div className="section-heading"><div><span>KAYITLI</span><h3>Akademisyenler</h3></div><b>{academics.length} kayıt</b></div>
+        {academics.map((academic) => (
+          <article className="admin-entity-row" key={academic.id}>
+            <span className="avatar blue">{initialsOf(academic.name)}</span>
+            <div><span>{academic.title}</span><h3>{academic.name}</h3><p>{academic.department} · {academic.email || "e-posta yok"} · {academic.phone || "telefon yok"}</p></div>
+            <button onClick={() => onRemove(academic.id)} aria-label={`${academic.name} kaydını sil`}><Icon name="close" size={15} /></button>
+          </article>
+        ))}
+        {academics.length === 0 && <p className="admin-empty">Henüz akademisyen eklenmedi.</p>}
+      </section>
+    </div>
+  );
+}
+
+function StudentsManager({
+  students,
+  onAdd,
+  onRemove,
+}: {
+  students: StudentRecord[];
+  onAdd: (item: StudentRecord) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [studentNo, setStudentNo] = useState("");
+  const [department, setDepartment] = useState("");
+  const [year, setYear] = useState("");
+  const [email, setEmail] = useState("");
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!name.trim() || !studentNo.trim()) return;
+    onAdd({ id: makeId("stu"), name: name.trim(), studentNo: studentNo.trim(), department: department.trim() || "Belirtilmedi", year: year.trim() || "1. Sınıf", email: email.trim() });
+    setName(""); setStudentNo(""); setDepartment(""); setYear(""); setEmail("");
+    setShowForm(false);
+  }
+
+  return (
+    <div className="module-page">
+      <ModuleHeader eyebrow="YÖNETİCİ · ÖĞRENCİLER" title="Öğrenci Yönetimi" description="Yeni öğrenci kaydı oluştur, bölüm ve sınıf bilgilerini güncelle.">
+        <button className="button button-primary" onClick={() => setShowForm(!showForm)}><Icon name={showForm ? "close" : "users"} size={17} /> {showForm ? "Vazgeç" : "Öğrenci ekle"}</button>
+      </ModuleHeader>
+
+      {showForm && (
+        <form className="admin-entity-form panel" onSubmit={submit}>
+          <label><span>Ad Soyad</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ece Yıldız" required /></label>
+          <label><span>Öğrenci No</span><input value={studentNo} onChange={(event) => setStudentNo(event.target.value)} placeholder="22030411000" required /></label>
+          <label><span>Bölüm</span><input value={department} onChange={(event) => setDepartment(event.target.value)} placeholder="İşletme" /></label>
+          <label><span>Sınıf</span><input value={year} onChange={(event) => setYear(event.target.value)} placeholder="2. Sınıf" /></label>
+          <label><span>E-posta</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="ogrenci@ogrenci.aybu.edu.tr" /></label>
+          <button className="button button-primary" type="submit">Kaydet <Icon name="arrow" size={16} /></button>
+        </form>
+      )}
+
+      <section className="admin-entity-list panel">
+        <div className="section-heading"><div><span>KAYITLI</span><h3>Öğrenciler</h3></div><b>{students.length} kayıt</b></div>
+        {students.map((student) => (
+          <article className="admin-entity-row" key={student.id}>
+            <span className="avatar teal">{initialsOf(student.name)}</span>
+            <div><span>{student.studentNo}</span><h3>{student.name}</h3><p>{student.department} · {student.year} · {student.email || "e-posta yok"}</p></div>
+            <button onClick={() => onRemove(student.id)} aria-label={`${student.name} kaydını sil`}><Icon name="close" size={15} /></button>
+          </article>
+        ))}
+        {students.length === 0 && <p className="admin-empty">Henüz öğrenci eklenmedi.</p>}
+      </section>
+    </div>
+  );
+}
+
+function CourseModulesManager({
+  courses,
+  onAdd,
+  onRemove,
+}: {
+  courses: CourseModuleItem[];
+  onAdd: (item: CourseModuleItem) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [credit, setCredit] = useState("");
+  const [instructor, setInstructor] = useState("");
+  const [department, setDepartment] = useState("");
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!code.trim() || !name.trim()) return;
+    onAdd({ id: makeId("crs"), code: code.trim().toUpperCase(), name: name.trim(), credit: credit.trim() || "3", instructor: instructor.trim() || "Atanmadı", department: department.trim() || "Belirtilmedi" });
+    setCode(""); setName(""); setCredit(""); setInstructor(""); setDepartment("");
+    setShowForm(false);
+  }
+
+  return (
+    <div className="module-page">
+      <ModuleHeader eyebrow="YÖNETİCİ · DERS MODÜLLERİ" title="Ders Modülleri" description="Yeni ders modülü tanımla, kredi ve sorumlu akademisyen bilgisini kaydet.">
+        <button className="button button-primary" onClick={() => setShowForm(!showForm)}><Icon name={showForm ? "close" : "book"} size={17} /> {showForm ? "Vazgeç" : "Ders modülü ekle"}</button>
+      </ModuleHeader>
+
+      {showForm && (
+        <form className="admin-entity-form panel" onSubmit={submit}>
+          <label><span>Ders Kodu</span><input value={code} onChange={(event) => setCode(event.target.value)} placeholder="MIS-301" required /></label>
+          <label><span>Ders Adı</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Veritabanı Sistemleri" required /></label>
+          <label><span>Kredi</span><input value={credit} onChange={(event) => setCredit(event.target.value)} placeholder="3" /></label>
+          <label><span>Sorumlu Akademisyen</span><input value={instructor} onChange={(event) => setInstructor(event.target.value)} placeholder="Dr. Ali İhsan Çetin" /></label>
+          <label><span>Bölüm</span><input value={department} onChange={(event) => setDepartment(event.target.value)} placeholder="Yönetim Bilişim Sistemleri" /></label>
+          <button className="button button-primary" type="submit">Kaydet <Icon name="arrow" size={16} /></button>
+        </form>
+      )}
+
+      <section className="admin-entity-list panel">
+        <div className="section-heading"><div><span>TANIMLI</span><h3>Ders modülleri</h3></div><b>{courses.length} ders</b></div>
+        {courses.map((course) => (
+          <article className="admin-entity-row" key={course.id}>
+            <span className="avatar navy">{course.code.slice(0, 2)}</span>
+            <div><span>{course.code} · {course.credit} kredi</span><h3>{course.name}</h3><p>{course.instructor} · {course.department}</p></div>
+            <button onClick={() => onRemove(course.id)} aria-label={`${course.name} dersini sil`}><Icon name="close" size={15} /></button>
+          </article>
+        ))}
+        {courses.length === 0 && <p className="admin-empty">Henüz ders modülü eklenmedi.</p>}
+      </section>
+    </div>
+  );
+}
+
+function AnnouncementsManager({
+  announcements,
+  onAdd,
+  onRemove,
+}: {
+  announcements: Announcement[];
+  onAdd: (item: Announcement) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [audience, setAudience] = useState("Tüm kampüs");
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!title.trim() || !body.trim()) return;
+    const today = new Date();
+    onAdd({ id: makeId("ann"), title: title.trim(), body: body.trim(), audience, date: today.toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" }) });
+    setTitle(""); setBody(""); setAudience("Tüm kampüs");
+    setShowForm(false);
+  }
+
+  return (
+    <div className="module-page">
+      <ModuleHeader eyebrow="YÖNETİCİ · DUYURULAR" title="Duyuru Yönetimi" description="Kampüs geneline veya belirli bir kitleye yeni duyuru yayınla.">
+        <button className="button button-primary" onClick={() => setShowForm(!showForm)}><Icon name={showForm ? "close" : "bell"} size={17} /> {showForm ? "Vazgeç" : "Duyuru ekle"}</button>
+      </ModuleHeader>
+
+      {showForm && (
+        <form className="admin-entity-form admin-entity-form-wide panel" onSubmit={submit}>
+          <label className="wide"><span>Başlık</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Duyuru başlığı" required /></label>
+          <label className="wide"><span>İçerik</span><textarea value={body} onChange={(event) => setBody(event.target.value)} rows={3} placeholder="Duyuru içeriğini yazın..." required /></label>
+          <fieldset>
+            <legend>Kitle</legend>
+            {["Tüm kampüs", "Öğrenciler", "Akademisyenler"].map((item) => (
+              <button type="button" key={item} className={audience === item ? "active" : ""} onClick={() => setAudience(item)}>{item}</button>
+            ))}
+          </fieldset>
+          <button className="button button-primary" type="submit">Yayınla <Icon name="arrow" size={16} /></button>
+        </form>
+      )}
+
+      <section className="admin-entity-list panel">
+        <div className="section-heading"><div><span>YAYINDA</span><h3>Duyurular</h3></div><b>{announcements.length} duyuru</b></div>
+        {announcements.map((announcement) => (
+          <article className="admin-entity-row" key={announcement.id}>
+            <span className="avatar blue"><Icon name="bell" size={16} /></span>
+            <div><span>{announcement.audience} · {announcement.date}</span><h3>{announcement.title}</h3><p>{announcement.body}</p></div>
+            <button onClick={() => onRemove(announcement.id)} aria-label={`${announcement.title} duyurusunu sil`}><Icon name="close" size={15} /></button>
+          </article>
+        ))}
+        {announcements.length === 0 && <p className="admin-empty">Henüz duyuru eklenmedi.</p>}
+      </section>
+    </div>
+  );
+}
+
+function ClubsManager({
+  clubs,
+  onAdd,
+  onRemove,
+}: {
+  clubs: Club[];
+  onAdd: (item: Club) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
+  const [advisor, setAdvisor] = useState("");
+  const [members, setMembers] = useState("");
+  const [description, setDescription] = useState("");
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    onAdd({ id: makeId("club"), name: name.trim(), category: category.trim() || "Genel", advisor: advisor.trim() || "Atanmadı", members: members.trim() || "0", description: description.trim() });
+    setName(""); setCategory(""); setAdvisor(""); setMembers(""); setDescription("");
+    setShowForm(false);
+  }
+
+  return (
+    <div className="module-page">
+      <ModuleHeader eyebrow="YÖNETİCİ · KULÜPLER" title="Kulüp Yönetimi" description="Kampüs içi kulüpleri, danışmanlarını ve üye sayılarını kaydet.">
+        <button className="button button-primary" onClick={() => setShowForm(!showForm)}><Icon name={showForm ? "close" : "spark"} size={17} /> {showForm ? "Vazgeç" : "Kulüp ekle"}</button>
+      </ModuleHeader>
+
+      {showForm && (
+        <form className="admin-entity-form admin-entity-form-wide panel" onSubmit={submit}>
+          <label><span>Kulüp Adı</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Robotik Kulübü" required /></label>
+          <label><span>Kategori</span><input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Akademik / Sosyal / Spor" /></label>
+          <label><span>Danışman</span><input value={advisor} onChange={(event) => setAdvisor(event.target.value)} placeholder="Dr. Ali İhsan Çetin" /></label>
+          <label><span>Üye Sayısı</span><input value={members} onChange={(event) => setMembers(event.target.value)} placeholder="42" /></label>
+          <label className="wide"><span>Açıklama</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} placeholder="Kulübün amacı ve etkinlikleri..." /></label>
+          <button className="button button-primary" type="submit">Kaydet <Icon name="arrow" size={16} /></button>
+        </form>
+      )}
+
+      <section className="admin-entity-list panel">
+        <div className="section-heading"><div><span>AKTİF</span><h3>Kulüpler</h3></div><b>{clubs.length} kulüp</b></div>
+        {clubs.map((club) => (
+          <article className="admin-entity-row" key={club.id}>
+            <span className="avatar teal">{initialsOf(club.name)}</span>
+            <div><span>{club.category} · {club.members} üye</span><h3>{club.name}</h3><p>{club.advisor} · {club.description || "Açıklama eklenmedi"}</p></div>
+            <button onClick={() => onRemove(club.id)} aria-label={`${club.name} kaydını sil`}><Icon name="close" size={15} /></button>
+          </article>
+        ))}
+        {clubs.length === 0 && <p className="admin-empty">Henüz kulüp eklenmedi.</p>}
+      </section>
+    </div>
+  );
+}
+
 function Toast({ message, onClear }: { message: string; onClear: () => void }) {
   useEffect(() => {
     if (!message) return;
@@ -1256,12 +1788,88 @@ export default function Home() {
     { from: "faculty", text: "Merhaba Barış, notları güncelledikten sonra sisteme tekrar yükleyeceğim. Yarın erişebilirsin.", time: "16.06" },
   ]);
 
-  const navItems = useMemo(() => role === "faculty" ? facultyNav : studentNav, [role]);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminLoginError, setAdminLoginError] = useState("");
+  const [academics, setAcademics] = usePersistentState<Academic[]>("campuso-admin-academics", initialAcademics);
+  const [adminStudents, setAdminStudents] = usePersistentState<StudentRecord[]>("campuso-admin-students", initialAdminStudents);
+  const [adminCourses, setAdminCourses] = usePersistentState<CourseModuleItem[]>("campuso-admin-courses", initialAdminCourses);
+  const [adminAnnouncements, setAdminAnnouncements] = usePersistentState<Announcement[]>("campuso-admin-announcements", initialAdminAnnouncements);
+  const [clubs, setClubs] = usePersistentState<Club[]>("campuso-admin-clubs", initialClubs);
+
+  const navItems = useMemo(() => role === "admin" ? adminNav : role === "faculty" ? facultyNav : studentNav, [role]);
 
   function enter(nextRole: Role) {
     setRole(nextRole);
     setView("home");
     setMobileOpen(false);
+  }
+
+  function openAdminLogin() {
+    setAdminLoginError("");
+    setShowAdminLogin(true);
+  }
+
+  function loginAdmin(username: string, password: string) {
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      setRole("admin");
+      setView("adminHome");
+      setMobileOpen(false);
+      setShowAdminLogin(false);
+      setAdminLoginError("");
+      showToast("Yönetici paneline hoş geldiniz.");
+    } else {
+      setAdminLoginError("Kullanıcı adı veya şifre hatalı.");
+    }
+  }
+
+  function addAcademic(item: Academic) {
+    setAcademics((current) => [item, ...current]);
+    showToast(`${item.name} akademisyen olarak eklendi.`);
+  }
+
+  function removeAcademic(id: string) {
+    setAcademics((current) => current.filter((item) => item.id !== id));
+    showToast("Akademisyen kaydı silindi.");
+  }
+
+  function addAdminStudent(item: StudentRecord) {
+    setAdminStudents((current) => [item, ...current]);
+    showToast(`${item.name} öğrenci olarak eklendi.`);
+  }
+
+  function removeAdminStudent(id: string) {
+    setAdminStudents((current) => current.filter((item) => item.id !== id));
+    showToast("Öğrenci kaydı silindi.");
+  }
+
+  function addAdminCourse(item: CourseModuleItem) {
+    setAdminCourses((current) => [item, ...current]);
+    showToast(`${item.code} ders modülü eklendi.`);
+  }
+
+  function removeAdminCourse(id: string) {
+    setAdminCourses((current) => current.filter((item) => item.id !== id));
+    showToast("Ders modülü silindi.");
+  }
+
+  function addAdminAnnouncement(item: Announcement) {
+    setAdminAnnouncements((current) => [item, ...current]);
+    showToast("Yeni duyuru yayınlandı.");
+  }
+
+  function removeAdminAnnouncement(id: string) {
+    setAdminAnnouncements((current) => current.filter((item) => item.id !== id));
+    showToast("Duyuru kaldırıldı.");
+  }
+
+  function addClub(item: Club) {
+    setClubs((current) => [item, ...current]);
+    showToast(`${item.name} kampüs kulübü olarak eklendi.`);
+  }
+
+  function removeClub(id: string) {
+    setClubs((current) => current.filter((item) => item.id !== id));
+    showToast("Kulüp kaydı silindi.");
   }
 
   function navigate(nextView: View) {
@@ -1294,20 +1902,53 @@ export default function Home() {
   }
 
   function sendMessage(text: string) {
-    if (!role) return;
+    if (role !== "student" && role !== "faculty") return;
     setChatMessages((current) => [...current, { from: role, text, time: "16.18" }]);
     showToast("Mesaj gönderildi.");
   }
 
-  if (!role) return <Landing onEnter={enter} />;
+  if (!role) {
+    if (showAdminLogin) {
+      return <AdminLogin onLogin={loginAdmin} onBack={() => setShowAdminLogin(false)} error={adminLoginError} />;
+    }
+    return <Landing onEnter={enter} onAdminLogin={openAdminLogin} />;
+  }
 
   const isStudent = role === "student";
+  const isAdmin = role === "admin";
   const pendingApprovalCount = Object.values(approvalStatuses).filter((status) => status === "pending").length;
 
   let pageContent: React.ReactNode;
   switch (view) {
     case "home":
       pageContent = isStudent ? <StudentDashboard navigate={navigate} /> : <FacultyDashboard navigate={navigate} />;
+      break;
+    case "adminHome":
+      pageContent = (
+        <AdminOverview
+          academics={academics}
+          students={adminStudents}
+          courses={adminCourses}
+          announcements={adminAnnouncements}
+          clubs={clubs}
+          navigate={navigate}
+        />
+      );
+      break;
+    case "adminAcademics":
+      pageContent = <AcademicsManager academics={academics} onAdd={addAcademic} onRemove={removeAcademic} />;
+      break;
+    case "adminStudents":
+      pageContent = <StudentsManager students={adminStudents} onAdd={addAdminStudent} onRemove={removeAdminStudent} />;
+      break;
+    case "adminCourses":
+      pageContent = <CourseModulesManager courses={adminCourses} onAdd={addAdminCourse} onRemove={removeAdminCourse} />;
+      break;
+    case "adminAnnouncements":
+      pageContent = <AnnouncementsManager announcements={adminAnnouncements} onAdd={addAdminAnnouncement} onRemove={removeAdminAnnouncement} />;
+      break;
+    case "adminClubs":
+      pageContent = <ClubsManager clubs={clubs} onAdd={addClub} onRemove={removeClub} />;
       break;
     case "courses":
       pageContent = <CoursesModule role={role} navigate={navigate} />;
@@ -1362,12 +2003,12 @@ export default function Home() {
         </div>
 
         <div className="role-card">
-          <span className={`avatar ${isStudent ? "blue" : "teal"}`}>{isStudent ? "BU" : "Aİ"}</span>
-          <span><b>{isStudent ? "Barış Uysal" : "Dr. Ali İhsan Çetin"}</b><small>{isStudent ? "Öğrenci" : "Akademisyen"}</small></span>
-          <button aria-label="Rolü değiştir" onClick={() => enter(isStudent ? "faculty" : "student")}><Icon name="switch" size={17} /></button>
+          <span className={`avatar ${isAdmin ? "navy" : isStudent ? "blue" : "teal"}`}>{isAdmin ? "YÖ" : isStudent ? "BU" : "Aİ"}</span>
+          <span><b>{isAdmin ? "Yönetici" : isStudent ? "Barış Uysal" : "Dr. Ali İhsan Çetin"}</b><small>{isAdmin ? "Sistem Yöneticisi" : isStudent ? "Öğrenci" : "Akademisyen"}</small></span>
+          {!isAdmin && <button aria-label="Rolü değiştir" onClick={() => enter(isStudent ? "faculty" : "student")}><Icon name="switch" size={17} /></button>}
         </div>
 
-        <p className="nav-label">KAMPÜS</p>
+        <p className="nav-label">{isAdmin ? "YÖNETİM" : "KAMPÜS"}</p>
         <nav className="side-nav" aria-label="Uygulama menüsü">
           {navItems.map((item) => (
             <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => navigate(item.id)}>
@@ -1379,12 +2020,14 @@ export default function Home() {
           ))}
         </nav>
 
-        <div className="sidebar-acadex">
-          <span><Icon name="spark" size={18} /></span>
-          <div><b>Acadex</b><small>Akademik keşif ağı</small></div>
-          <button onClick={() => navigate("acadex")} aria-label="Acadex'i aç"><Icon name="arrow" size={16} /></button>
-        </div>
-        <button className="exit-button" onClick={() => setRole(null)}><Icon name="switch" size={17} /> Giriş ekranına dön</button>
+        {!isAdmin && (
+          <div className="sidebar-acadex">
+            <span><Icon name="spark" size={18} /></span>
+            <div><b>Acadex</b><small>Akademik keşif ağı</small></div>
+            <button onClick={() => navigate("acadex")} aria-label="Acadex'i aç"><Icon name="arrow" size={16} /></button>
+          </div>
+        )}
+        <button className="exit-button" onClick={() => setRole(null)}><Icon name="switch" size={17} /> {isAdmin ? "Yönetici çıkışı" : "Giriş ekranına dön"}</button>
       </aside>
 
       {mobileOpen && <button className="sidebar-backdrop" onClick={() => setMobileOpen(false)} aria-label="Menüyü kapat" />}
@@ -1393,7 +2036,7 @@ export default function Home() {
         <header className="app-header">
           <button className="menu-button" onClick={() => setMobileOpen(true)} aria-label="Menüyü aç"><Icon name="menu" /></button>
           <div className="breadcrumbs">
-            <span>{isStudent ? "Öğrenci Paneli" : "Akademisyen Paneli"}</span>
+            <span>{isAdmin ? "Yönetici Paneli" : isStudent ? "Öğrenci Paneli" : "Akademisyen Paneli"}</span>
             <Icon name="chevron" size={14} />
             <b>{viewTitles[view]}</b>
           </div>
@@ -1402,23 +2045,34 @@ export default function Home() {
             <input aria-label="CampusO'da ara" placeholder="CampusO'da ara..." />
             <kbd>⌘ K</kbd>
           </label>
-          <button className="header-icon message-icon" onClick={() => navigate("messages")} aria-label="Mesajları aç">
-            <Icon name="message" size={19} /><i>4</i>
-          </button>
+          {!isAdmin && (
+            <button className="header-icon message-icon" onClick={() => navigate("messages")} aria-label="Mesajları aç">
+              <Icon name="message" size={19} /><i>4</i>
+            </button>
+          )}
           <button className="header-icon" onClick={() => setNotificationOpen(!notificationOpen)} aria-label="Bildirimleri aç">
             <Icon name="bell" size={20} /><i />
           </button>
-          <button className="header-profile" onClick={() => enter(isStudent ? "faculty" : "student")} title="Rolü değiştir">
-            <span className={`avatar ${isStudent ? "blue" : "teal"}`}>{isStudent ? "BU" : "Aİ"}</span>
-            <span><b>{isStudent ? "Barış Uysal" : "Ali İhsan Çetin"}</b><small>{isStudent ? "19030411049" : "MIS Bölümü"}</small></span>
-            <Icon name="chevron" size={15} />
+          <button className="header-profile" onClick={isAdmin ? undefined : () => enter(isStudent ? "faculty" : "student")} title={isAdmin ? "Sistem Yöneticisi" : "Rolü değiştir"}>
+            <span className={`avatar ${isAdmin ? "navy" : isStudent ? "blue" : "teal"}`}>{isAdmin ? "YÖ" : isStudent ? "BU" : "Aİ"}</span>
+            <span><b>{isAdmin ? "Yönetici" : isStudent ? "Barış Uysal" : "Ali İhsan Çetin"}</b><small>{isAdmin ? "Admin Paneli" : isStudent ? "19030411049" : "MIS Bölümü"}</small></span>
+            {!isAdmin && <Icon name="chevron" size={15} />}
           </button>
 
           {notificationOpen && (
             <div className="notification-popover">
               <div><b>Bildirimler</b><button onClick={() => setNotificationOpen(false)}><Icon name="close" size={16} /></button></div>
-              <button onClick={() => navigate("exams")}><span className="coral"><Icon name="calendar" size={17} /></span><p><b>Sınav takvimi güncellendi</b><small>BUS-202 salon bilgisi eklendi.</small></p></button>
-              <button onClick={() => navigate("acadex")}><span className="teal"><Icon name="spark" size={17} /></span><p><b>Yeni Acadex eşleşmesi</b><small>İlgi alanlarınla eşleşen bir fırsat var.</small></p></button>
+              {isAdmin ? (
+                <>
+                  <button onClick={() => navigate("adminAnnouncements")}><span className="coral"><Icon name="bell" size={17} /></span><p><b>Duyuru yönetimi</b><small>Yeni duyuru ekleyebilir veya düzenleyebilirsin.</small></p></button>
+                  <button onClick={() => navigate("adminAcademics")}><span className="teal"><Icon name="graduation" size={17} /></span><p><b>Akademisyen kayıtları</b><small>Yeni akademisyen ekle veya kayıtları güncelle.</small></p></button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => navigate("exams")}><span className="coral"><Icon name="calendar" size={17} /></span><p><b>Sınav takvimi güncellendi</b><small>BUS-202 salon bilgisi eklendi.</small></p></button>
+                  <button onClick={() => navigate("acadex")}><span className="teal"><Icon name="spark" size={17} /></span><p><b>Yeni Acadex eşleşmesi</b><small>İlgi alanlarınla eşleşen bir fırsat var.</small></p></button>
+                </>
+              )}
             </div>
           )}
         </header>

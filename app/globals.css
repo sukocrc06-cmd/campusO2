@@ -4672,3 +4672,274 @@ input:focus-visible {
     transition-duration: .01ms !important;
   }
 }
+
+/* Admin panel */
+
+.landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.admin-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  color: var(--slate);
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+}
+
+.admin-link:hover {
+  color: var(--blue-700);
+}
+
+.admin-login-screen {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-login-hero {
+  display: grid;
+  min-height: calc(100vh - 94px);
+  place-items: center;
+  padding: 24px;
+}
+
+.admin-login-form {
+  display: flex;
+  width: min(380px, 100%);
+  flex-direction: column;
+  gap: 12px;
+  padding: 34px;
+  text-align: center;
+}
+
+.admin-login-badge {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 4px;
+  place-items: center;
+  color: var(--white);
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--blue-700), var(--blue-900));
+}
+
+.admin-login-form h1 {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: -.02em;
+}
+
+.admin-login-form p {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.admin-login-form label {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.admin-login-form label span {
+  margin-bottom: 6px;
+  color: var(--slate);
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.admin-login-form input {
+  height: 42px;
+  padding: 0 12px;
+  font-size: 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  outline: 0;
+  background: var(--bg);
+}
+
+.admin-login-form .button {
+  margin-top: 6px;
+}
+
+.admin-login-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  color: var(--red);
+  font-size: 7px;
+  font-weight: 700;
+  border: 1px solid rgba(239, 92, 99, .3);
+  border-radius: 9px;
+  background: rgba(239, 92, 99, .08);
+}
+
+.admin-banner {
+  background: linear-gradient(135deg, var(--blue-900), var(--blue-700));
+}
+
+.admin-entity-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 15px;
+  border-color: var(--blue-200);
+}
+
+.admin-entity-form-wide {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.admin-entity-form label {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-entity-form label.wide {
+  grid-column: 1 / -1;
+}
+
+.admin-entity-form label span {
+  margin-bottom: 6px;
+  color: var(--slate);
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.admin-entity-form input,
+.admin-entity-form textarea {
+  padding: 0 10px;
+  font-size: 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  outline: 0;
+  background: var(--bg);
+}
+
+.admin-entity-form input {
+  height: 39px;
+}
+
+.admin-entity-form textarea {
+  padding: 10px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.admin-entity-form fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  grid-column: 1 / -1;
+}
+
+.admin-entity-form legend {
+  width: 100%;
+  margin-bottom: 6px;
+  color: var(--slate);
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.admin-entity-form fieldset button {
+  padding: 0 14px;
+  height: 34px;
+  color: var(--slate);
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--white);
+}
+
+.admin-entity-form fieldset button.active {
+  color: var(--white);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--blue-700), var(--blue-800));
+}
+
+.admin-entity-form .button {
+  min-height: 39px;
+  font-size: 8px;
+}
+
+.admin-entity-list {
+  padding-top: 13px;
+}
+
+.admin-entity-row {
+  display: grid;
+  min-height: 78px;
+  grid-template-columns: 40px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 13px;
+  padding: 7px 5px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-entity-row:last-child {
+  border-bottom: 0;
+}
+
+.admin-entity-row > div > span {
+  color: var(--blue-700);
+  font-size: 6px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-entity-row h3 {
+  margin: 4px 0;
+  font-size: 10px;
+}
+
+.admin-entity-row p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 7px;
+}
+
+.admin-entity-row > button {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  place-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.admin-entity-row > button:hover {
+  color: var(--red);
+  background: rgba(239, 92, 99, .1);
+}
+
+.admin-empty {
+  margin: 10px 5px;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+@media (max-width: 720px) {
+  .admin-entity-form,
+  .admin-entity-form-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-entity-row {
+    grid-template-columns: 34px minmax(0, 1fr) 26px;
+  }
+}

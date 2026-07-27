@@ -1973,14 +1973,30 @@ export default function Home() {
       break;
     case "acadex":
       pageContent = (
-        <AcadexModule
-          role={role}
-          opportunities={opportunities}
-          applied={applied}
-          onApply={applyToOpportunity}
-          onPublish={publishOpportunity}
-          onToast={showToast}
-        />
+        <div className="module-page acadex-page">
+          <ModuleHeader
+            eyebrow="AKADEMİK KEŞİF AĞI"
+            title="Acadex"
+            description="Kaynaklarını özetle, sınavlarına hazırlan ve akademik danışmanlarını keşfet — Acadex burada, CampusO'dan çıkmadan."
+          >
+            <a
+              className="button button-secondary"
+              href="https://acadex-1lku.vercel.app/dashboard.html"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Yeni sekmede aç <Icon name="arrow" size={16} />
+            </a>
+          </ModuleHeader>
+          <div className="acadex-embed-frame">
+            <iframe
+              src="https://acadex-1lku.vercel.app/dashboard.html"
+              title="Acadex"
+              className="acadex-embed-iframe"
+              allow="clipboard-write"
+            />
+          </div>
+        </div>
       );
       break;
     case "approvals":

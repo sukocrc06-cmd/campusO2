@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const developmentPreviewMeta =
@@ -30,4 +31,29 @@ test("renders development preview metadata", async () => {
     /^text\/html\b/i,
   );
   assert.match(await response.text(), developmentPreviewMeta);
+});
+
+test("restores the original landing page and keeps the panels empty", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const emptyDashboardSource = pageSource.match(
+    /function EmptyDashboard[\s\S]*?function ProfileMenu/,
+  )?.[0] ?? "";
+
+  for (const prototypeRecord of [
+    "Barış Uysal",
+    "Ali İhsan Çetin",
+    "19030411049",
+    "BUS-202",
+    "MIS-800",
+    "2,50",
+  ]) {
+    assert.doesNotMatch(emptyDashboardSource, new RegExp(prototypeRecord, "i"));
+  }
+
+  assert.match(pageSource, /Kampüsteki her iş/);
+  assert.match(pageSource, /onClick=\{\(\) => onEnter\("student"\)\}/);
+  assert.match(pageSource, /onClick=\{\(\) => onEnter\("faculty"\)\}/);
+  assert.doesNotMatch(pageSource, /EntryStage|prototype-splash/);
+  assert.match(pageSource, /Henüz aktif modül bulunmuyor/);
+  assert.match(pageSource, /Kişisel veri bulunmuyor/);
 });

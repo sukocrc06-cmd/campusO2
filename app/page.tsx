@@ -3,10 +3,15 @@
 import { useState } from "react";
 
 type Role = "student" | "faculty";
-type EntryStage = "splash" | "role-select";
 type IconName =
   | "home"
   | "book"
+  | "calendar"
+  | "briefcase"
+  | "qr"
+  | "users"
+  | "message"
+  | "spark"
   | "bell"
   | "search"
   | "arrow"
@@ -15,7 +20,8 @@ type IconName =
   | "close"
   | "graduation"
   | "check"
-  | "user";
+  | "user"
+  | "chevron";
 
 const roleCopy: Record<Role, { title: string; panel: string; description: string }> = {
   student: {
@@ -46,6 +52,12 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, React.ReactNode> = {
     home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9" /><path d="M9 20v-7h6v7" /></>,
     book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
+    briefcase: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2" /></>,
+    qr: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><path d="M14 14h3v3h-3zM18 18h3v3h-3zM18 14h3M14 19v2" /></>,
+    users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
+    message: <><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" /><path d="M8 9h8M8 13h5" /></>,
+    spark: <><path d="m12 3 1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8Z" /><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z" /></>,
     bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
     search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
     arrow: <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>,
@@ -55,6 +67,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     graduation: <><path d="m2 10 10-5 10 5-10 5Z" /><path d="M6 12v5c3 2 9 2 12 0v-5" /><path d="M22 10v6" /></>,
     check: <><path d="m5 12 4 4L19 6" /><circle cx="12" cy="12" r="9" /></>,
     user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+    chevron: <path d="m9 18 6-6-6-6" />,
   };
 
   return <svg {...common}>{paths[name]}</svg>;
@@ -69,72 +82,96 @@ function Brand({ inverse = false }: { inverse?: boolean }) {
   );
 }
 
+function Landing({ onEnter }: { onEnter: (role: Role) => void }) {
+  return (
+    <main className="landing">
+      <nav className="landing-nav">
+        <Brand />
+        <div className="landing-links" aria-label="Ana bağlantılar">
+          <a href="#platform">Platform</a>
+          <a href="#modules">Modüller</a>
+          <a href="#acadex">Acadex</a>
+        </div>
+        <div className="landing-nav-actions">
+          <span className="admin-link" title="Yönetici paneli daha sonra hazırlanacak">
+            <Icon name="briefcase" size={15} /> Yönetici Girişi
+          </span>
+          <button className="button button-ghost" onClick={() => onEnter("student")}>
+            Sisteme giriş <Icon name="arrow" size={17} />
+          </button>
+        </div>
+      </nav>
+
+      <section className="hero" id="platform">
+        <div className="hero-copy">
+          <div className="eyebrow"><span /> Kampüsün dijital işletim sistemi</div>
+          <h1>Kampüsteki her iş,<br /><em>tek bir yerde.</em></h1>
+          <p>
+            Derslerden yoklamaya, akademik süreçlerden sosyal yaşama kadar
+            öğrencileri ve akademisyenleri aynı akıllı kampüs deneyiminde buluşturur.
+          </p>
+          <div className="hero-actions">
+            <button className="button button-primary" onClick={() => onEnter("student")}>
+              Öğrenci panelini keşfet <Icon name="arrow" size={18} />
+            </button>
+            <button className="button button-secondary" onClick={() => onEnter("faculty")}>
+              Akademisyen görünümü
+            </button>
+          </div>
+          <div className="hero-trust">
+            <div className="trust-avatars"><span>BU</span><span>Aİ</span><span>EY</span></div>
+            <p><strong>Tek oturum, iki deneyim.</strong><br />Rolüne göre kişiselleşen kampüs.</p>
+          </div>
+        </div>
+
+        <div className="hero-product" aria-label="CampusO öğrenci paneli ön izlemesi">
+          <div className="product-glow" />
+          <div className="product-window">
+            <div className="mini-sidebar">
+              <Brand inverse />
+              <div className="mini-nav">
+                <span className="active"><Icon name="home" size={17} /></span>
+                <span><Icon name="book" size={17} /></span>
+                <span><Icon name="calendar" size={17} /></span>
+                <span><Icon name="message" size={17} /></span>
+              </div>
+              <span className="mini-avatar">BU</span>
+            </div>
+            <div className="mini-main">
+              <div className="mini-top"><span>Merhaba, Barış 👋</span><span className="mini-bell"><Icon name="bell" size={15} /></span></div>
+              <div className="mini-id-card">
+                <div><small>GENEL NOT ORTALAMASI</small><strong>2,50</strong><span>/ 4.00</span></div>
+                <div className="mini-progress"><i /></div>
+                <p>İşletme Fakültesi · YBS</p>
+              </div>
+              <div className="mini-grid">
+                <div><span className="mini-icon blue"><Icon name="book" size={16} /></span><b>Derslerim</b><small>8 aktif ders</small></div>
+                <div><span className="mini-icon teal"><Icon name="qr" size={16} /></span><b>QR Yoklama</b><small>MIS-800</small></div>
+                <div><span className="mini-icon coral"><Icon name="spark" size={16} /></span><b>Acadex</b><small>3 yeni fırsat</small></div>
+              </div>
+              <div className="mini-event"><span>12</span><div><b>Kariyer Günleri</b><small>12 Temmuz · 13.00</small></div><i><Icon name="chevron" size={15} /></i></div>
+            </div>
+          </div>
+          <div className="floating-chip chip-one"><Icon name="check" size={16} /><span><b>Yoklama tamamlandı</b><small>32 / 32 öğrenci</small></span></div>
+          <div className="floating-chip chip-two"><Icon name="spark" size={16} /><span><b>Yeni Acadex eşleşmesi</b><small>%94 ortak ilgi alanı</small></span></div>
+        </div>
+      </section>
+
+      <section className="feature-strip" id="modules">
+        <div><Icon name="book" /><span><b>Akademik yaşam</b><small>Ders, not ve sınav süreçleri</small></span></div>
+        <div><Icon name="qr" /><span><b>Akıllı yoklama</b><small>Hızlı ve güvenli QR takibi</small></span></div>
+        <div id="acadex"><Icon name="spark" /><span><b>Acadex ağı</b><small>Danışman, araştırma ve yayın</small></span></div>
+        <div><Icon name="users" /><span><b>Sosyal kampüs</b><small>Kulüpler, etkinlikler ve yaşam</small></span></div>
+      </section>
+    </main>
+  );
+}
+
 function RoleSymbol({ role, compact = false }: { role: Role; compact?: boolean }) {
   return (
     <span className={`clean-role-symbol ${role} ${compact ? "compact" : ""}`}>
       <Icon name={role === "student" ? "graduation" : "book"} size={compact ? 18 : 26} />
     </span>
-  );
-}
-
-function EntryExperience({
-  stage,
-  selectedRole,
-  onContinue,
-  onSelectRole,
-  onEnter,
-}: {
-  stage: EntryStage;
-  selectedRole: Role;
-  onContinue: () => void;
-  onSelectRole: (role: Role) => void;
-  onEnter: (role: Role) => void;
-}) {
-  if (stage === "splash") {
-    return (
-      <main className="prototype-entry prototype-splash">
-        <button className="splash-surface" onClick={onContinue} aria-label="CampusO'ya devam et">
-          <span className="splash-logo"><Icon name="graduation" size={48} /></span>
-          <strong>CampusO</strong>
-          <small>Campus Online</small>
-          <span className="splash-dots"><i /><i /><i /></span>
-          <em>devam etmek için dokun</em>
-        </button>
-      </main>
-    );
-  }
-
-  return (
-    <main className="prototype-entry">
-      <section className="role-select-card clean-role-select" aria-label="CampusO rol seçimi">
-        <Brand />
-        <div className="clean-role-heading">
-          <span>ROL SEÇİMİ</span>
-          <h1>Hangi paneli görüntülemek istiyorsun?</h1>
-          <p>Gerçek kullanıcı bilgileri bağlanana kadar yalnızca panel türünü seç.</p>
-        </div>
-
-        <div className="clean-role-grid">
-          {(["student", "faculty"] as Role[]).map((role) => (
-            <button
-              key={role}
-              className={`clean-role-option ${selectedRole === role ? "selected" : ""}`}
-              onClick={() => onSelectRole(role)}
-            >
-              <RoleSymbol role={role} />
-              <span><b>{roleCopy[role].title}</b><small>{roleCopy[role].description}</small></span>
-              <i><Icon name="check" size={16} /></i>
-            </button>
-          ))}
-        </div>
-
-        <button className="enter-campus-button" onClick={() => onEnter(selectedRole)}>
-          {roleCopy[selectedRole].panel}ni aç
-          <Icon name="arrow" size={18} />
-        </button>
-        <p className="entry-note">CampusO · Temiz başlangıç paneli</p>
-      </section>
-    </main>
   );
 }
 
@@ -194,7 +231,7 @@ function ProfileMenu({
           {role === "student" ? "Akademisyen paneline geç" : "Öğrenci paneline geç"}
         </button>
         <button className="clean-secondary-action" onClick={onChooseRole}>
-          Rol seçim ekranına dön
+          Ana sayfaya dön
         </button>
       </section>
     </div>
@@ -203,35 +240,23 @@ function ProfileMenu({
 
 export default function Home() {
   const [role, setRole] = useState<Role | null>(null);
-  const [entryStage, setEntryStage] = useState<EntryStage>("splash");
-  const [roleChoice, setRoleChoice] = useState<Role>("student");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   function enter(nextRole: Role) {
     setRole(nextRole);
-    setRoleChoice(nextRole);
     setMobileOpen(false);
     setProfileOpen(false);
   }
 
-  function returnToRoles() {
+  function returnToLanding() {
     setRole(null);
-    setEntryStage("role-select");
     setMobileOpen(false);
     setProfileOpen(false);
   }
 
   if (!role) {
-    return (
-      <EntryExperience
-        stage={entryStage}
-        selectedRole={roleChoice}
-        onContinue={() => setEntryStage("role-select")}
-        onSelectRole={setRoleChoice}
-        onEnter={enter}
-      />
-    );
+    return <Landing onEnter={enter} />;
   }
 
   const copy = roleCopy[role];
@@ -260,7 +285,7 @@ export default function Home() {
           <div><b>Modüller</b><small>Henüz modül eklenmedi</small></div>
         </div>
 
-        <button className="exit-button" onClick={returnToRoles}><Icon name="switch" size={17} /> Rol seçimine dön</button>
+        <button className="exit-button" onClick={returnToLanding}><Icon name="arrow" size={17} /> Ana sayfaya dön</button>
       </aside>
 
       {mobileOpen && <button className="sidebar-backdrop" onClick={() => setMobileOpen(false)} aria-label="Menüyü kapat" />}
@@ -295,7 +320,7 @@ export default function Home() {
           role={role}
           onClose={() => setProfileOpen(false)}
           onSwitchRole={() => enter(role === "student" ? "faculty" : "student")}
-          onChooseRole={returnToRoles}
+          onChooseRole={returnToLanding}
         />
       )}
 

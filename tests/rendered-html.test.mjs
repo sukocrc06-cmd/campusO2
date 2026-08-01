@@ -46,7 +46,11 @@ test("keeps panels free of personal prototype records and exposes Vol 1", async 
 
   assert.match(pageSource, /QR Kodla Ders Yoklaması/);
   assert.match(pageSource, /Ders grubu oluştur/);
-  assert.match(pageSource, /Ders grubuna katıl/);
-  assert.match(pageSource, /campuso:qr-attendance:v1/);
+  assert.match(pageSource, /Ders grubuna (kodla )?katıl/);
+  assert.match(pageSource, /\/api\/qr/);
+  assert.match(pageSource, /attendance=/);
+  assert.match(pageSource, /record-attendance/);
+  assert.match(pageSource, /Kamerayı aç/);
+  assert.doesNotMatch(pageSource, /localStorage\.setItem\(QR_STORAGE_KEY/);
   assert.match(pageSource, /Kişisel veri bulunmuyor/);
 });

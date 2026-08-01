@@ -21,7 +21,9 @@ type IconName =
   | "graduation"
   | "check"
   | "user"
-  | "chevron";
+  | "chevron"
+  | "shield"
+  | "settings";
 
 const roleCopy: Record<Role, { title: string; panel: string; description: string }> = {
   student: {
@@ -68,6 +70,8 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     check: <><path d="m5 12 4 4L19 6" /><circle cx="12" cy="12" r="9" /></>,
     user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
     chevron: <path d="m9 18 6-6-6-6" />,
+    shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.1.4.3.7.6 1 .3.2.7.4 1.1.4h.1v4h-.1c-.4 0-.8.2-1.1.4-.3.3-.5.6-.6 1Z" /></>,
   };
 
   return <svg {...common}>{paths[name]}</svg>;
@@ -82,7 +86,7 @@ function Brand({ inverse = false }: { inverse?: boolean }) {
   );
 }
 
-function Landing({ onEnter }: { onEnter: (role: Role) => void }) {
+function Landing({ onEnter, onAdmin }: { onEnter: (role: Role) => void; onAdmin: () => void }) {
   return (
     <main className="landing">
       <nav className="landing-nav">
@@ -93,9 +97,9 @@ function Landing({ onEnter }: { onEnter: (role: Role) => void }) {
           <a href="#acadex">Acadex</a>
         </div>
         <div className="landing-nav-actions">
-          <span className="admin-link" title="Yönetici paneli daha sonra hazırlanacak">
+          <button className="admin-link" onClick={onAdmin}>
             <Icon name="briefcase" size={15} /> Yönetici Girişi
-          </span>
+          </button>
           <button className="button button-ghost" onClick={() => onEnter("student")}>
             Sisteme giriş <Icon name="arrow" size={17} />
           </button>
@@ -201,6 +205,61 @@ function EmptyDashboard({ role }: { role: Role }) {
   );
 }
 
+
+function AdminPanel({ onExit }: { onExit: () => void }) {
+  return (
+    <main className="admin-shell">
+      <aside className="admin-sidebar">
+        <Brand inverse />
+        <div className="admin-identity">
+          <span><Icon name="shield" size={20} /></span>
+          <div><b>Yönetim Merkezi</b><small>CampusO Admin</small></div>
+        </div>
+
+        <p className="nav-label">YÖNETİM</p>
+        <nav className="side-nav" aria-label="Yönetici menüsü">
+          <button className="active"><Icon name="home" size={19} /><span>Genel Bakış</span></button>
+        </nav>
+
+        <div className="admin-sidebar-empty">
+          <span><Icon name="settings" size={18} /></span>
+          <div><b>Yönetim araçları</b><small>Henüz modül eklenmedi</small></div>
+        </div>
+
+        <button className="exit-button" onClick={onExit}>
+          <Icon name="arrow" size={17} /> Ana sayfaya dön
+        </button>
+      </aside>
+
+      <section className="admin-main">
+        <header className="admin-header">
+          <div><span>CampusO</span><b>Yönetici Paneli</b></div>
+          <span className="admin-stage-badge"><i /> Kurulum aşaması</span>
+        </header>
+
+        <div className="admin-body">
+          <section className="admin-welcome">
+            <div>
+              <span className="banner-kicker">YÖNETİM MERKEZİ</span>
+              <h1>Admin paneli hazır.</h1>
+              <p>CampusO’nun yönetim modülleri, yetkileri ve araçları kararlaştırıldıkça bu alana tek tek eklenecek.</p>
+            </div>
+            <span className="admin-shield"><Icon name="shield" size={38} /></span>
+          </section>
+
+          <section className="admin-empty panel" aria-label="Boş yönetici modül alanı">
+            <span><Icon name="settings" size={34} /></span>
+            <small>YÖNETİCİ MODÜLLERİ</small>
+            <h2>Henüz yönetim aracı bulunmuyor.</h2>
+            <p>Kullanıcılar, roller, yetkiler, QR, Store ve diğer modüller birlikte karar verildikten sonra buraya entegre edilecek.</p>
+            <em><i /> İlk admin modülü bekleniyor</em>
+          </section>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function ProfileMenu({
   role,
   onClose,
@@ -240,23 +299,30 @@ function ProfileMenu({
 
 export default function Home() {
   const [role, setRole] = useState<Role | null>(null);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   function enter(nextRole: Role) {
     setRole(nextRole);
+    setAdminOpen(false);
     setMobileOpen(false);
     setProfileOpen(false);
   }
 
   function returnToLanding() {
     setRole(null);
+    setAdminOpen(false);
     setMobileOpen(false);
     setProfileOpen(false);
   }
 
+  if (adminOpen) {
+    return <AdminPanel onExit={returnToLanding} />;
+  }
+
   if (!role) {
-    return <Landing onEnter={enter} />;
+    return <Landing onEnter={enter} onAdmin={() => setAdminOpen(true)} />;
   }
 
   const copy = roleCopy[role];

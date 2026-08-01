@@ -196,6 +196,137 @@
   background: #effbf6;
 }
 
+.qr-scan-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 15px 17px;
+  color: #0b4f83;
+  border: 1px solid #bad9ff;
+  border-radius: 14px;
+  background: #edf6ff;
+}
+
+.qr-scan-notice > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.qr-scan-notice b { font-size: 9.5px; }
+.qr-scan-notice small { margin-top: 3px; font-size: 8px; opacity: .78; }
+
+.student-scan-card {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 16px;
+  padding: 25px 28px;
+  color: var(--white);
+  border: 1px solid rgba(255, 255, 255, .18);
+  background:
+    radial-gradient(360px 180px at 15% 10%, rgba(55, 182, 232, .34), transparent 72%),
+    linear-gradient(135deg, var(--blue-800), var(--blue-950));
+}
+
+.student-scan-card .module-launch-icon {
+  color: var(--white);
+  border-color: rgba(255, 255, 255, .22);
+  background: rgba(255, 255, 255, .12);
+}
+
+.student-scan-card small {
+  color: #a9d8ff;
+  font-size: 8px;
+  font-weight: 820;
+  letter-spacing: .14em;
+}
+
+.student-scan-card h2 {
+  margin: 6px 0;
+  font-size: 20px;
+  letter-spacing: -.03em;
+}
+
+.student-scan-card p {
+  max-width: 680px;
+  margin: 0;
+  color: rgba(255, 255, 255, .72);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.student-scan-card > .button {
+  color: var(--blue-900);
+  background: var(--white);
+}
+
+.qr-scanner-layer {
+  position: fixed;
+  z-index: 130;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.qr-scanner-backdrop {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  background: rgba(4, 20, 48, .78);
+  backdrop-filter: blur(10px);
+}
+
+.qr-scanner-card {
+  position: relative;
+  width: min(440px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 22px;
+  background: #061a3a;
+  box-shadow: 0 34px 90px -30px rgba(0, 0, 0, .8);
+}
+
+.qr-scanner-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px 18px;
+  color: var(--white);
+}
+
+.qr-scanner-card header > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.qr-scanner-card header b { font-size: 11px; }
+.qr-scanner-card header small { margin-top: 3px; color: rgba(255, 255, 255, .62); font-size: 8px; }
+
+.qr-scanner-card header button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--white);
+  cursor: pointer;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .1);
+}
+
+.qr-scanner-card video {
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  max-height: 65dvh;
+  object-fit: cover;
+  background: #020b19;
+}
+
 .qr-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -666,6 +797,22 @@
   }
 
   .module-launch-card > .button {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .student-scan-card {
+    grid-template-columns: 62px 1fr;
+    padding: 21px;
+  }
+
+  .student-scan-card .module-launch-icon {
+    width: 62px;
+    height: 62px;
+  }
+
+  .student-scan-card > .button {
     grid-column: 1 / -1;
     width: 100%;
     justify-content: center;

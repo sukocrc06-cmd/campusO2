@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import QRCode from "qrcode";
 
 type Role = "student" | "faculty";
+type PanelView = "home" | "qr";
 type IconName =
   | "home"
   | "book"
@@ -37,6 +39,68 @@ const roleCopy: Record<Role, { title: string; panel: string; description: string
     description: "Akademisyene açılacak modüller burada yer alacak.",
   },
 };
+
+type CourseGroup = {
+  id: string;
+  name: string;
+  courseCode: string;
+  section: string;
+  joinCode: string;
+  createdAt: number;
+};
+
+type AttendanceSession = {
+  id: string;
+  courseId: string;
+  token: string;
+  createdAt: number;
+  expiresAt: number;
+  closedAt?: number;
+};
+
+type StudentProfile = { name: string; number: string };
+type Membership = { courseId: string; joinedAt: number };
+type AttendanceRecord = {
+  id: string;
+  sessionId: string;
+  courseId: string;
+  studentName: string;
+  studentNumber: string;
+  checkedAt: number;
+};
+
+type QrStore = {
+  enabled: boolean;
+  courses: CourseGroup[];
+  sessions: AttendanceSession[];
+  profile: StudentProfile | null;
+  memberships: Membership[];
+  records: AttendanceRecord[];
+};
+
+const emptyQrStore: QrStore = {
+  enabled: true,
+  courses: [],
+  sessions: [],
+  profile: null,
+  memberships: [],
+  records: [],
+};
+
+const QR_STORAGE_KEY = "campuso:qr-attendance:v1";
+
+function createId(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createCode(length = 6) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+}
+
+function formatTime(value: number) {
+  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "short", timeStyle: "short" }).format(value);
+}
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const common = {
@@ -179,34 +243,363 @@ function RoleSymbol({ role, compact = false }: { role: Role; compact?: boolean }
   );
 }
 
-function EmptyDashboard({ role }: { role: Role }) {
+type StoreSetter = (next: QrStore | ((current: QrStore) => QrStore)) => void;
+
+function QrVisual({ value }: { value: string }) {
+  const [source, setSource] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    QRCode.toDataURL(value, { width: 260, margin: 2, color: { dark: "#08275f", light: "#ffffff" } })
+      .then((result) => active && setSource(result))
+      .catch(() => active && setSource(""));
+    return () => { active = false; };
+  }, [value]);
+
+  return source
+    ? <img className="qr-image" src={source} alt="Aktif yoklama QR kodu" /> // eslint-disable-line @next/next/no-img-element
+    : <span className="qr-loading"><Icon name="qr" size={44} /></span>;
+}
+
+function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
   return (
     <div className="clean-dashboard">
       <section className={`welcome-banner clean-welcome ${role === "student" ? "student-banner" : "faculty-banner"}`}>
         <div>
-          <span className="banner-kicker">TEMİZ BAŞLANGIÇ</span>
+          <span className="banner-kicker">VOL 1 AKTİF</span>
           <h2>{roleCopy[role].panel} hazır.</h2>
-          <p>Demo kullanıcılar, örnek dersler, notlar, istatistikler ve bildirimler bu görünümden kaldırıldı.</p>
+          <p>İlk CampusO modülü olan QR Kodla Ders Yoklaması kullanıma açıldı.</p>
         </div>
-        <span className="clean-ready-badge"><Icon name="check" size={24} /><b>Hazır</b></span>
+        <span className="clean-ready-badge"><Icon name="qr" size={25} /><b>Vol 1</b></span>
       </section>
 
-      <section className="clean-empty-panel panel" aria-label="Boş modül alanı">
-        <span className="clean-empty-icon"><Icon name="graduation" size={34} /></span>
-        <small>MODÜL ALANI</small>
-        <h1>Henüz aktif modül bulunmuyor.</h1>
-        <p>
-          CampusO modülleri konuşulup kararlaştırıldıktan sonra bu panele tek tek eklenecek.
-          Bu aşamada hiçbir öğrenci veya akademisyen verisi gösterilmiyor.
-        </p>
-        <span className="clean-empty-status"><i /> Sonraki modül kararı bekleniyor</span>
+      <section className="module-launch-card panel">
+        <span className="module-launch-icon"><Icon name="qr" size={34} /></span>
+        <div>
+          <small>VOL 1</small>
+          <h1>QR Kodla Ders Yoklaması</h1>
+          <p>
+            {role === "faculty"
+              ? "Ders grubunu oluştur, katılım kodunu paylaş ve süreli yoklamayı başlat."
+              : "Profilini tanımla, akademisyenin katılım koduyla derse katıl ve yoklamanı tamamla."}
+          </p>
+        </div>
+        <button className="button button-primary" onClick={onOpenQr}>
+          Modülü aç <Icon name="arrow" size={17} />
+        </button>
+      </section>
+
+      <section className="next-volume panel">
+        <span><Icon name="book" size={22} /></span>
+        <div><b>Diğer modüller henüz boş</b><small>Her volümü konuşup onayladıktan sonra sırayla ekleyeceğiz.</small></div>
       </section>
     </div>
   );
 }
 
+function FacultyQr({ store, onChange }: { store: QrStore; onChange: StoreSetter }) {
+  const [courseName, setCourseName] = useState("");
+  const [courseCode, setCourseCode] = useState("");
+  const [section, setSection] = useState("");
+  const [duration, setDuration] = useState(3);
+  const [selectedCourseId, setSelectedCourseId] = useState(store.courses[0]?.id ?? "");
+  const [now, setNow] = useState(0);
+  const [message, setMessage] = useState("");
 
-function AdminPanel({ onExit }: { onExit: () => void }) {
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const effectiveCourseId = selectedCourseId || store.courses[0]?.id || "";
+  const activeSession = store.sessions.find((session) => !session.closedAt && session.expiresAt > now);
+  const activeCourse = store.courses.find((course) => course.id === activeSession?.courseId);
+  const activeRecords = store.records.filter((record) => record.sessionId === activeSession?.id);
+  const secondsLeft = activeSession ? Math.max(0, Math.ceil((activeSession.expiresAt - now) / 1000)) : 0;
+
+  function createCourse(event: FormEvent) {
+    event.preventDefault();
+    if (!courseName.trim() || !courseCode.trim()) {
+      setMessage("Ders adı ve ders kodu zorunludur.");
+      return;
+    }
+    const course: CourseGroup = {
+      id: createId("course"),
+      name: courseName.trim(),
+      courseCode: courseCode.trim().toUpperCase(),
+      section: section.trim() || "1",
+      joinCode: createCode(),
+      createdAt: Date.now(),
+    };
+    onChange((current) => ({ ...current, courses: [course, ...current.courses] }));
+    setSelectedCourseId(course.id);
+    setCourseName("");
+    setCourseCode("");
+    setSection("");
+    setMessage(`${course.courseCode} ders grubu oluşturuldu.`);
+  }
+
+  function startAttendance() {
+    if (!effectiveCourseId) {
+      setMessage("Önce bir ders grubu oluşturmalısın.");
+      return;
+    }
+    const startedAt = Date.now();
+    const session: AttendanceSession = {
+      id: createId("session"),
+      courseId: effectiveCourseId,
+      token: createCode(8),
+      createdAt: startedAt,
+      expiresAt: startedAt + duration * 60_000,
+    };
+    onChange((current) => ({
+      ...current,
+      sessions: [session, ...current.sessions.map((item) => !item.closedAt && item.expiresAt > startedAt ? { ...item, closedAt: startedAt } : item)],
+    }));
+    setMessage("Yoklama başlatıldı.");
+  }
+
+  function closeAttendance() {
+    if (!activeSession) return;
+    onChange((current) => ({
+      ...current,
+      sessions: current.sessions.map((session) => session.id === activeSession.id ? { ...session, closedAt: Date.now() } : session),
+    }));
+    setMessage("Yoklama kapatıldı.");
+  }
+
+  return (
+    <div className="qr-workspace">
+      <section className="qr-page-heading">
+        <div><small>AKADEMİSYEN · VOL 1</small><h1>QR Yoklama Yönetimi</h1><p>Ders grubunu kur, katılım kodunu paylaş ve süreli QR yoklamasını başlat.</p></div>
+        <span className={`module-status ${store.enabled ? "online" : "offline"}`}><i /> {store.enabled ? "Modül aktif" : "Modül kapalı"}</span>
+      </section>
+
+      {!store.enabled && <div className="module-disabled"><Icon name="shield" /><span><b>QR modülü yönetici tarafından kapatıldı.</b><small>Yeni işlem yapılamaz.</small></span></div>}
+      {message && <div className="qr-message" role="status">{message}</div>}
+
+      <div className="qr-grid">
+        <section className="panel qr-card">
+          <div className="qr-card-title"><span><Icon name="book" /></span><div><small>1. ADIM</small><h2>Ders grubu oluştur</h2></div></div>
+          <form className="qr-form" onSubmit={createCourse}>
+            <label>Ders adı<input value={courseName} onChange={(event) => setCourseName(event.target.value)} placeholder="Örn. Yönetim Bilişim Sistemleri" disabled={!store.enabled} /></label>
+            <div className="qr-form-row">
+              <label>Ders kodu<input value={courseCode} onChange={(event) => setCourseCode(event.target.value)} placeholder="YBS-401" disabled={!store.enabled} /></label>
+              <label>Şube<input value={section} onChange={(event) => setSection(event.target.value)} placeholder="1" disabled={!store.enabled} /></label>
+            </div>
+            <button className="button button-primary" disabled={!store.enabled}>Grubu oluştur</button>
+          </form>
+        </section>
+
+        <section className="panel qr-card">
+          <div className="qr-card-title"><span><Icon name="qr" /></span><div><small>2. ADIM</small><h2>Yoklamayı başlat</h2></div></div>
+          {store.courses.length ? (
+            <div className="qr-form">
+              <label>Ders grubu
+                <select value={effectiveCourseId} onChange={(event) => setSelectedCourseId(event.target.value)} disabled={!store.enabled || Boolean(activeSession)}>
+                  {store.courses.map((course) => <option key={course.id} value={course.id}>{course.courseCode} · {course.name}</option>)}
+                </select>
+              </label>
+              <label>Süre
+                <select value={duration} onChange={(event) => setDuration(Number(event.target.value))} disabled={!store.enabled || Boolean(activeSession)}>
+                  {[1, 2, 3, 5, 10].map((minute) => <option key={minute} value={minute}>{minute} dakika</option>)}
+                </select>
+              </label>
+              <button className="button button-primary" onClick={startAttendance} disabled={!store.enabled || Boolean(activeSession)}>Yoklamayı başlat</button>
+            </div>
+          ) : <div className="qr-empty"><Icon name="book" /><p>Yoklama için önce ders grubu oluştur.</p></div>}
+        </section>
+      </div>
+
+      {activeSession && activeCourse && (
+        <section className="panel active-attendance">
+          <div className="attendance-qr">
+            <QrVisual value={`CAMPUSO|${activeSession.id}|${activeSession.token}`} />
+            <span>YOKLAMA KODU</span>
+            <strong>{activeSession.token}</strong>
+          </div>
+          <div className="attendance-detail">
+            <small>AKTİF YOKLAMA</small>
+            <h2>{activeCourse.courseCode} · {activeCourse.name}</h2>
+            <p>Öğrenciler CampusO öğrenci panelinden bu derse katılıp kodu doğrulayabilir.</p>
+            <div className="attendance-metrics">
+              <div><span>Kalan süre</span><b>{Math.floor(secondsLeft / 60).toString().padStart(2, "0")}:{(secondsLeft % 60).toString().padStart(2, "0")}</b></div>
+              <div><span>Katılımcı</span><b>{activeRecords.length}</b></div>
+              <div><span>Ders katılım kodu</span><b>{activeCourse.joinCode}</b></div>
+            </div>
+            <button className="button button-secondary" onClick={closeAttendance}>Yoklamayı kapat</button>
+          </div>
+          <div className="live-participants">
+            <div className="qr-card-title"><span><Icon name="users" /></span><div><small>CANLI</small><h2>Katılanlar</h2></div></div>
+            {activeRecords.length ? activeRecords.map((record) => (
+              <div className="participant-row" key={record.id}><span>{record.studentName.slice(0, 2).toUpperCase()}</span><div><b>{record.studentName}</b><small>{record.studentNumber} · {formatTime(record.checkedAt)}</small></div><Icon name="check" size={18} /></div>
+            )) : <div className="qr-empty compact"><p>Henüz katılım yok.</p></div>}
+          </div>
+        </section>
+      )}
+
+      <section className="panel course-list">
+        <div className="qr-card-title"><span><Icon name="users" /></span><div><small>DERSLER</small><h2>Oluşturulan gruplar</h2></div></div>
+        {store.courses.length ? store.courses.map((course) => (
+          <div className="course-row" key={course.id}><div><b>{course.courseCode} · {course.name}</b><small>Şube {course.section} · {store.memberships.filter((item) => item.courseId === course.id).length} öğrenci</small></div><span><small>KATILIM KODU</small><strong>{course.joinCode}</strong></span></div>
+        )) : <div className="qr-empty compact"><p>Henüz ders grubu oluşturulmadı.</p></div>}
+      </section>
+    </div>
+  );
+}
+
+function StudentQr({ store, onChange }: { store: QrStore; onChange: StoreSetter }) {
+  const [name, setName] = useState(store.profile?.name ?? "");
+  const [number, setNumber] = useState(store.profile?.number ?? "");
+  const [joinCode, setJoinCode] = useState("");
+  const [attendanceCode, setAttendanceCode] = useState("");
+  const [message, setMessage] = useState("");
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const joinedIds = new Set(store.memberships.map((item) => item.courseId));
+  const joinedCourses = store.courses.filter((course) => joinedIds.has(course.id));
+  const activeSessions = store.sessions.filter((session) => joinedIds.has(session.courseId) && !session.closedAt && session.expiresAt > now);
+
+  function saveProfile(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim() || !number.trim()) {
+      setMessage("Ad soyad ve öğrenci numarası zorunludur.");
+      return;
+    }
+    onChange((current) => ({ ...current, profile: { name: name.trim(), number: number.trim() } }));
+    setMessage("Öğrenci profili kaydedildi.");
+  }
+
+  function joinCourse(event: FormEvent) {
+    event.preventDefault();
+    if (!store.profile) {
+      setMessage("Önce öğrenci profilini kaydetmelisin.");
+      return;
+    }
+    const course = store.courses.find((item) => item.joinCode === joinCode.trim().toUpperCase());
+    if (!course) {
+      setMessage("Katılım kodu geçersiz.");
+      return;
+    }
+    if (joinedIds.has(course.id)) {
+      setMessage("Bu ders grubuna zaten katıldın.");
+      return;
+    }
+    onChange((current) => ({ ...current, memberships: [{ courseId: course.id, joinedAt: Date.now() }, ...current.memberships] }));
+    setJoinCode("");
+    setMessage(`${course.courseCode} ders grubuna katıldın.`);
+  }
+
+  function attend(session: AttendanceSession) {
+    if (!store.profile) {
+      setMessage("Önce öğrenci profilini kaydetmelisin.");
+      return;
+    }
+    if (!joinedIds.has(session.courseId) || session.closedAt || session.expiresAt <= Date.now()) {
+      setMessage("Bu yoklama artık geçerli değil.");
+      return;
+    }
+    if (store.records.some((record) => record.sessionId === session.id && record.studentNumber === store.profile?.number)) {
+      setMessage("Bu yoklamaya daha önce katıldın.");
+      return;
+    }
+    const record: AttendanceRecord = {
+      id: createId("attendance"),
+      sessionId: session.id,
+      courseId: session.courseId,
+      studentName: store.profile.name,
+      studentNumber: store.profile.number,
+      checkedAt: Date.now(),
+    };
+    onChange((current) => ({ ...current, records: [record, ...current.records] }));
+    setAttendanceCode("");
+    setMessage("Yoklaman başarıyla kaydedildi.");
+  }
+
+  function verifyCode(event: FormEvent) {
+    event.preventDefault();
+    const session = store.sessions.find((item) => item.token === attendanceCode.trim().toUpperCase());
+    if (!session) {
+      setMessage("Yoklama kodu bulunamadı.");
+      return;
+    }
+    attend(session);
+  }
+
+  return (
+    <div className="qr-workspace">
+      <section className="qr-page-heading">
+        <div><small>ÖĞRENCİ · VOL 1</small><h1>QR Yoklama</h1><p>Ders grubuna katıl ve açık yoklamanı birkaç saniyede tamamla.</p></div>
+        <span className={`module-status ${store.enabled ? "online" : "offline"}`}><i /> {store.enabled ? "Modül aktif" : "Modül kapalı"}</span>
+      </section>
+
+      {!store.enabled && <div className="module-disabled"><Icon name="shield" /><span><b>QR modülü yönetici tarafından kapatıldı.</b><small>Yeni işlem yapılamaz.</small></span></div>}
+      {message && <div className="qr-message" role="status">{message}</div>}
+
+      <div className="qr-grid">
+        <section className="panel qr-card">
+          <div className="qr-card-title"><span><Icon name="user" /></span><div><small>1. ADIM</small><h2>Öğrenci profili</h2></div></div>
+          <form className="qr-form" onSubmit={saveProfile}>
+            <label>Ad soyad<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Adın ve soyadın" disabled={!store.enabled} /></label>
+            <label>Öğrenci numarası<input value={number} onChange={(event) => setNumber(event.target.value)} placeholder="Öğrenci numaran" disabled={!store.enabled} /></label>
+            <button className="button button-primary" disabled={!store.enabled}>{store.profile ? "Profili güncelle" : "Profili kaydet"}</button>
+          </form>
+        </section>
+
+        <section className="panel qr-card">
+          <div className="qr-card-title"><span><Icon name="book" /></span><div><small>2. ADIM</small><h2>Ders grubuna katıl</h2></div></div>
+          <form className="qr-form" onSubmit={joinCourse}>
+            <label>Akademisyen katılım kodu<input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="Örn. 7K9P2M" maxLength={6} disabled={!store.enabled} /></label>
+            <button className="button button-primary" disabled={!store.enabled}>Derse katıl</button>
+          </form>
+        </section>
+      </div>
+
+      <section className="panel attendance-check">
+        <div className="qr-card-title"><span><Icon name="qr" /></span><div><small>3. ADIM</small><h2>Aktif yoklamaya katıl</h2></div></div>
+        <form className="attendance-code-form" onSubmit={verifyCode}>
+          <label>QR ekranındaki yoklama kodu<input value={attendanceCode} onChange={(event) => setAttendanceCode(event.target.value.toUpperCase())} placeholder="8 haneli kod" maxLength={8} disabled={!store.enabled} /></label>
+          <button className="button button-primary" disabled={!store.enabled}>Yoklamayı doğrula</button>
+        </form>
+        <div className="active-session-list">
+          {activeSessions.length ? activeSessions.map((session) => {
+            const course = store.courses.find((item) => item.id === session.courseId);
+            const completed = store.records.some((record) => record.sessionId === session.id && record.studentNumber === store.profile?.number);
+            return <div className="student-session" key={session.id}><span><Icon name={completed ? "check" : "qr"} /></span><div><b>{course?.courseCode} · {course?.name}</b><small>{completed ? "Yoklaman kaydedildi" : `${formatTime(session.expiresAt)} tarihine kadar açık`}</small></div><button onClick={() => attend(session)} disabled={completed || !store.enabled}>{completed ? "Tamamlandı" : "Katıl"}</button></div>;
+          }) : <div className="qr-empty compact"><p>Katıldığın derslerde açık yoklama bulunmuyor.</p></div>}
+        </div>
+      </section>
+
+      <div className="qr-grid">
+        <section className="panel course-list">
+          <div className="qr-card-title"><span><Icon name="book" /></span><div><small>DERSLERİM</small><h2>Katıldığın gruplar</h2></div></div>
+          {joinedCourses.length ? joinedCourses.map((course) => <div className="course-row" key={course.id}><div><b>{course.courseCode} · {course.name}</b><small>Şube {course.section}</small></div><Icon name="check" size={20} /></div>) : <div className="qr-empty compact"><p>Henüz bir ders grubuna katılmadın.</p></div>}
+        </section>
+        <section className="panel course-list">
+          <div className="qr-card-title"><span><Icon name="calendar" /></span><div><small>GEÇMİŞ</small><h2>Yoklamalarım</h2></div></div>
+          {store.records.filter((record) => record.studentNumber === store.profile?.number).length
+            ? store.records.filter((record) => record.studentNumber === store.profile?.number).map((record) => {
+              const course = store.courses.find((item) => item.id === record.courseId);
+              return <div className="history-row" key={record.id}><Icon name="check" size={18} /><div><b>{course?.courseCode} · {course?.name}</b><small>{formatTime(record.checkedAt)}</small></div></div>;
+            })
+            : <div className="qr-empty compact"><p>Henüz yoklama kaydın yok.</p></div>}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function QrModule({ role, store, onChange }: { role: Role; store: QrStore; onChange: StoreSetter }) {
+  return role === "faculty"
+    ? <FacultyQr store={store} onChange={onChange} />
+    : <StudentQr store={store} onChange={onChange} />;
+}
+
+function AdminPanel({ onExit, store, onChange }: { onExit: () => void; store: QrStore; onChange: StoreSetter }) {
   return (
     <main className="admin-shell">
       <aside className="admin-sidebar">
@@ -219,11 +612,12 @@ function AdminPanel({ onExit }: { onExit: () => void }) {
         <p className="nav-label">YÖNETİM</p>
         <nav className="side-nav" aria-label="Yönetici menüsü">
           <button className="active"><Icon name="home" size={19} /><span>Genel Bakış</span></button>
+          <button><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
         </nav>
 
         <div className="admin-sidebar-empty">
-          <span><Icon name="settings" size={18} /></span>
-          <div><b>Yönetim araçları</b><small>Henüz modül eklenmedi</small></div>
+          <span><Icon name="qr" size={18} /></span>
+          <div><b>Vol 1</b><small>QR Yoklama aktif</small></div>
         </div>
 
         <button className="exit-button" onClick={onExit}>
@@ -234,25 +628,46 @@ function AdminPanel({ onExit }: { onExit: () => void }) {
       <section className="admin-main">
         <header className="admin-header">
           <div><span>CampusO</span><b>Yönetici Paneli</b></div>
-          <span className="admin-stage-badge"><i /> Kurulum aşaması</span>
+          <span className="admin-stage-badge"><i /> 1 aktif modül</span>
         </header>
 
         <div className="admin-body">
           <section className="admin-welcome">
             <div>
               <span className="banner-kicker">YÖNETİM MERKEZİ</span>
-              <h1>Admin paneli hazır.</h1>
-              <p>CampusO’nun yönetim modülleri, yetkileri ve araçları kararlaştırıldıkça bu alana tek tek eklenecek.</p>
+              <h1>Vol 1 yönetimi hazır.</h1>
+              <p>QR Yoklama modülünü kontrol et, ders gruplarını ve katılım kayıtlarını tek ekrandan takip et.</p>
             </div>
             <span className="admin-shield"><Icon name="shield" size={38} /></span>
           </section>
 
-          <section className="admin-empty panel" aria-label="Boş yönetici modül alanı">
-            <span><Icon name="settings" size={34} /></span>
-            <small>YÖNETİCİ MODÜLLERİ</small>
-            <h2>Henüz yönetim aracı bulunmuyor.</h2>
-            <p>Kullanıcılar, roller, yetkiler, QR, Store ve diğer modüller birlikte karar verildikten sonra buraya entegre edilecek.</p>
-            <em><i /> İlk admin modülü bekleniyor</em>
+          <section className="admin-module panel" aria-label="QR yoklama yönetimi">
+            <div className="admin-module-heading">
+              <span><Icon name="qr" size={26} /></span>
+              <div><small>VOL 1</small><h2>QR Kodla Ders Yoklaması</h2><p>Modül durumu ve cihazdaki mevcut kullanım verileri.</p></div>
+              <label className="module-toggle">
+                <input
+                  type="checkbox"
+                  checked={store.enabled}
+                  onChange={(event) => onChange((current) => ({ ...current, enabled: event.target.checked }))}
+                />
+                <span />
+                {store.enabled ? "Aktif" : "Kapalı"}
+              </label>
+            </div>
+            <div className="admin-stat-grid">
+              <div><span><Icon name="book" /></span><small>Ders grubu</small><b>{store.courses.length}</b></div>
+              <div><span><Icon name="users" /></span><small>Öğrenci üyeliği</small><b>{store.memberships.length}</b></div>
+              <div><span><Icon name="qr" /></span><small>Yoklama oturumu</small><b>{store.sessions.length}</b></div>
+              <div><span><Icon name="check" /></span><small>Katılım kaydı</small><b>{store.records.length}</b></div>
+            </div>
+            <div className="admin-recent">
+              <div className="qr-card-title"><span><Icon name="calendar" /></span><div><small>SON İŞLEMLER</small><h2>Yoklama kayıtları</h2></div></div>
+              {store.records.length ? store.records.slice(0, 6).map((record) => {
+                const course = store.courses.find((item) => item.id === record.courseId);
+                return <div className="participant-row" key={record.id}><span>{record.studentName.slice(0, 2).toUpperCase()}</span><div><b>{record.studentName}</b><small>{record.studentNumber} · {course?.courseCode} · {formatTime(record.checkedAt)}</small></div><Icon name="check" size={18} /></div>;
+              }) : <div className="qr-empty compact"><p>Henüz yoklama kaydı bulunmuyor.</p></div>}
+            </div>
           </section>
         </div>
       </section>
@@ -302,12 +717,42 @@ export default function Home() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [panelView, setPanelView] = useState<PanelView>("home");
+  const [qrStore, setQrStore] = useState<QrStore>(emptyQrStore);
+
+  useEffect(() => {
+    function loadStore(value: string | null) {
+      if (!value) return;
+      try {
+        const parsed = JSON.parse(value) as Partial<QrStore>;
+        setQrStore({ ...emptyQrStore, ...parsed });
+      } catch {
+        setQrStore(emptyQrStore);
+      }
+    }
+
+    loadStore(window.localStorage.getItem(QR_STORAGE_KEY));
+    const sync = (event: StorageEvent) => {
+      if (event.key === QR_STORAGE_KEY) loadStore(event.newValue);
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
+
+  function updateQrStore(next: QrStore | ((current: QrStore) => QrStore)) {
+    setQrStore((current) => {
+      const resolved = typeof next === "function" ? next(current) : next;
+      window.localStorage.setItem(QR_STORAGE_KEY, JSON.stringify(resolved));
+      return resolved;
+    });
+  }
 
   function enter(nextRole: Role) {
     setRole(nextRole);
     setAdminOpen(false);
     setMobileOpen(false);
     setProfileOpen(false);
+    setPanelView("home");
   }
 
   function returnToLanding() {
@@ -315,10 +760,11 @@ export default function Home() {
     setAdminOpen(false);
     setMobileOpen(false);
     setProfileOpen(false);
+    setPanelView("home");
   }
 
   if (adminOpen) {
-    return <AdminPanel onExit={returnToLanding} />;
+    return <AdminPanel onExit={returnToLanding} store={qrStore} onChange={updateQrStore} />;
   }
 
   if (!role) {
@@ -343,12 +789,13 @@ export default function Home() {
 
         <p className="nav-label">KAMPÜS</p>
         <nav className="side-nav" aria-label="Uygulama menüsü">
-          <button className="active"><Icon name="home" size={19} /><span>Ana Sayfa</span></button>
+          <button className={panelView === "home" ? "active" : ""} onClick={() => { setPanelView("home"); setMobileOpen(false); }}><Icon name="home" size={19} /><span>Ana Sayfa</span></button>
+          <button className={panelView === "qr" ? "active" : ""} onClick={() => { setPanelView("qr"); setMobileOpen(false); }}><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
         </nav>
 
         <div className="clean-sidebar-empty">
-          <span><Icon name="book" size={18} /></span>
-          <div><b>Modüller</b><small>Henüz modül eklenmedi</small></div>
+          <span><Icon name="qr" size={18} /></span>
+          <div><b>Vol 1 aktif</b><small>QR Kodla Ders Yoklaması</small></div>
         </div>
 
         <button className="exit-button" onClick={returnToLanding}><Icon name="arrow" size={17} /> Ana sayfaya dön</button>
@@ -363,10 +810,10 @@ export default function Home() {
             <span className="mobile-seal">CO</span>
             <span><b>{copy.panel}</b><small>Kullanıcı verisi bağlı değil</small></span>
           </button>
-          <div className="breadcrumbs"><span>{copy.panel}</span><b>Ana Sayfa</b></div>
+          <div className="breadcrumbs"><span>{copy.panel}</span><b>{panelView === "home" ? "Ana Sayfa" : "QR Yoklama"}</b></div>
           <label className="global-search clean-search">
             <Icon name="search" size={18} />
-            <input aria-label="CampusO'da ara" placeholder="Modüller eklendiğinde arama açılacak" disabled />
+            <input aria-label="CampusO'da ara" placeholder="CampusO'da ara" disabled />
           </label>
           <button className="header-icon clean-disabled-icon" aria-label="Henüz bildirim bulunmuyor" disabled><Icon name="bell" size={20} /></button>
           <button className="header-profile" onClick={() => setProfileOpen(true)} title="Panel görünümünü aç">
@@ -377,7 +824,9 @@ export default function Home() {
         </header>
 
         <div className="page-body">
-          <EmptyDashboard role={role} />
+          {panelView === "home"
+            ? <ModuleHome role={role} onOpenQr={() => setPanelView("qr")} />
+            : <QrModule role={role} store={qrStore} onChange={updateQrStore} />}
         </div>
       </section>
 
@@ -391,8 +840,8 @@ export default function Home() {
       )}
 
       <nav className="mobile-bottom-nav clean-bottom-nav" aria-label="Mobil uygulama menüsü">
-        <button className="active"><Icon name="home" size={20} /><span>Ana Sayfa</span></button>
-        <button onClick={() => setProfileOpen(true)}><Icon name="switch" size={20} /><span>Rol değiştir</span></button>
+        <button className={panelView === "home" ? "active" : ""} onClick={() => setPanelView("home")}><Icon name="home" size={20} /><span>Ana Sayfa</span></button>
+        <button className={panelView === "qr" ? "active" : ""} onClick={() => setPanelView("qr")}><Icon name="qr" size={20} /><span>QR Yoklama</span></button>
         <button onClick={() => setMobileOpen(true)}><Icon name="menu" size={20} /><span>Menü</span></button>
       </nav>
     </main>

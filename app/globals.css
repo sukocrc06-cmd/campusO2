@@ -570,6 +570,24 @@ input:focus-visible {
   color: var(--blue-700);
 }
 
+.landing-nav-actions,
+.admin-link {
+  display: flex;
+  align-items: center;
+}
+
+.landing-nav-actions {
+  gap: 20px;
+}
+
+.admin-link {
+  gap: 7px;
+  color: var(--slate);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .hero {
   position: relative;
   z-index: 1;
@@ -4372,6 +4390,14 @@ input:focus-visible {
   }
 
   .landing-nav .button svg {
+    display: none;
+  }
+
+  .landing-nav-actions {
+    gap: 8px;
+  }
+
+  .admin-link {
     display: none;
   }
 

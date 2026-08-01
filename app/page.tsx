@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 
 type Role = "student" | "faculty";
@@ -59,7 +59,12 @@ type AttendanceSession = {
 };
 
 type StudentProfile = { name: string; number: string };
-type Membership = { courseId: string; joinedAt: number };
+type Membership = {
+  courseId: string;
+  studentName: string;
+  studentNumber: string;
+  joinedAt: number;
+};
 type AttendanceRecord = {
   id: string;
   sessionId: string;
@@ -88,14 +93,45 @@ const emptyQrStore: QrStore = {
 };
 
 const QR_STORAGE_KEY = "campuso:qr-attendance:v1";
+const QR_PROFILE_KEY = "campuso:qr-profile:v2";
 
-function createId(prefix: string) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
+type QrActionName =
+  | "create-course"
+  | "start-session"
+  | "close-session"
+  | "join-course"
+  | "record-attendance"
+  | "toggle-enabled";
 
-function createCode(length = 6) {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({ length }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+type QrActionResult = {
+  ok: boolean;
+  message: string;
+  store?: Omit<QrStore, "profile">;
+};
+
+type QrActionRunner = (
+  action: QrActionName,
+  payload?: Record<string, string | number | boolean>,
+) => Promise<QrActionResult>;
+
+function extractAttendanceToken(value: string) {
+  const normalized = value.trim();
+  if (!normalized) return "";
+
+  try {
+    const url = new URL(normalized, window.location.origin);
+    const token = url.searchParams.get("attendance");
+    if (token) return token.trim().toUpperCase();
+  } catch {
+    // Eski QR metinleri ve elle girilen kodlar aşağıda ele alınıyor.
+  }
+
+  const legacyParts = normalized.split("|");
+  if (legacyParts[0]?.toUpperCase() === "CAMPUSO" && legacyParts[2]) {
+    return legacyParts[2].trim().toUpperCase();
+  }
+
+  return /^[A-Z0-9]{8}$/i.test(normalized) ? normalized.toUpperCase() : "";
 }
 
 function formatTime(value: number) {
@@ -243,8 +279,6 @@ function RoleSymbol({ role, compact = false }: { role: Role; compact?: boolean }
   );
 }
 
-type StoreSetter = (next: QrStore | ((current: QrStore) => QrStore)) => void;
-
 function QrVisual({ value }: { value: string }) {
   const [source, setSource] = useState("");
 
@@ -297,7 +331,7 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
   );
 }
 
-function FacultyQr({ store, onChange }: { store: QrStore; onChange: StoreSetter }) {
+function FacultyQr({ store, onAction }: { store: QrStore; onAction: QrActionRunner }) {
   const [courseName, setCourseName] = useState("");
   const [courseCode, setCourseCode] = useState("");
   const [section, setSection] = useState("");
@@ -305,6 +339,8 @@ function FacultyQr({ store, onChange }: { store: QrStore; onChange: StoreSetter 
   const [selectedCourseId, setSelectedCourseId] = useState(store.courses[0]?.id ?? "");
   const [now, setNow] = useState(0);
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const appOrigin = typeof window === "undefined" ? "https://campus-o2.vercel.app" : window.location.origin;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -317,55 +353,46 @@ function FacultyQr({ store, onChange }: { store: QrStore; onChange: StoreSetter 
   const activeRecords = store.records.filter((record) => record.sessionId === activeSession?.id);
   const secondsLeft = activeSession ? Math.max(0, Math.ceil((activeSession.expiresAt - now) / 1000)) : 0;
 
-  function createCourse(event: FormEvent) {
+  async function createCourse(event: FormEvent) {
     event.preventDefault();
     if (!courseName.trim() || !courseCode.trim()) {
       setMessage("Ders adı ve ders kodu zorunludur.");
       return;
     }
-    const course: CourseGroup = {
-      id: createId("course"),
+    setBusy(true);
+    const result = await onAction("create-course", {
       name: courseName.trim(),
       courseCode: courseCode.trim().toUpperCase(),
       section: section.trim() || "1",
-      joinCode: createCode(),
-      createdAt: Date.now(),
-    };
-    onChange((current) => ({ ...current, courses: [course, ...current.courses] }));
-    setSelectedCourseId(course.id);
-    setCourseName("");
-    setCourseCode("");
-    setSection("");
-    setMessage(`${course.courseCode} ders grubu oluşturuldu.`);
+    });
+    setBusy(false);
+    setMessage(result.message);
+    if (result.ok) {
+      const createdCourse = result.store?.courses[0];
+      if (createdCourse) setSelectedCourseId(createdCourse.id);
+      setCourseName("");
+      setCourseCode("");
+      setSection("");
+    }
   }
 
-  function startAttendance() {
+  async function startAttendance() {
     if (!effectiveCourseId) {
       setMessage("Önce bir ders grubu oluşturmalısın.");
       return;
     }
-    const startedAt = Date.now();
-    const session: AttendanceSession = {
-      id: createId("session"),
-      courseId: effectiveCourseId,
-      token: createCode(8),
-      createdAt: startedAt,
-      expiresAt: startedAt + duration * 60_000,
-    };
-    onChange((current) => ({
-      ...current,
-      sessions: [session, ...current.sessions.map((item) => !item.closedAt && item.expiresAt > startedAt ? { ...item, closedAt: startedAt } : item)],
-    }));
-    setMessage("Yoklama başlatıldı.");
+    setBusy(true);
+    const result = await onAction("start-session", { courseId: effectiveCourseId, duration });
+    setBusy(false);
+    setMessage(result.message);
   }
 
-  function closeAttendance() {
+  async function closeAttendance() {
     if (!activeSession) return;
-    onChange((current) => ({
-      ...current,
-      sessions: current.sessions.map((session) => session.id === activeSession.id ? { ...session, closedAt: Date.now() } : session),
-    }));
-    setMessage("Yoklama kapatıldı.");
+    setBusy(true);
+    const result = await onAction("close-session", { sessionId: activeSession.id });
+    setBusy(false);
+    setMessage(result.message);
   }
 
   return (
@@ -387,7 +414,7 @@ function FacultyQr({ store, onChange }: { store: QrStore; onChange: StoreSetter 
               <label>Ders kodu<input value={courseCode} onChange={(event) => setCourseCode(event.target.value)} placeholder="YBS-401" disabled={!store.enabled} /></label>
               <label>Şube<input value={section} onChange={(event) => setSection(event.target.value)} placeholder="1" disabled={!store.enabled} /></label>
             </div>
-            <button className="button button-primary" disabled={!store.enabled}>Grubu oluştur</button>
+            <button className="button button-primary" disabled={!store.enabled || busy}>Grubu oluştur</button>
           </form>
         </section>
 
@@ -405,7 +432,7 @@ function FacultyQr({ store, onChange }: { store: QrStore; onChange: StoreSetter 
                   {[1, 2, 3, 5, 10].map((minute) => <option key={minute} value={minute}>{minute} dakika</option>)}
                 </select>
               </label>
-              <button className="button button-primary" onClick={startAttendance} disabled={!store.enabled || Boolean(activeSession)}>Yoklamayı başlat</button>
+              <button className="button button-primary" onClick={startAttendance} disabled={!store.enabled || Boolean(activeSession) || busy}>Yoklamayı başlat</button>
             </div>
           ) : <div className="qr-empty"><Icon name="book" /><p>Yoklama için önce ders grubu oluştur.</p></div>}
         </section>
@@ -414,20 +441,20 @@ function FacultyQr({ store, onChange }: { store: QrStore; onChange: StoreSetter 
       {activeSession && activeCourse && (
         <section className="panel active-attendance">
           <div className="attendance-qr">
-            <QrVisual value={`CAMPUSO|${activeSession.id}|${activeSession.token}`} />
+            <QrVisual value={`${appOrigin}/?attendance=${encodeURIComponent(activeSession.token)}`} />
             <span>YOKLAMA KODU</span>
             <strong>{activeSession.token}</strong>
           </div>
           <div className="attendance-detail">
             <small>AKTİF YOKLAMA</small>
             <h2>{activeCourse.courseCode} · {activeCourse.name}</h2>
-            <p>Öğrenciler CampusO öğrenci panelinden bu derse katılıp kodu doğrulayabilir.</p>
+            <p>Öğrenci telefon kamerasıyla QR kodu okuttuğunda CampusO açılır; profilinden sonra derse ve yoklamaya otomatik katılır.</p>
             <div className="attendance-metrics">
               <div><span>Kalan süre</span><b>{Math.floor(secondsLeft / 60).toString().padStart(2, "0")}:{(secondsLeft % 60).toString().padStart(2, "0")}</b></div>
               <div><span>Katılımcı</span><b>{activeRecords.length}</b></div>
               <div><span>Ders katılım kodu</span><b>{activeCourse.joinCode}</b></div>
             </div>
-            <button className="button button-secondary" onClick={closeAttendance}>Yoklamayı kapat</button>
+            <button className="button button-secondary" onClick={closeAttendance} disabled={busy}>Yoklamayı kapat</button>
           </div>
           <div className="live-participants">
             <div className="qr-card-title"><span><Icon name="users" /></span><div><small>CANLI</small><h2>Katılanlar</h2></div></div>
@@ -448,21 +475,106 @@ function FacultyQr({ store, onChange }: { store: QrStore; onChange: StoreSetter 
   );
 }
 
-function StudentQr({ store, onChange }: { store: QrStore; onChange: StoreSetter }) {
+function StudentQr({
+  store,
+  onAction,
+  onProfileChange,
+  pendingToken,
+  onPendingHandled,
+}: {
+  store: QrStore;
+  onAction: QrActionRunner;
+  onProfileChange: (profile: StudentProfile) => void;
+  pendingToken: string;
+  onPendingHandled: () => void;
+}) {
   const [name, setName] = useState(store.profile?.name ?? "");
   const [number, setNumber] = useState(store.profile?.number ?? "");
   const [joinCode, setJoinCode] = useState("");
   const [attendanceCode, setAttendanceCode] = useState("");
   const [message, setMessage] = useState("");
   const [now, setNow] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const scannerRef = useRef<{ stop: () => void; destroy: () => void } | null>(null);
+  const attemptedToken = useRef("");
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
-  const joinedIds = new Set(store.memberships.map((item) => item.courseId));
+
+  const studentMemberships = store.profile
+    ? store.memberships.filter((item) => item.studentNumber === store.profile?.number)
+    : [];
+  const joinedIds = new Set(studentMemberships.map((item) => item.courseId));
   const joinedCourses = store.courses.filter((course) => joinedIds.has(course.id));
   const activeSessions = store.sessions.filter((session) => joinedIds.has(session.courseId) && !session.closedAt && session.expiresAt > now);
+
+  const attendWithToken = useCallback(async (token: string) => {
+    if (!store.profile) {
+      setMessage("QR tanındı. Profilini kaydettiğinde derse ve yoklamaya otomatik katılacaksın.");
+      return;
+    }
+    setBusy(true);
+    const result = await onAction("record-attendance", {
+      token,
+      studentName: store.profile.name,
+      studentNumber: store.profile.number,
+    });
+    setBusy(false);
+    setAttendanceCode("");
+    setMessage(result.message);
+  }, [onAction, store.profile]);
+
+  useEffect(() => {
+    if (!pendingToken) return;
+    if (!store.profile) return;
+    if (attemptedToken.current === pendingToken) return;
+    attemptedToken.current = pendingToken;
+    void attendWithToken(pendingToken).finally(onPendingHandled);
+  }, [attendWithToken, onPendingHandled, pendingToken, store.profile]);
+
+  const handleScannedValue = useCallback(async (value: string) => {
+    const token = extractAttendanceToken(value);
+    if (!token) {
+      setMessage("Bu QR kodu geçerli bir CampusO yoklama bağlantısı değil.");
+      return;
+    }
+    scannerRef.current?.stop();
+    setScannerOpen(false);
+    await attendWithToken(token);
+  }, [attendWithToken]);
+
+  useEffect(() => {
+    if (!scannerOpen || !videoRef.current) return;
+    let cancelled = false;
+    const video = videoRef.current;
+
+    void import("qr-scanner")
+      .then(async ({ default: QrScanner }) => {
+        if (cancelled) return;
+        const scanner = new QrScanner(
+          video,
+          (result) => void handleScannedValue(typeof result === "string" ? result : result.data),
+          { preferredCamera: "environment", highlightScanRegion: true, returnDetailedScanResult: true },
+        );
+        scannerRef.current = scanner;
+        await scanner.start();
+      })
+      .catch(() => {
+        setScannerOpen(false);
+        setMessage("Kamera açılamadı. Telefon kamerasını kullanabilir veya 8 haneli kodu yazabilirsin.");
+      });
+
+    return () => {
+      cancelled = true;
+      scannerRef.current?.stop();
+      scannerRef.current?.destroy();
+      scannerRef.current = null;
+    };
+  }, [handleScannedValue, scannerOpen]);
 
   function saveProfile(event: FormEvent) {
     event.preventDefault();
@@ -470,75 +582,65 @@ function StudentQr({ store, onChange }: { store: QrStore; onChange: StoreSetter 
       setMessage("Ad soyad ve öğrenci numarası zorunludur.");
       return;
     }
-    onChange((current) => ({ ...current, profile: { name: name.trim(), number: number.trim() } }));
-    setMessage("Öğrenci profili kaydedildi.");
+    onProfileChange({ name: name.trim(), number: number.trim() });
+    setMessage(pendingToken
+      ? "Profil kaydedildi; QR yoklaman otomatik tamamlanıyor."
+      : "Öğrenci profili bu cihazda kaydedildi.");
   }
 
-  function joinCourse(event: FormEvent) {
+  async function joinCourse(event: FormEvent) {
     event.preventDefault();
     if (!store.profile) {
       setMessage("Önce öğrenci profilini kaydetmelisin.");
       return;
     }
-    const course = store.courses.find((item) => item.joinCode === joinCode.trim().toUpperCase());
-    if (!course) {
-      setMessage("Katılım kodu geçersiz.");
-      return;
-    }
-    if (joinedIds.has(course.id)) {
-      setMessage("Bu ders grubuna zaten katıldın.");
-      return;
-    }
-    onChange((current) => ({ ...current, memberships: [{ courseId: course.id, joinedAt: Date.now() }, ...current.memberships] }));
-    setJoinCode("");
-    setMessage(`${course.courseCode} ders grubuna katıldın.`);
-  }
-
-  function attend(session: AttendanceSession) {
-    if (!store.profile) {
-      setMessage("Önce öğrenci profilini kaydetmelisin.");
-      return;
-    }
-    if (!joinedIds.has(session.courseId) || session.closedAt || session.expiresAt <= Date.now()) {
-      setMessage("Bu yoklama artık geçerli değil.");
-      return;
-    }
-    if (store.records.some((record) => record.sessionId === session.id && record.studentNumber === store.profile?.number)) {
-      setMessage("Bu yoklamaya daha önce katıldın.");
-      return;
-    }
-    const record: AttendanceRecord = {
-      id: createId("attendance"),
-      sessionId: session.id,
-      courseId: session.courseId,
+    setBusy(true);
+    const result = await onAction("join-course", {
+      joinCode: joinCode.trim().toUpperCase(),
       studentName: store.profile.name,
       studentNumber: store.profile.number,
-      checkedAt: Date.now(),
-    };
-    onChange((current) => ({ ...current, records: [record, ...current.records] }));
-    setAttendanceCode("");
-    setMessage("Yoklaman başarıyla kaydedildi.");
+    });
+    setBusy(false);
+    setMessage(result.message);
+    if (result.ok) setJoinCode("");
   }
 
-  function verifyCode(event: FormEvent) {
+  async function verifyCode(event: FormEvent) {
     event.preventDefault();
-    const session = store.sessions.find((item) => item.token === attendanceCode.trim().toUpperCase());
-    if (!session) {
-      setMessage("Yoklama kodu bulunamadı.");
+    const token = extractAttendanceToken(attendanceCode);
+    if (!token) {
+      setMessage("8 haneli yoklama kodunu kontrol et.");
       return;
     }
-    attend(session);
+    await attendWithToken(token);
   }
 
   return (
     <div className="qr-workspace">
       <section className="qr-page-heading">
-        <div><small>ÖĞRENCİ · VOL 1</small><h1>QR Yoklama</h1><p>Ders grubuna katıl ve açık yoklamanı birkaç saniyede tamamla.</p></div>
+        <div><small>ÖĞRENCİ · VOL 1</small><h1>QR Yoklama</h1><p>QR kodu tara; aktif derse ve yoklamaya otomatik katıl.</p></div>
         <span className={`module-status ${store.enabled ? "online" : "offline"}`}><i /> {store.enabled ? "Modül aktif" : "Modül kapalı"}</span>
       </section>
 
       {!store.enabled && <div className="module-disabled"><Icon name="shield" /><span><b>QR modülü yönetici tarafından kapatıldı.</b><small>Yeni işlem yapılamaz.</small></span></div>}
+      {pendingToken && !store.profile && <div className="qr-scan-notice"><Icon name="qr" /><span><b>Yoklama QR kodu algılandı.</b><small>Profilini bir kez kaydet; CampusO kalan işlemleri otomatik tamamlasın.</small></span></div>}
       {message && <div className="qr-message" role="status">{message}</div>}
+
+      <section className="panel student-scan-card">
+        <span className="module-launch-icon"><Icon name="qr" size={34} /></span>
+        <div><small>HIZLI KATILIM</small><h2>QR kodu kamerayla tara</h2><p>Akademisyenin ekranındaki QR bağlantısını okut; ders üyeliğin ve yoklaman tek adımda kaydedilsin.</p></div>
+        <button className="button button-primary" onClick={() => setScannerOpen(true)} disabled={!store.enabled || busy}>Kamerayı aç</button>
+      </section>
+
+      {scannerOpen && (
+        <div className="qr-scanner-layer" role="dialog" aria-modal="true" aria-label="QR kod tarayıcı">
+          <button className="qr-scanner-backdrop" onClick={() => setScannerOpen(false)} aria-label="Tarayıcıyı kapat" />
+          <section className="qr-scanner-card">
+            <header><div><b>QR kodu çerçeveye getir</b><small>Kamera yalnızca tarama sırasında kullanılır.</small></div><button onClick={() => setScannerOpen(false)} aria-label="Kapat"><Icon name="close" /></button></header>
+            <video ref={videoRef} muted playsInline />
+          </section>
+        </div>
+      )}
 
       <div className="qr-grid">
         <section className="panel qr-card">
@@ -551,25 +653,25 @@ function StudentQr({ store, onChange }: { store: QrStore; onChange: StoreSetter 
         </section>
 
         <section className="panel qr-card">
-          <div className="qr-card-title"><span><Icon name="book" /></span><div><small>2. ADIM</small><h2>Ders grubuna katıl</h2></div></div>
+          <div className="qr-card-title"><span><Icon name="book" /></span><div><small>ALTERNATİF</small><h2>Ders grubuna kodla katıl</h2></div></div>
           <form className="qr-form" onSubmit={joinCourse}>
             <label>Akademisyen katılım kodu<input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="Örn. 7K9P2M" maxLength={6} disabled={!store.enabled} /></label>
-            <button className="button button-primary" disabled={!store.enabled}>Derse katıl</button>
+            <button className="button button-primary" disabled={!store.enabled || busy}>Derse katıl</button>
           </form>
         </section>
       </div>
 
       <section className="panel attendance-check">
-        <div className="qr-card-title"><span><Icon name="qr" /></span><div><small>3. ADIM</small><h2>Aktif yoklamaya katıl</h2></div></div>
+        <div className="qr-card-title"><span><Icon name="check" /></span><div><small>YEDEK YÖNTEM</small><h2>Yoklama kodunu doğrula</h2></div></div>
         <form className="attendance-code-form" onSubmit={verifyCode}>
           <label>QR ekranındaki yoklama kodu<input value={attendanceCode} onChange={(event) => setAttendanceCode(event.target.value.toUpperCase())} placeholder="8 haneli kod" maxLength={8} disabled={!store.enabled} /></label>
-          <button className="button button-primary" disabled={!store.enabled}>Yoklamayı doğrula</button>
+          <button className="button button-primary" disabled={!store.enabled || busy}>Yoklamayı doğrula</button>
         </form>
         <div className="active-session-list">
           {activeSessions.length ? activeSessions.map((session) => {
             const course = store.courses.find((item) => item.id === session.courseId);
             const completed = store.records.some((record) => record.sessionId === session.id && record.studentNumber === store.profile?.number);
-            return <div className="student-session" key={session.id}><span><Icon name={completed ? "check" : "qr"} /></span><div><b>{course?.courseCode} · {course?.name}</b><small>{completed ? "Yoklaman kaydedildi" : `${formatTime(session.expiresAt)} tarihine kadar açık`}</small></div><button onClick={() => attend(session)} disabled={completed || !store.enabled}>{completed ? "Tamamlandı" : "Katıl"}</button></div>;
+            return <div className="student-session" key={session.id}><span><Icon name={completed ? "check" : "qr"} /></span><div><b>{course?.courseCode} · {course?.name}</b><small>{completed ? "Yoklaman kaydedildi" : `${formatTime(session.expiresAt)} tarihine kadar açık`}</small></div><button onClick={() => attendWithToken(session.token)} disabled={completed || !store.enabled || busy}>{completed ? "Tamamlandı" : "Katıl"}</button></div>;
           }) : <div className="qr-empty compact"><p>Katıldığın derslerde açık yoklama bulunmuyor.</p></div>}
         </div>
       </section>
@@ -593,13 +695,27 @@ function StudentQr({ store, onChange }: { store: QrStore; onChange: StoreSetter 
   );
 }
 
-function QrModule({ role, store, onChange }: { role: Role; store: QrStore; onChange: StoreSetter }) {
+function QrModule({
+  role,
+  store,
+  onAction,
+  onProfileChange,
+  pendingToken,
+  onPendingHandled,
+}: {
+  role: Role;
+  store: QrStore;
+  onAction: QrActionRunner;
+  onProfileChange: (profile: StudentProfile) => void;
+  pendingToken: string;
+  onPendingHandled: () => void;
+}) {
   return role === "faculty"
-    ? <FacultyQr store={store} onChange={onChange} />
-    : <StudentQr store={store} onChange={onChange} />;
+    ? <FacultyQr store={store} onAction={onAction} />
+    : <StudentQr store={store} onAction={onAction} onProfileChange={onProfileChange} pendingToken={pendingToken} onPendingHandled={onPendingHandled} />;
 }
 
-function AdminPanel({ onExit, store, onChange }: { onExit: () => void; store: QrStore; onChange: StoreSetter }) {
+function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: QrStore; onAction: QrActionRunner }) {
   return (
     <main className="admin-shell">
       <aside className="admin-sidebar">
@@ -644,12 +760,12 @@ function AdminPanel({ onExit, store, onChange }: { onExit: () => void; store: Qr
           <section className="admin-module panel" aria-label="QR yoklama yönetimi">
             <div className="admin-module-heading">
               <span><Icon name="qr" size={26} /></span>
-              <div><small>VOL 1</small><h2>QR Kodla Ders Yoklaması</h2><p>Modül durumu ve cihazdaki mevcut kullanım verileri.</p></div>
+              <div><small>VOL 1</small><h2>QR Kodla Ders Yoklaması</h2><p>Neon üzerinde ortak tutulan canlı kullanım verileri.</p></div>
               <label className="module-toggle">
                 <input
                   type="checkbox"
                   checked={store.enabled}
-                  onChange={(event) => onChange((current) => ({ ...current, enabled: event.target.checked }))}
+                  onChange={(event) => void onAction("toggle-enabled", { enabled: event.target.checked })}
                 />
                 <span />
                 {store.enabled ? "Aktif" : "Kapalı"}
@@ -719,33 +835,83 @@ export default function Home() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [panelView, setPanelView] = useState<PanelView>("home");
   const [qrStore, setQrStore] = useState<QrStore>(emptyQrStore);
+  const [pendingAttendanceToken, setPendingAttendanceToken] = useState("");
 
   useEffect(() => {
-    function loadStore(value: string | null) {
-      if (!value) return;
-      try {
-        const parsed = JSON.parse(value) as Partial<QrStore>;
-        setQrStore({ ...emptyQrStore, ...parsed });
-      } catch {
-        setQrStore(emptyQrStore);
+    let profile: StudentProfile | null = null;
+    try {
+      profile = JSON.parse(window.localStorage.getItem(QR_PROFILE_KEY) ?? "null") as StudentProfile | null;
+      if (!profile) {
+        const legacy = JSON.parse(window.localStorage.getItem(QR_STORAGE_KEY) ?? "null") as Partial<QrStore> | null;
+        profile = legacy?.profile ?? null;
       }
+    } catch {
+      profile = null;
     }
-
-    loadStore(window.localStorage.getItem(QR_STORAGE_KEY));
-    const sync = (event: StorageEvent) => {
-      if (event.key === QR_STORAGE_KEY) loadStore(event.newValue);
-    };
-    window.addEventListener("storage", sync);
-    return () => window.removeEventListener("storage", sync);
+    const token = new URLSearchParams(window.location.search).get("attendance")?.trim().toUpperCase() ?? "";
+    window.setTimeout(() => {
+      if (profile?.name && profile.number) {
+        setQrStore((current) => ({ ...current, profile }));
+        window.localStorage.setItem(QR_PROFILE_KEY, JSON.stringify(profile));
+      }
+      if (token) {
+        setPendingAttendanceToken(token);
+        setRole("student");
+        setPanelView("qr");
+      }
+    }, 0);
   }, []);
 
-  function updateQrStore(next: QrStore | ((current: QrStore) => QrStore)) {
-    setQrStore((current) => {
-      const resolved = typeof next === "function" ? next(current) : next;
-      window.localStorage.setItem(QR_STORAGE_KEY, JSON.stringify(resolved));
-      return resolved;
-    });
-  }
+  const mergeRemoteStore = useCallback((remote: Omit<QrStore, "profile">) => {
+    setQrStore((current) => ({ ...remote, profile: current.profile }));
+  }, []);
+
+  const refreshQrStore = useCallback(async () => {
+    try {
+      const response = await fetch("/api/qr", { cache: "no-store" });
+      if (!response.ok) return;
+      const remote = await response.json() as Omit<QrStore, "profile">;
+      mergeRemoteStore(remote);
+    } catch {
+      // Ağ kısa süreli kesilirse ekrandaki son doğrulanmış veri korunur.
+    }
+  }, [mergeRemoteStore]);
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void refreshQrStore(), 0);
+    const timer = window.setInterval(() => void refreshQrStore(), 2000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
+  }, [refreshQrStore]);
+
+  const runQrAction = useCallback<QrActionRunner>(async (action, payload = {}) => {
+    try {
+      const response = await fetch("/api/qr", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, ...payload }),
+      });
+      const result = await response.json() as QrActionResult;
+      if (result.store) mergeRemoteStore(result.store);
+      return result;
+    } catch {
+      return { ok: false, message: "CampusO sunucusuna ulaşılamadı. Lütfen tekrar dene." };
+    }
+  }, [mergeRemoteStore]);
+
+  const updateStudentProfile = useCallback((profile: StudentProfile) => {
+    window.localStorage.setItem(QR_PROFILE_KEY, JSON.stringify(profile));
+    setQrStore((current) => ({ ...current, profile }));
+  }, []);
+
+  const clearPendingAttendance = useCallback(() => {
+    setPendingAttendanceToken("");
+    const url = new URL(window.location.href);
+    url.searchParams.delete("attendance");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   function enter(nextRole: Role) {
     setRole(nextRole);
@@ -764,7 +930,7 @@ export default function Home() {
   }
 
   if (adminOpen) {
-    return <AdminPanel onExit={returnToLanding} store={qrStore} onChange={updateQrStore} />;
+    return <AdminPanel onExit={returnToLanding} store={qrStore} onAction={runQrAction} />;
   }
 
   if (!role) {
@@ -826,7 +992,7 @@ export default function Home() {
         <div className="page-body">
           {panelView === "home"
             ? <ModuleHome role={role} onOpenQr={() => setPanelView("qr")} />
-            : <QrModule role={role} store={qrStore} onChange={updateQrStore} />}
+            : <QrModule role={role} store={qrStore} onAction={runQrAction} onProfileChange={updateStudentProfile} pendingToken={pendingAttendanceToken} onPendingHandled={clearPendingAttendance} />}
         </div>
       </section>
 

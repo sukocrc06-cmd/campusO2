@@ -4,10 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+export const dynamic = "force-dynamic";
+
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  );
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,13 +19,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   async function handleLogin(e) {
     e.preventDefault();
     setLoading(true);
-    setError("");
+    setErrorMsg("");
     setMessage("");
+
+    const supabase = getSupabase();
 
     const { data, error: authError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
@@ -29,7 +35,7 @@ export default function LoginPage() {
     });
 
     if (authError) {
-      setError(
+      setErrorMsg(
         authError.message === "Invalid login credentials"
           ? "E-posta veya şifre hatalı."
           : authError.message
@@ -41,9 +47,9 @@ export default function LoginPage() {
     const user = data.user;
     let role = "student";
 
-    if (user.email === "suko.crc06@gmail.com") {
+    if (user?.email === "suko.crc06@gmail.com") {
       role = "admin";
-    } else {
+    } else if (user?.id) {
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
@@ -68,9 +74,9 @@ export default function LoginPage() {
     <div
       style={{
         minHeight: "100dvh",
-        background: "var(--bg, #f5f8fc)",
-        fontFamily: "var(--font-geist-sans), system-ui, sans-serif",
-        color: "var(--ink, #0f1b33)",
+        background: "#f5f8fc",
+        fontFamily: "system-ui, sans-serif",
+        color: "#0f1b33",
         display: "flex",
         flexDirection: "column",
       }}
@@ -81,8 +87,8 @@ export default function LoginPage() {
           alignItems: "center",
           justifyContent: "space-between",
           padding: "14px 22px",
-          borderBottom: "1px solid var(--line, #e3ebf6)",
-          background: "var(--white, #fff)",
+          borderBottom: "1px solid #e3ebf6",
+          background: "#fff",
         }}
       >
         <a
@@ -115,8 +121,19 @@ export default function LoginPage() {
         </a>
         <a
           href="/signup"
-          className="button button-secondary"
-          style={{ minHeight: 40, padding: "0 16px", fontSize: 13, textDecoration: "none" }}
+          style={{
+            minHeight: 40,
+            padding: "0 16px",
+            fontSize: 13,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: 13,
+            border: "1px solid #c7deff",
+            color: "#0e4bae",
+            fontWeight: 700,
+            background: "rgba(255,255,255,0.75)",
+          }}
         >
           Kayıt Ol
         </a>
@@ -133,8 +150,8 @@ export default function LoginPage() {
         <div
           style={{
             width: "min(420px, 100%)",
-            background: "var(--white, #fff)",
-            border: "1px solid var(--line, #e3ebf6)",
+            background: "#fff",
+            border: "1px solid #e3ebf6",
             borderRadius: 20,
             padding: "36px 32px",
             boxShadow: "0 18px 45px -28px rgba(15, 43, 90, 0.28)",
@@ -159,12 +176,12 @@ export default function LoginPage() {
             <h1 style={{ margin: "0 0 6px", fontSize: 24, letterSpacing: "-0.04em" }}>
               Giriş Yap
             </h1>
-            <p style={{ margin: 0, color: "var(--slate, #5b6b85)", fontSize: 14 }}>
+            <p style={{ margin: 0, color: "#5b6b85", fontSize: 14 }}>
               CampusO hesabınla devam et
             </p>
           </div>
 
-          {error && (
+          {errorMsg ? (
             <div
               style={{
                 marginBottom: 16,
@@ -177,11 +194,11 @@ export default function LoginPage() {
                 fontWeight: 600,
               }}
             >
-              {error}
+              {errorMsg}
             </div>
-          )}
+          ) : null}
 
-          {message && (
+          {message ? (
             <div
               style={{
                 marginBottom: 16,
@@ -196,7 +213,7 @@ export default function LoginPage() {
             >
               {message}
             </div>
-          )}
+          ) : null}
 
           <form onSubmit={handleLogin} style={{ display: "grid", gap: 14 }}>
             <label
@@ -206,7 +223,7 @@ export default function LoginPage() {
                 gap: 6,
                 fontSize: 12,
                 fontWeight: 700,
-                color: "var(--slate)",
+                color: "#5b6b85",
               }}
             >
               E-posta
@@ -219,7 +236,7 @@ export default function LoginPage() {
                 style={{
                   height: 46,
                   padding: "0 14px",
-                  border: "1px solid var(--line)",
+                  border: "1px solid #e3ebf6",
                   borderRadius: 12,
                   fontSize: 14,
                   outline: "none",
@@ -234,7 +251,7 @@ export default function LoginPage() {
                 gap: 6,
                 fontSize: 12,
                 fontWeight: 700,
-                color: "var(--slate)",
+                color: "#5b6b85",
               }}
             >
               Şifre
@@ -248,7 +265,7 @@ export default function LoginPage() {
                 style={{
                   height: 46,
                   padding: "0 14px",
-                  border: "1px solid var(--line)",
+                  border: "1px solid #e3ebf6",
                   borderRadius: 12,
                   fontSize: 14,
                   outline: "none",
@@ -259,8 +276,19 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="button button-primary"
-              style={{ width: "100%", marginTop: 8, minHeight: 48 }}
+              style={{
+                width: "100%",
+                marginTop: 8,
+                minHeight: 48,
+                border: "none",
+                borderRadius: 13,
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: loading ? "not-allowed" : "pointer",
+                background: "linear-gradient(135deg, #175cd3, #0e4bae)",
+                opacity: loading ? 0.6 : 1,
+              }}
             >
               {loading ? "Giriş yapılıyor…" : "Giriş Yap"}
             </button>
@@ -271,7 +299,7 @@ export default function LoginPage() {
               marginTop: 22,
               textAlign: "center",
               fontSize: 13,
-              color: "var(--slate)",
+              color: "#5b6b85",
             }}
           >
             Hesabın yok mu?{" "}

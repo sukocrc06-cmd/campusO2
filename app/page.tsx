@@ -323,9 +323,24 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
         </button>
       </section>
 
-      <section className="next-volume panel">
-        <span><Icon name="book" size={22} /></span>
-        <div><b>Diğer modüller henüz boş</b><small>Her volümü konuşup onayladıktan sonra sırayla ekleyeceğiz.</small></div>
+      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
+        <span className="module-launch-icon"><Icon name="briefcase" size={34} /></span>
+        <div>
+          <small>VOL 2</small>
+          <h1>Staj Takip</h1>
+          <p>
+            {role === "faculty"
+              ? "Öğrenci staj başvurularını incele, onayla veya reddet."
+              : "Staj başvurusu oluştur ve durumunu takip et."}
+          </p>
+        </div>
+        <a
+          className="button button-primary"
+          href={role === "student" ? "/student/staj" : "/academician/staj"}
+          style={{ textDecoration: "none" }}
+        >
+          Modülü aç <Icon name="arrow" size={17} />
+        </a>
       </section>
     </div>
   );
@@ -859,6 +874,12 @@ export default function Home() {
         setPendingAttendanceToken(token);
         setRole("student");
         setPanelView("qr");
+      }
+      const roleParam = new URLSearchParams(window.location.search).get("role");
+      if (roleParam === "admin") {
+        setAdminOpen(true);
+      } else if (roleParam === "student" || roleParam === "faculty") {
+        setRole(roleParam);
       }
     }, 0);
   }, []);

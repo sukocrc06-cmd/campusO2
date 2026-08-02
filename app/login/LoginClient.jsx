@@ -58,9 +58,14 @@ export default function LoginClient() {
 
       setMessage("Giriş başarılı, yönlendiriliyorsunuz…");
 
-      if (role === "admin") router.push("/admin");
-      else if (role === "academician") router.push("/academician");
-      else router.push("/student");
+      // Eski panele yönlendir (page.tsx içindeki panel)
+      if (role === "admin") {
+        router.push("/?role=admin");
+      } else if (role === "academician") {
+        router.push("/?role=faculty");
+      } else {
+        router.push("/?role=student");
+      }
     } catch (err) {
       setErrorMsg("Beklenmeyen bir hata oluştu.");
       setLoading(false);

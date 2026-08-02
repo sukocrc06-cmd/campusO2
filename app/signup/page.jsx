@@ -10,6 +10,14 @@ const supabase = createClient(
 );
 
 export default function SignUpPage() {
+  const router = useRouter();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
   async function handleSignUp(e) {
     e.preventDefault();
     setLoading(true);
@@ -18,7 +26,6 @@ export default function SignUpPage() {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Admin email ile kayıt engelle
     if (cleanEmail === "suko.crc06@gmail.com") {
       setError("Bu e-posta adresi kayıt için kullanılamaz.");
       setLoading(false);
@@ -43,7 +50,6 @@ export default function SignUpPage() {
       return;
     }
 
-    // profiles tablosuna da yaz (trigger yoksa)
     if (data.user) {
       await supabase.from("profiles").upsert({
         id: data.user.id,
@@ -58,7 +64,6 @@ export default function SignUpPage() {
     );
     setLoading(false);
 
-    // İsteğe bağlı: 4 saniye sonra login'e yönlendir
     setTimeout(() => {
       router.push("/login");
     }, 4500);
@@ -85,7 +90,16 @@ export default function SignUpPage() {
           background: "var(--white, #fff)",
         }}
       >
-        <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
+        <a
+          href="/"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            textDecoration: "none",
+            color: "inherit",
+          }}
+        >
           <span
             style={{
               display: "grid",
@@ -192,7 +206,16 @@ export default function SignUpPage() {
 
           {!message && (
             <form onSubmit={handleSignUp} style={{ display: "grid", gap: 14 }}>
-              <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--slate)" }}>
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "var(--slate)",
+                }}
+              >
                 Ad Soyad
                 <input
                   type="text"
@@ -211,7 +234,16 @@ export default function SignUpPage() {
                 />
               </label>
 
-              <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--slate)" }}>
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "var(--slate)",
+                }}
+              >
                 E-posta
                 <input
                   type="email"
@@ -230,7 +262,16 @@ export default function SignUpPage() {
                 />
               </label>
 
-              <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--slate)" }}>
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "var(--slate)",
+                }}
+              >
                 Şifre
                 <input
                   type="password"
@@ -261,14 +302,31 @@ export default function SignUpPage() {
             </form>
           )}
 
-          <p style={{ marginTop: 22, textAlign: "center", fontSize: 13, color: "var(--slate)" }}>
+          <p
+            style={{
+              marginTop: 22,
+              textAlign: "center",
+              fontSize: 13,
+              color: "var(--slate)",
+            }}
+          >
             Zaten hesabın var mı?{" "}
-            <a href="/login" style={{ color: "#175cd3", fontWeight: 700, textDecoration: "none" }}>
+            <a
+              href="/login"
+              style={{ color: "#175cd3", fontWeight: 700, textDecoration: "none" }}
+            >
               Giriş Yap
             </a>
           </p>
 
-          <p style={{ marginTop: 14, textAlign: "center", fontSize: 12, color: "var(--muted, #8fa0bc)" }}>
+          <p
+            style={{
+              marginTop: 14,
+              textAlign: "center",
+              fontSize: 12,
+              color: "var(--muted, #8fa0bc)",
+            }}
+          >
             Akademisyen misin? Davet linkin olmadan kayıt olamazsın.
           </p>
         </div>

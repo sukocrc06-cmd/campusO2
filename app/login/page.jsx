@@ -10,6 +10,13 @@ const supabase = createClient(
 );
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
   async function handleLogin(e) {
     e.preventDefault();
     setLoading(true);
@@ -22,22 +29,21 @@ export default function LoginPage() {
     });
 
     if (authError) {
-      setError(authError.message === "Invalid login credentials"
-        ? "E-posta veya şifre hatalı."
-        : authError.message);
+      setError(
+        authError.message === "Invalid login credentials"
+          ? "E-posta veya şifre hatalı."
+          : authError.message
+      );
       setLoading(false);
       return;
     }
 
-    // Rol kontrolü
     const user = data.user;
     let role = "student";
 
-    // Sabit admin
     if (user.email === "suko.crc06@gmail.com") {
       role = "admin";
     } else {
-      // profiles tablosundan rol çek
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
@@ -49,7 +55,6 @@ export default function LoginPage() {
 
     setMessage("Giriş başarılı, yönlendiriliyorsunuz…");
 
-    // Role göre yönlendir
     if (role === "admin") {
       router.push("/admin");
     } else if (role === "academician") {
@@ -70,7 +75,6 @@ export default function LoginPage() {
         flexDirection: "column",
       }}
     >
-      {/* Top bar */}
       <header
         style={{
           display: "flex",
@@ -81,7 +85,16 @@ export default function LoginPage() {
           background: "var(--white, #fff)",
         }}
       >
-        <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
+        <a
+          href="/"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            textDecoration: "none",
+            color: "inherit",
+          }}
+        >
           <span
             style={{
               display: "grid",
@@ -186,7 +199,16 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleLogin} style={{ display: "grid", gap: 14 }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--slate)" }}>
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 700,
+                color: "var(--slate)",
+              }}
+            >
               E-posta
               <input
                 type="email"
@@ -205,7 +227,16 @@ export default function LoginPage() {
               />
             </label>
 
-            <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--slate)" }}>
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 700,
+                color: "var(--slate)",
+              }}
+            >
               Şifre
               <input
                 type="password"
@@ -235,9 +266,19 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p style={{ marginTop: 22, textAlign: "center", fontSize: 13, color: "var(--slate)" }}>
+          <p
+            style={{
+              marginTop: 22,
+              textAlign: "center",
+              fontSize: 13,
+              color: "var(--slate)",
+            }}
+          >
             Hesabın yok mu?{" "}
-            <a href="/signup" style={{ color: "#175cd3", fontWeight: 700, textDecoration: "none" }}>
+            <a
+              href="/signup"
+              style={{ color: "#175cd3", fontWeight: 700, textDecoration: "none" }}
+            >
               Kayıt Ol
             </a>
           </p>

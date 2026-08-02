@@ -197,12 +197,12 @@ function Landing({ onEnter, onAdmin }: { onEnter: (role: Role) => void; onAdmin:
           <a href="#acadex">Acadex</a>
         </div>
         <div className="landing-nav-actions">
-          <button className="admin-link" onClick={onAdmin}>
-            <Icon name="briefcase" size={15} /> Yönetici Girişi
-          </button>
-          <button className="button button-ghost" onClick={() => onEnter("student")}>
-            Sisteme giriş <Icon name="arrow" size={17} />
-          </button>
+          <a href="/login" className="button button-ghost">
+            Giriş Yap <Icon name="arrow" size={17} />
+          </a>
+          <a href="/signup" className="button button-primary" style={{ minHeight: 42, padding: "0 16px" }}>
+            Kayıt Ol
+          </a>
         </div>
       </nav>
 
@@ -215,12 +215,12 @@ function Landing({ onEnter, onAdmin }: { onEnter: (role: Role) => void; onAdmin:
             öğrencileri ve akademisyenleri aynı akıllı kampüs deneyiminde buluşturur.
           </p>
           <div className="hero-actions">
-            <button className="button button-primary" onClick={() => onEnter("student")}>
-              Öğrenci panelini keşfet <Icon name="arrow" size={18} />
-            </button>
-            <button className="button button-secondary" onClick={() => onEnter("faculty")}>
-              Akademisyen görünümü
-            </button>
+            <a href="/login" className="button button-primary">
+              Giriş Yap <Icon name="arrow" size={18} />
+            </a>
+            <a href="/signup" className="button button-secondary">
+              Kayıt Ol
+            </a>
           </div>
           <div className="hero-trust">
             <div className="trust-avatars"><span>BU</span><span>Aİ</span><span>EY</span></div>

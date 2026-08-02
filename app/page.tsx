@@ -729,6 +729,7 @@ function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: Qr
         <nav className="side-nav" aria-label="Yönetici menüsü">
           <button className="active"><Icon name="home" size={19} /><span>Genel Bakış</span></button>
           <button><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
+          <button onClick={() => window.location.href="/admin/staj"}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
         </nav>
 
         <div className="admin-sidebar-empty">
@@ -957,6 +958,7 @@ export default function Home() {
         <nav className="side-nav" aria-label="Uygulama menüsü">
           <button className={panelView === "home" ? "active" : ""} onClick={() => { setPanelView("home"); setMobileOpen(false); }}><Icon name="home" size={19} /><span>Ana Sayfa</span></button>
           <button className={panelView === "qr" ? "active" : ""} onClick={() => { setPanelView("qr"); setMobileOpen(false); }}><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
+          <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
         </nav>
 
         <div className="clean-sidebar-empty">
@@ -1008,6 +1010,7 @@ export default function Home() {
       <nav className="mobile-bottom-nav clean-bottom-nav" aria-label="Mobil uygulama menüsü">
         <button className={panelView === "home" ? "active" : ""} onClick={() => setPanelView("home")}><Icon name="home" size={20} /><span>Ana Sayfa</span></button>
         <button className={panelView === "qr" ? "active" : ""} onClick={() => setPanelView("qr")}><Icon name="qr" size={20} /><span>QR Yoklama</span></button>
+        <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={20} /><span>Staj Takip</span></button>
         <button onClick={() => setMobileOpen(true)}><Icon name="menu" size={20} /><span>Menü</span></button>
       </nav>
     </main>

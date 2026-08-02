@@ -875,7 +875,7 @@ export default function Home() {
         setRole("student");
         setPanelView("qr");
       }
-      const roleParam = new URLSearchParams(window.location.search).get("role");
+            const roleParam = new URLSearchParams(window.location.search).get("role");
       if (roleParam === "admin") {
         setAdminOpen(true);
       } else if (roleParam === "student" || roleParam === "faculty") {

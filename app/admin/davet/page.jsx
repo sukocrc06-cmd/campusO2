@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import emailjs from "@emailjs/browser";
 
 function getSupabase() {
   return createClient(
@@ -9,6 +10,11 @@ function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
   );
 }
+
+// EmailJS — Vercel env varsa onu kullan, yoksa aşağıdaki değerler
+const EMAILJS_SERVICE = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || "service_r8bspvz";
+const EMAILJS_TEMPLATE = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || "template_6o1q2wm";
+const EMAILJS_PUBLIC = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || "BQOuVLYDOiQvWyzMc";
 
 function randomToken() {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -71,6 +77,7 @@ export default function AdminDavetPage() {
     const token = randomToken();
     const expires = new Date();
     expires.setDate(expires.getDate() + 7);
+    const inviteLink = `${origin || "https://campus-o2.vercel.app"}/invite/${token}`;
 
     const { error: err } = await supabase.from("invitations").insert([
       {
@@ -84,11 +91,32 @@ export default function AdminDavetPage() {
 
     if (err) {
       setError(err.message);
-    } else {
-      setMessage("Davet oluşturuldu. Linki kopyalayıp akademisyene gönderin.");
-      setEmail("");
-      await loadInvites(supabase);
+      setLoading(false);
+      return;
     }
+
+    // EmailJS ile mail gönder
+    try {
+      await emailjs.send(
+        EMAILJS_SERVICE,
+        EMAILJS_TEMPLATE,
+        {
+          email: clean,
+          to_email: clean,
+          invite_link: inviteLink,
+        },
+        EMAILJS_PUBLIC
+      );
+      setMessage("Davet oluşturuldu ve e-posta gönderildi: " + clean);
+    } catch (mailErr) {
+      setMessage(
+        "Davet kaydı oluştu ama mail gönderilemedi. Linki elle kopyalayın: " + inviteLink
+      );
+      console.error(mailErr);
+    }
+
+    setEmail("");
+    await loadInvites(supabase);
     setLoading(false);
   }
 
@@ -103,6 +131,28 @@ export default function AdminDavetPage() {
     } catch {
       setMessage(inviteLink(token));
     }
+  }
+
+  async function resendMail(inv) {
+    setLoading(true);
+    setError("");
+    const link = inviteLink(inv.token);
+    try {
+      await emailjs.send(
+        EMAILJS_SERVICE,
+        EMAILJS_TEMPLATE,
+        {
+          email: inv.email,
+          to_email: inv.email,
+          invite_link: link,
+        },
+        EMAILJS_PUBLIC
+      );
+      setMessage("Mail tekrar gönderildi: " + inv.email);
+    } catch (e) {
+      setError("Mail gönderilemedi. Linki kopyalayıp elle gönderin.");
+    }
+    setLoading(false);
   }
 
   return (
@@ -120,7 +170,7 @@ export default function AdminDavetPage() {
           <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", color: "#175cd3" }}>YÖNETİM</div>
           <h1 style={{ margin: "6px 0 0", fontSize: 26, letterSpacing: "-0.03em" }}>Akademisyen Davet</h1>
           <p style={{ margin: "8px 0 0", color: "#5b6b85", fontSize: 14 }}>
-            Email yaz → davet linki oluşsun → linki akademisyene gönder. Kayıt olunca otomatik akademisyen olur.
+            E-posta yaz → davet oluşur → hoca otomatik mail alır → linkle kayıt olur.
           </p>
         </div>
 
@@ -148,7 +198,7 @@ export default function AdminDavetPage() {
             disabled={loading}
             style={{ marginTop: 14, minHeight: 46, padding: "0 20px", border: "none", borderRadius: 12, background: "linear-gradient(135deg, #175cd3, #0e4bae)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1 }}
           >
-            {loading ? "Oluşturuluyor…" : "Davet Oluştur"}
+            {loading ? "Gönderiliyor…" : "Davet Oluştur ve Mail Gönder"}
           </button>
         </form>
 
@@ -171,13 +221,14 @@ export default function AdminDavetPage() {
                     </div>
                   </div>
                   {!used && !expired ? (
-                    <button
-                      type="button"
-                      onClick={() => copyLink(inv.token)}
-                      style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid #c7deff", background: "#e6f0ff", color: "#0e4bae", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
-                    >
-                      Linki Kopyala
-                    </button>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button type="button" onClick={() => copyLink(inv.token)} style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid #c7deff", background: "#e6f0ff", color: "#0e4bae", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                        Linki Kopyala
+                      </button>
+                      <button type="button" onClick={() => resendMail(inv)} disabled={loading} style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                        Tekrar Mail
+                      </button>
+                    </div>
                   ) : null}
                 </div>
               );

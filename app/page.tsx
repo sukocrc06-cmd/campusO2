@@ -342,6 +342,25 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
           Modülü aç <Icon name="arrow" size={17} />
         </a>
       </section>
+            <section className="module-launch-card panel" style={{ marginTop: 16 }}>
+        <span className="module-launch-icon"><Icon name="spark" size={34} /></span>
+        <div>
+          <small>ACADEX</small>
+          <h1>Acadex Eğitim Modülü</h1>
+          <p>
+            Ders ağacı, eşleşme ve akademik fırsatlar için Acadex platformuna geç.
+          </p>
+        </div>
+        <a
+          className="button button-primary"
+          href="https://acadex-1lku.vercel.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ textDecoration: "none" }}
+        >
+          Acadex’i aç <Icon name="arrow" size={17} />
+        </a>
+      </section>
     </div>
   );
 }
@@ -981,6 +1000,7 @@ export default function Home() {
           <button className={panelView === "home" ? "active" : ""} onClick={() => { setPanelView("home"); setMobileOpen(false); }}><Icon name="home" size={19} /><span>Ana Sayfa</span></button>
           <button className={panelView === "qr" ? "active" : ""} onClick={() => { setPanelView("qr"); setMobileOpen(false); }}><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
           <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
+                    <button onClick={() => { window.open("https://acadex-1lku.vercel.app", "_blank"); }}><Icon name="spark" size={19} /><span>Acadex</span></button>
         </nav>
 
         <div className="clean-sidebar-empty">

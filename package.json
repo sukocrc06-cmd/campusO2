@@ -17,6 +17,7 @@
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
     "@neondatabase/serverless": "^1.1.0",
     "@supabase/supabase-js": "^2.111.0",
     "drizzle-orm": "0.45.2",

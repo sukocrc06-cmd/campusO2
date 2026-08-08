@@ -31,7 +31,9 @@ export async function GET(request: Request) {
       headers: { "cache-control": "no-store, private" },
     });
   } catch (error) {
-    console.error("CampusO QR GET error", error);
+    if (!(error instanceof AuthError)) {
+      console.error("CampusO QR GET error", error);
+    }
     return databaseError(error);
   }
 }
@@ -50,7 +52,9 @@ export async function POST(request: Request) {
       },
     );
   } catch (error) {
-    console.error("CampusO QR POST error", error);
+    if (!(error instanceof AuthError)) {
+      console.error("CampusO QR POST error", error);
+    }
     return databaseError(error);
   }
 }

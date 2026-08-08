@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
 function getSupabase() {
@@ -33,27 +34,15 @@ export default function InviteAcceptPage() {
       }
       const supabase = getSupabase();
       const { data, error: err } = await supabase
-        .from("invitations")
-        .select("*")
-        .eq("token", token)
-        .maybeSingle();
+        .rpc("campuso_get_invitation", { invite_token: token });
+      const invitation = data?.[0] || null;
 
-      if (err || !data) {
-        setError("Davet bulunamadı.");
+      if (err || !invitation) {
+        setError("Davet bulunamadı, kullanılmış veya süresi dolmuş.");
         setLoading(false);
         return;
       }
-      if (data.used_at) {
-        setError("Bu davet zaten kullanılmış. Giriş yapmayı deneyin.");
-        setLoading(false);
-        return;
-      }
-      if (new Date(data.expires_at) < new Date()) {
-        setError("Davetin süresi dolmuş. Admin’den yeni davet isteyin.");
-        setLoading(false);
-        return;
-      }
-      setInvite(data);
+      setInvite(invitation);
       setLoading(false);
     }
     load();
@@ -74,8 +63,9 @@ export default function InviteAcceptPage() {
       options: {
         data: {
           full_name: fullName.trim(),
-          role: "academician",
+          invitation_token: token,
         },
+        emailRedirectTo: `${window.location.origin}/login`,
       },
     });
 
@@ -91,33 +81,21 @@ export default function InviteAcceptPage() {
       return;
     }
 
-    if (data.user) {
-      await supabase.from("profiles").upsert({
-        id: data.user.id,
-        email: invite.email,
-        full_name: fullName.trim(),
-        role: "academician",
-      });
-
-      await supabase
-        .from("invitations")
-        .update({ used_at: new Date().toISOString() })
-        .eq("token", token);
-    }
-
-    setMessage("Kayıt tamam. Akademisyen paneline yönlendiriliyorsunuz…");
+    setMessage(data.session
+      ? "Kayıt tamam. Akademisyen paneline yönlendiriliyorsunuz…"
+      : "Kayıt tamam. E-postanı doğruladıktan sonra giriş yapabilirsin.");
     setTimeout(() => {
-      router.push("/?role=faculty");
+      router.push(data.session ? "/?role=faculty" : "/login");
     }, 1500);
   }
 
   return (
     <div style={{ minHeight: "100dvh", background: "#f5f8fc", fontFamily: "system-ui, sans-serif", color: "#0f1b33", display: "flex", flexDirection: "column" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1px solid #e3ebf6", background: "#fff" }}>
-        <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
           <span style={{ display: "grid", placeItems: "center", width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #175cd3, #0b3b8c)", color: "#fff" }}>▣</span>
           <span style={{ fontWeight: 800, fontSize: 17 }}>Campus<span style={{ color: "#175cd3" }}>O</span></span>
-        </a>
+        </Link>
       </header>
 
       <main style={{ flex: 1, display: "grid", placeItems: "center", padding: "40px 20px" }}>

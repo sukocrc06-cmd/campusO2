@@ -25,6 +25,188 @@
   --shadow: 0 18px 45px -28px rgba(15, 43, 90, .28);
 }
 
+/* Ortak akademik dönem sistemi */
+.period-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border-color: var(--blue-200);
+  background: linear-gradient(135deg, rgba(230, 240, 255, .78), var(--white));
+}
+
+.period-toolbar > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.period-toolbar small {
+  color: var(--blue-700);
+  font-size: 10px;
+  font-weight: 820;
+  letter-spacing: .12em;
+}
+
+.period-toolbar strong {
+  font-size: 15px;
+}
+
+.period-toolbar span,
+.period-state {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 760;
+}
+
+.period-toolbar span.open,
+.period-state.open {
+  color: #0b6b4b;
+  background: #e6f8f0;
+}
+
+.period-toolbar span.closed,
+.period-state.closed {
+  color: #984333;
+  background: #fff0ec;
+}
+
+.period-toolbar label,
+.period-create-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--slate);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.period-toolbar select,
+.period-create-form input,
+.period-create-form select {
+  min-height: 42px;
+  padding: 0 12px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--white);
+}
+
+.period-management {
+  margin-bottom: 18px;
+}
+
+.period-create-form {
+  display: grid;
+  grid-template-columns: 1.1fr .8fr 1fr 1fr auto;
+  align-items: end;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--blue-50);
+}
+
+.period-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.period-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--white);
+}
+
+.period-list article.active {
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 3px rgba(79, 143, 239, .1);
+}
+
+.period-list article > div:first-child {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 5px 9px;
+}
+
+.period-list article strong {
+  font-size: 13px;
+}
+
+.period-list article small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.period-list article > div:last-child {
+  display: flex;
+  gap: 7px;
+}
+
+.period-list article button {
+  min-height: 34px;
+  padding: 0 11px;
+  color: var(--blue-800);
+  cursor: pointer;
+  border: 1px solid var(--blue-200);
+  border-radius: 9px;
+  background: var(--blue-50);
+  font-size: 11px;
+  font-weight: 730;
+}
+
+.period-list article button:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+
+@media (max-width: 900px) {
+  .period-create-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .period-create-form .button {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .period-toolbar,
+  .period-list article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .period-toolbar label,
+  .period-toolbar select {
+    width: 100%;
+  }
+
+  .period-create-form {
+    grid-template-columns: 1fr;
+  }
+
+  .period-create-form .button {
+    grid-column: auto;
+  }
+
+  .period-list article > div:last-child {
+    flex-wrap: wrap;
+  }
+}
+
 /* Vol 1 · QR Kodla Ders Yoklaması */
 
 .module-launch-card {

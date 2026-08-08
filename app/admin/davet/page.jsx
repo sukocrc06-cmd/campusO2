@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import emailjs from "@emailjs/browser";
 
@@ -17,10 +18,13 @@ const EMAILJS_TEMPLATE = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || "templat
 const EMAILJS_PUBLIC = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || "BQOuVLYDOiQvWyzMc";
 
 function randomToken() {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let t = "";
-  for (let i = 0; i < 32; i++) t += chars[Math.floor(Math.random() * chars.length)];
-  return t;
+  const bytes = new Uint8Array(32);
+  window.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function browserOrigin() {
+  return typeof window === "undefined" ? "https://campus-o2.vercel.app" : window.location.origin;
 }
 
 export default function AdminDavetPage() {
@@ -30,7 +34,6 @@ export default function AdminDavetPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [userId, setUserId] = useState(null);
-  const [origin, setOrigin] = useState("");
 
   async function loadInvites(supabase) {
     const { data, error: err } = await supabase
@@ -42,7 +45,6 @@ export default function AdminDavetPage() {
   }
 
   useEffect(() => {
-    setOrigin(window.location.origin);
     async function init() {
       const supabase = getSupabase();
       const { data: { session } } = await supabase.auth.getSession();
@@ -77,7 +79,7 @@ export default function AdminDavetPage() {
     const token = randomToken();
     const expires = new Date();
     expires.setDate(expires.getDate() + 7);
-    const inviteLink = `${origin || "https://campus-o2.vercel.app"}/invite/${token}`;
+    const inviteLink = `${browserOrigin()}/invite/${token}`;
 
     const { error: err } = await supabase.from("invitations").insert([
       {
@@ -121,7 +123,7 @@ export default function AdminDavetPage() {
   }
 
   function inviteLink(token) {
-    return `${origin}/invite/${token}`;
+    return `${browserOrigin()}/invite/${token}`;
   }
 
   async function copyLink(token) {
@@ -149,7 +151,7 @@ export default function AdminDavetPage() {
         EMAILJS_PUBLIC
       );
       setMessage("Mail tekrar gönderildi: " + inv.email);
-    } catch (e) {
+    } catch {
       setError("Mail gönderilemedi. Linki kopyalayıp elle gönderin.");
     }
     setLoading(false);
@@ -158,11 +160,11 @@ export default function AdminDavetPage() {
   return (
     <div style={{ minHeight: "100dvh", background: "#f5f8fc", fontFamily: "system-ui, sans-serif", color: "#0f1b33" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1px solid #e3ebf6", background: "#fff" }}>
-        <a href="/?role=admin" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
+        <Link href="/?role=admin" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
           <span style={{ display: "grid", placeItems: "center", width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #175cd3, #0b3b8c)", color: "#fff" }}>▣</span>
           <span style={{ fontWeight: 800, fontSize: 17 }}>Campus<span style={{ color: "#175cd3" }}>O</span></span>
-        </a>
-        <a href="/?role=admin" style={{ fontSize: 13, fontWeight: 700, color: "#175cd3", textDecoration: "none" }}>← Yönetici Paneli</a>
+        </Link>
+        <Link href="/?role=admin" style={{ fontSize: 13, fontWeight: 700, color: "#175cd3", textDecoration: "none" }}>← Yönetici Paneli</Link>
       </header>
 
       <main style={{ width: "min(720px, 100%)", margin: "0 auto", padding: "28px 20px 60px" }}>

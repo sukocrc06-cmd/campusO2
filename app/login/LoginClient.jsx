@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
 function getSupabase() {
@@ -58,7 +59,15 @@ export default function LoginClient() {
 
       setMessage("Giriş başarılı, yönlendiriliyorsunuz…");
 
-      // Eski panele yönlendir (page.tsx içindeki panel)
+      const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo");
+      const safeReturnTo = requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
+        ? requestedReturnTo
+        : null;
+      if (safeReturnTo) {
+        router.push(safeReturnTo);
+        return;
+      }
+
       if (role === "admin") {
         router.push("/?role=admin");
       } else if (role === "academician") {
@@ -66,7 +75,7 @@ export default function LoginClient() {
       } else {
         router.push("/?role=student");
       }
-    } catch (err) {
+    } catch {
       setErrorMsg("Beklenmeyen bir hata oluştu.");
       setLoading(false);
     }
@@ -75,10 +84,10 @@ export default function LoginClient() {
   return (
     <div style={{ minHeight: "100dvh", background: "#f5f8fc", fontFamily: "system-ui, sans-serif", color: "#0f1b33", display: "flex", flexDirection: "column" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1px solid #e3ebf6", background: "#fff" }}>
-        <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
           <span style={{ display: "grid", placeItems: "center", width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #175cd3, #0b3b8c)", color: "#fff", fontSize: 16 }}>▣</span>
           <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.03em" }}>Campus<span style={{ color: "#175cd3" }}>O</span></span>
-        </a>
+        </Link>
         <a href="/signup" style={{ minHeight: 40, padding: "0 16px", fontSize: 13, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 13, border: "1px solid #c7deff", color: "#0e4bae", fontWeight: 700, background: "rgba(255,255,255,0.75)" }}>Kayıt Ol</a>
       </header>
 

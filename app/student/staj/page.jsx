@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
+import PeriodFilter from "../../components/PeriodFilter";
+import { findRecordPeriod, loadPeriodContext, recordMatchesPeriod } from "../../../lib/academic-periods";
 
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return url && key ? createClient(url, key) : null;
 }
 
 const STATUS_MAP = {
@@ -98,6 +100,29 @@ function StatusBadge({ status }) {
 const inputStyle = { height: 44, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 11, fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" };
 const labelStyle = { display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 700, color: "#5b6b85" };
 
+function isValidTurkishId(value) {
+  if (!value) return true;
+  if (!/^[1-9]\d{10}$/.test(value)) return false;
+  const digits = value.split("").map(Number);
+  const odd = digits[0] + digits[2] + digits[4] + digits[6] + digits[8];
+  const even = digits[1] + digits[3] + digits[5] + digits[7];
+  return ((odd * 7 - even) % 10 + 10) % 10 === digits[9]
+    && digits.slice(0, 10).reduce((sum, digit) => sum + digit, 0) % 10 === digits[10];
+}
+
+function workingDayCount(startText, endText, includeSaturday) {
+  if (!startText || !endText) return 0;
+  const start = new Date(`${startText}T12:00:00Z`);
+  const end = new Date(`${endText}T12:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return 0;
+  let count = 0;
+  for (const cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    const day = cursor.getUTCDay();
+    if (day !== 0 && (includeSaturday || day !== 6)) count += 1;
+  }
+  return count;
+}
+
 export default function StudentStajPage() {
   const [stajlar, setStajlar] = useState([]);
   const [userId, setUserId] = useState(null);
@@ -106,6 +131,9 @@ export default function StudentStajPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState("surec"); // surec | basvuru | belgeler | durum
+  const [periods, setPeriods] = useState([]);
+  const [activePeriod, setActivePeriod] = useState(null);
+  const [selectedPeriodId, setSelectedPeriodId] = useState("all");
 
   const [stajTipi, setStajTipi] = useState("yurt_ici_ozel");
   const [form, setForm] = useState({
@@ -131,7 +159,17 @@ export default function StudentStajPage() {
 
   useEffect(() => {
     async function init() {
+      const periodContext = await loadPeriodContext();
+      setPeriods(periodContext.periods);
+      setActivePeriod(periodContext.activePeriod);
+      setSelectedPeriodId(periodContext.activePeriod?.id || "all");
+
       const supabase = getSupabase();
+      if (!supabase) {
+        setFetching(false);
+        setError("Staj veritabanı bağlantısı henüz yapılandırılmamış.");
+        return;
+      }
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setFetching(false);
@@ -158,13 +196,38 @@ export default function StudentStajPage() {
       setError("Oturum gerekli.");
       return;
     }
+    if (!activePeriod) {
+      setError("Aktif akademik dönem bulunamadı. Yönetici dönem seçtikten sonra başvuru oluşturabilirsin.");
+      return;
+    }
+    if (!activePeriod.isOpen) {
+      setError(`${activePeriod.label} dönemi başvuruya kapalı.`);
+      return;
+    }
+    const totalDays = workingDayCount(form.baslangic, form.bitis, form.cumartesi);
+    if (totalDays !== 20) {
+      setError(`Staj tarihleri tam 20 iş günü olmalıdır. Seçiminiz ${totalDays} iş günü hesaplandı.`);
+      return;
+    }
+    if (!isValidTurkishId(form.tc_kimlik.trim())) {
+      setError("T.C. kimlik numarasını kontrol edin veya bu alanı boş bırakın.");
+      return;
+    }
     setLoading(true);
     setError("");
     setMessage("");
 
     const supabase = getSupabase();
+    if (!supabase) {
+      setLoading(false);
+      setError("Staj veritabanı bağlantısı henüz yapılandırılmamış.");
+      return;
+    }
     const payload = {
       student_id: userId,
+      period_id: activePeriod.id,
+      academic_year: activePeriod.academicYear,
+      academic_term: activePeriod.term,
       kurum_adi: form.kurum.trim(),
       baslangic_tarihi: form.baslangic,
       bitis_tarihi: form.bitis,
@@ -181,7 +244,7 @@ export default function StudentStajPage() {
       calisilacak_birim: form.calisilacak_birim.trim() || null,
       faaliyet_alani: form.faaliyet_alani.trim() || null,
       cumartesi_calisma: form.cumartesi,
-      toplam_gun: 20,
+      toplam_gun: totalDays,
       belgeler: {},
     };
 
@@ -198,19 +261,23 @@ export default function StudentStajPage() {
     setLoading(false);
   }
 
-  const belgeler = BELGELER[stajTipi] || BELGELER.yurt_ici_ozel;
+  const calculatedWorkdays = workingDayCount(form.baslangic, form.bitis, form.cumartesi);
+  const selectedPeriod = periods.find((period) => period.id === selectedPeriodId) || null;
+  const filteredStajlar = selectedPeriodId === "all"
+    ? stajlar
+    : stajlar.filter((staj) => recordMatchesPeriod(staj, selectedPeriod));
 
   return (
     <div style={{ minHeight: "100dvh", background: "#f5f8fc", fontFamily: "system-ui, sans-serif", color: "#0f1b33" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 22px", borderBottom: "1px solid #e3ebf6", background: "#fff" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a href="/?role=student" style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 11, border: "1px solid #e3ebf6", background: "#f5f8fc", color: "#175cd3", textDecoration: "none" }}>←</a>
+          <Link href="/?role=student" style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 11, border: "1px solid #e3ebf6", background: "#f5f8fc", color: "#175cd3", textDecoration: "none" }}>←</Link>
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", color: "#175cd3" }}>VOL 2 · STAJ</div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>Staj Başvuru ve Takip</div>
           </div>
         </div>
-        <a href="/?role=student" style={{ minHeight: 40, padding: "0 16px", fontSize: 13, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 12, border: "1px solid #c7deff", color: "#0e4bae" }}>Panele dön</a>
+        <Link href="/?role=student" style={{ minHeight: 40, padding: "0 16px", fontSize: 13, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 12, border: "1px solid #c7deff", color: "#0e4bae" }}>Panele dön</Link>
       </header>
 
       <main style={{ width: "min(900px, 100%)", margin: "0 auto", padding: "24px 18px 60px" }}>
@@ -241,6 +308,13 @@ export default function StudentStajPage() {
             </button>
           ))}
         </div>
+
+        <PeriodFilter
+          periods={periods}
+          activePeriod={activePeriod}
+          selectedId={selectedPeriodId}
+          onChange={setSelectedPeriodId}
+        />
 
         {error ? <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "#fff4f0", border: "1px solid #f2c5ba", color: "#984333", fontSize: 13, fontWeight: 600 }}>{error}</div> : null}
         {message ? <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "#effbf6", border: "1px solid #bde5d5", color: "#0b5c42", fontSize: 13, fontWeight: 600 }}>{message}</div> : null}
@@ -335,6 +409,11 @@ export default function StudentStajPage() {
               <p style={{ margin: "6px 0 0", fontSize: 13, color: "#5b6b85" }}>Staj Kabul Belgesi bilgilerine uygun alanlar</p>
             </div>
 
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "12px 14px", borderRadius: 12, border: "1px solid #c7deff", background: "#f3f8ff" }}>
+              <div><small style={{ color: "#175cd3", fontWeight: 800, letterSpacing: ".1em" }}>BAŞVURU DÖNEMİ</small><div style={{ marginTop: 3, fontWeight: 760 }}>{activePeriod?.label || "Aktif dönem yok"}</div></div>
+              <span style={{ color: activePeriod?.isOpen ? "#0b6b4b" : "#984333", fontSize: 11, fontWeight: 750 }}>{activePeriod?.isOpen ? "Başvuruya açık" : "Başvuruya kapalı"}</span>
+            </div>
+
             <label style={labelStyle}>
               Staj tipi
               <select value={stajTipi} onChange={(e) => setStajTipi(e.target.value)} style={inputStyle}>
@@ -352,7 +431,7 @@ export default function StudentStajPage() {
                 <input style={inputStyle} value={form.ogrenci_no} onChange={(e) => setField("ogrenci_no", e.target.value)} placeholder="Öğrenci numarası" />
               </label>
               <label style={labelStyle}>T.C. Kimlik No
-                <input style={inputStyle} value={form.tc_kimlik} onChange={(e) => setField("tc_kimlik", e.target.value)} placeholder="11 haneli" maxLength={11} />
+                <input style={inputStyle} value={form.tc_kimlik} onChange={(e) => setField("tc_kimlik", e.target.value.replace(/\D/g, ""))} placeholder="11 haneli" maxLength={11} inputMode="numeric" autoComplete="off" />
               </label>
               <label style={labelStyle}>Telefon
                 <input style={inputStyle} value={form.telefon} onChange={(e) => setField("telefon", e.target.value)} placeholder="05xx..." />
@@ -403,12 +482,14 @@ export default function StudentStajPage() {
               Cumartesi günleri çalışılacak
             </label>
 
-            <div style={{ fontSize: 12, color: "#8fa0bc" }}>Toplam staj süresi: <strong>20 iş günü</strong> (belgelerde bu süre esas alınır)</div>
+            <div style={{ fontSize: 12, color: calculatedWorkdays === 20 ? "#0b6b4b" : "#8fa0bc" }}>
+              Hesaplanan staj süresi: <strong>{calculatedWorkdays} iş günü</strong> · Başvuru için tam 20 iş günü gerekir.
+            </div>
 
             <button
               type="submit"
-              disabled={loading}
-              style={{ marginTop: 4, minHeight: 48, border: "none", borderRadius: 13, background: "linear-gradient(135deg, #175cd3, #0e4bae)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.65 : 1 }}
+              disabled={loading || !activePeriod?.isOpen}
+              style={{ marginTop: 4, minHeight: 48, border: "none", borderRadius: 13, background: "linear-gradient(135deg, #175cd3, #0e4bae)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: loading || !activePeriod?.isOpen ? "not-allowed" : "pointer", opacity: loading || !activePeriod?.isOpen ? 0.65 : 1 }}
             >
               {loading ? "Gönderiliyor…" : "Başvuruyu Gönder"}
             </button>
@@ -421,13 +502,15 @@ export default function StudentStajPage() {
             <h2 style={{ margin: "0 0 14px", fontSize: 18 }}>Mevcut Staj Durumlarım</h2>
             {fetching ? (
               <p style={{ color: "#5b6b85" }}>Yükleniyor…</p>
-            ) : stajlar.length === 0 ? (
+            ) : filteredStajlar.length === 0 ? (
               <div style={{ padding: 32, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>
                 Henüz başvuru yok. <button type="button" onClick={() => setTab("basvuru")} style={{ border: "none", background: "none", color: "#175cd3", fontWeight: 700, cursor: "pointer" }}>Başvuru formuna git</button>
               </div>
             ) : (
               <div style={{ display: "grid", gap: 12 }}>
-                {stajlar.map((s) => (
+                {filteredStajlar.map((s) => {
+                  const recordPeriod = findRecordPeriod(s, periods);
+                  return (
                   <div key={s.id} style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 14, padding: 18 }}>
                     <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
                       <div>
@@ -437,11 +520,15 @@ export default function StudentStajPage() {
                           {s.staj_tipi ? ` · ${STAJ_TIPLERI.find((t) => t.id === s.staj_tipi)?.label || s.staj_tipi}` : ""}
                         </div>
                       </div>
-                      <StatusBadge status={s.onay_durumu} />
+                      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 7 }}>
+                        {recordPeriod && <span style={{ padding: "4px 8px", borderRadius: 999, background: "#f3f8ff", color: "#175cd3", fontSize: 10, fontWeight: 760 }}>{recordPeriod.label}</span>}
+                        <StatusBadge status={s.onay_durumu} />
+                      </div>
                     </div>
                     {s.staj_sorumlusu ? <div style={{ fontSize: 12, color: "#5b6b85" }}>Sorumlu: {s.staj_sorumlusu}</div> : null}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

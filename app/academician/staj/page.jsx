@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "../../../lib/supabase";
+import PeriodFilter from "../../components/PeriodFilter";
+import { findRecordPeriod, loadPeriodContext, recordMatchesPeriod } from "../../../lib/academic-periods";
 
 const STATUS_MAP = {
   beklemede: { label: "Beklemede", color: "#ffb13b", bg: "#fff8eb" },
@@ -38,9 +41,39 @@ export default function AcademicianStajPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [periods, setPeriods] = useState([]);
+  const [activePeriod, setActivePeriod] = useState(null);
+  const [selectedPeriodId, setSelectedPeriodId] = useState("all");
 
   useEffect(() => {
     async function fetchTumStajlar() {
+      if (!supabase) {
+        setMessage("Veriler alınamadı: Staj veritabanı bağlantısı yapılandırılmamış.");
+        setLoading(false);
+        return;
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setMessage("Hata: Bu sayfa için akademisyen oturumu gereklidir.");
+        setLoading(false);
+        return;
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      if (profile?.role !== "academician") {
+        setMessage("Hata: Bu sayfa yalnız yetkili akademisyen hesabıyla kullanılabilir.");
+        setLoading(false);
+        return;
+      }
+
+      const periodContext = await loadPeriodContext();
+      setPeriods(periodContext.periods);
+      setActivePeriod(periodContext.activePeriod);
+      setSelectedPeriodId(periodContext.activePeriod?.id || "all");
+
       const { data, error } = await supabase
         .from("stajlar")
         .select("*")
@@ -53,6 +86,16 @@ export default function AcademicianStajPage() {
   }, []);
 
   async function handleOnayla(id) {
+    if (!supabase) {
+      setMessage("Hata: Staj veritabanı bağlantısı yapılandırılmamış.");
+      return;
+    }
+    const record = stajlar.find((staj) => staj.id === id);
+    const recordPeriod = findRecordPeriod(record, periods);
+    if (recordPeriod && !recordPeriod.isOpen) {
+      setMessage(`Hata: ${recordPeriod.label} dönemi kapalı; arşiv kaydı değiştirilemez.`);
+      return;
+    }
     setBusyId(id);
     const { error } = await supabase
       .from("stajlar")
@@ -70,6 +113,16 @@ export default function AcademicianStajPage() {
   }
 
   async function handleReddet(id) {
+    if (!supabase) {
+      setMessage("Hata: Staj veritabanı bağlantısı yapılandırılmamış.");
+      return;
+    }
+    const record = stajlar.find((staj) => staj.id === id);
+    const recordPeriod = findRecordPeriod(record, periods);
+    if (recordPeriod && !recordPeriod.isOpen) {
+      setMessage(`Hata: ${recordPeriod.label} dönemi kapalı; arşiv kaydı değiştirilemez.`);
+      return;
+    }
     setBusyId(id);
     const { error } = await supabase
       .from("stajlar")
@@ -85,6 +138,11 @@ export default function AcademicianStajPage() {
     }
     setBusyId(null);
   }
+
+  const selectedPeriod = periods.find((period) => period.id === selectedPeriodId) || null;
+  const filteredStajlar = selectedPeriodId === "all"
+    ? stajlar
+    : stajlar.filter((staj) => recordMatchesPeriod(staj, selectedPeriod));
 
   return (
     <div
@@ -107,7 +165,7 @@ export default function AcademicianStajPage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a
+          <Link
             href="/"
             style={{
               display: "grid",
@@ -122,7 +180,7 @@ export default function AcademicianStajPage() {
             }}
           >
             ←
-          </a>
+          </Link>
           <div>
             <div style={{ fontSize: 11, fontWeight: 820, letterSpacing: ".12em", color: "var(--blue-700, #175cd3)" }}>
               STAJ TAKİP
@@ -130,9 +188,9 @@ export default function AcademicianStajPage() {
             <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.02em" }}>Akademisyen Onay Paneli</div>
           </div>
         </div>
-        <a href="/" className="button button-secondary" style={{ minHeight: 40, padding: "0 16px", fontSize: 13 }}>
+        <Link href="/" className="button button-secondary" style={{ minHeight: 40, padding: "0 16px", fontSize: 13 }}>
           Panele dön
-        </a>
+        </Link>
       </header>
 
       <main style={{ width: "min(980px, 100%)", margin: "0 auto", padding: "28px 20px 60px" }}>
@@ -176,6 +234,13 @@ export default function AcademicianStajPage() {
           </div>
         </section>
 
+        <PeriodFilter
+          periods={periods}
+          activePeriod={activePeriod}
+          selectedId={selectedPeriodId}
+          onChange={setSelectedPeriodId}
+        />
+
         {message && (
           <div
             style={{
@@ -203,13 +268,13 @@ export default function AcademicianStajPage() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Tüm Başvurular</h2>
-            <span style={{ fontSize: 12, color: "var(--muted)" }}>{stajlar.length} kayıt</span>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Dönem Başvuruları</h2>
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>{filteredStajlar.length} kayıt</span>
           </div>
 
           {loading ? (
             <p style={{ color: "var(--muted)", fontSize: 13 }}>Yükleniyor…</p>
-          ) : stajlar.length === 0 ? (
+          ) : filteredStajlar.length === 0 ? (
             <div
               style={{
                 display: "grid",
@@ -237,12 +302,15 @@ export default function AcademicianStajPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stajlar.map((staj) => (
+                  {filteredStajlar.map((staj) => {
+                    const recordPeriod = findRecordPeriod(staj, periods);
+                    const periodOpen = recordPeriod?.isOpen !== false;
+                    return (
                     <tr key={staj.id} style={{ borderBottom: "1px solid var(--line)" }}>
                       <td style={{ padding: "12px", fontSize: 11, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>
                         {staj.student_id?.slice(0, 8)}…
                       </td>
-                      <td style={{ padding: "12px", fontWeight: 650 }}>{staj.kurum_adi}</td>
+                      <td style={{ padding: "12px", fontWeight: 650 }}>{staj.kurum_adi}<div style={{ marginTop: 4, color: "#175cd3", fontSize: 10 }}>{recordPeriod?.label || "Dönem bilgisi yok"}</div></td>
                       <td style={{ padding: "12px", color: "var(--slate)", whiteSpace: "nowrap" }}>
                         {staj.baslangic_tarihi} → {staj.bitis_tarihi}
                       </td>
@@ -254,7 +322,7 @@ export default function AcademicianStajPage() {
                           <div style={{ display: "flex", gap: 8 }}>
                             <button
                               onClick={() => handleOnayla(staj.id)}
-                              disabled={busyId === staj.id}
+                              disabled={busyId === staj.id || !periodOpen}
                               className="button button-primary"
                               style={{ minHeight: 36, padding: "0 12px", fontSize: 12 }}
                             >
@@ -262,7 +330,7 @@ export default function AcademicianStajPage() {
                             </button>
                             <button
                               onClick={() => handleReddet(staj.id)}
-                              disabled={busyId === staj.id}
+                              disabled={busyId === staj.id || !periodOpen}
                               style={{
                                 minHeight: 36,
                                 padding: "0 12px",
@@ -283,7 +351,8 @@ export default function AcademicianStajPage() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

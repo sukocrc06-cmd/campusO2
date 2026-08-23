@@ -458,6 +458,24 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
           Modülü aç <Icon name="arrow" size={17} />
         </a>
       </section>
+
+      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
+        <span className="module-launch-icon"><Icon name="calendar" size={34} /></span>
+        <div>
+          <small>VOL 1-7</small>
+          <h1>Yemek Menüsü</h1>
+          <p>
+            AYBÜ SKS'nin haftalık yemek menüsünü günlere göre görüntüle — bugünün yemekleri ve haftanın diğer günleri tek ekranda.
+          </p>
+        </div>
+        <a
+          className="button button-primary"
+          href="/yemek-menusu"
+          style={{ textDecoration: "none" }}
+        >
+          Modülü aç <Icon name="arrow" size={17} />
+        </a>
+      </section>
     </div>
   );
 }
@@ -992,6 +1010,7 @@ function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: Qr
           <button onClick={() => { window.location.href = "/admin/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>
           <button onClick={() => { window.location.href = "/admin/sosyal-sorumluluk"; }}><Icon name="check" size={19} /><span>Sosyal Sorumluluk</span></button>
           <button onClick={() => { window.location.href = "/admin/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
+          <button onClick={() => { window.location.href = "/admin/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
           <button onClick={() => { window.location.href = "/admin/davet"; }}><Icon name="users" size={19} /><span>Yetki Ver</span></button>
           <button onClick={() => { window.location.href = "/admin/kullanicilar"; }}><Icon name="user" size={19} /><span>Kullanıcılar</span></button>
         </nav>
@@ -1253,6 +1272,7 @@ export default function Home() {
           )}
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/sosyal-sorumluluk" : "/academician/sosyal-sorumluluk"; }}><Icon name="users" size={19} /><span>Sosyal Sorumluluk</span></button>
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/kulupler" : "/academician/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
+          <button onClick={() => { window.location.href = "/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
                     <button onClick={() => { window.open("https://acadex-1lku.vercel.app", "_blank"); }}><Icon name="spark" size={19} /><span>Acadex</span></button>
         </nav>
 

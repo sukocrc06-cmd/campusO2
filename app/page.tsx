@@ -398,6 +398,26 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
           Acadex’i aç <Icon name="arrow" size={17} />
         </a>
       </section>
+
+      {role === "faculty" && (
+        <section className="module-launch-card panel" style={{ marginTop: 16 }}>
+          <span className="module-launch-icon"><Icon name="graduation" size={34} /></span>
+          <div>
+            <small>VOL 1-4</small>
+            <h1>Akademik Teşvik Hesaplama Robotu</h1>
+            <p>
+              Yayın, atıf, proje ve diğer faaliyetlerini gir; toplam teşvik puanını anında hesapla ve kaydet.
+            </p>
+          </div>
+          <a
+            className="button button-primary"
+            href="/academician/tesvik"
+            style={{ textDecoration: "none" }}
+          >
+            Modülü aç <Icon name="arrow" size={17} />
+          </a>
+        </section>
+      )}
     </div>
   );
 }
@@ -929,6 +949,7 @@ function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: Qr
           <button className="active"><Icon name="home" size={19} /><span>Genel Bakış</span></button>
           <button><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
                   <button onClick={() => { window.location.href = "/admin/staj"; }}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
+          <button onClick={() => { window.location.href = "/admin/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>
           <button onClick={() => { window.location.href = "/admin/davet"; }}><Icon name="users" size={19} /><span>Yetki Ver</span></button>
         </nav>
 
@@ -1184,6 +1205,9 @@ export default function Home() {
           <button className={panelView === "home" ? "active" : ""} onClick={() => { setPanelView("home"); setMobileOpen(false); }}><Icon name="home" size={19} /><span>Ana Sayfa</span></button>
           <button className={panelView === "qr" ? "active" : ""} onClick={() => { setPanelView("qr"); setMobileOpen(false); }}><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
           <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
+          {role === "faculty" && (
+            <button onClick={() => { window.location.href = "/academician/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>
+          )}
                     <button onClick={() => { window.open("https://acadex-1lku.vercel.app", "_blank"); }}><Icon name="spark" size={19} /><span>Acadex</span></button>
         </nav>
 

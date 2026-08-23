@@ -86,12 +86,27 @@ function isKategoriBasligi(line: string): string | null {
 }
 
 function extractYemekFromLine(line: string): YemekOgesi | null {
-  const match = /^(.{2,80}?)\s*[-–(]?\s*(\d{2,4})\s*kcal\)?\.?$/i.exec(line);
+  // AYBÜ sitesi kaloriyi "kkal" (kilokalori) olarak yazıyor; "kcal" da
+  // yedek olarak destekleniyor, site formatı değişirse diye.
+  const match = /^(.{2,80}?)\s*[-–(]?\s*(\d{2,4})\s*(?:kkal|kcal)\)?\.?$/i.exec(line);
   if (!match) return null;
   const ad = match[1].replace(/[-–,;.]+$/, "").trim();
   const kalori = parseInt(match[2], 10);
   if (!ad || ad.length < 2) return null;
   return { kategori: null, ad, kalori: Number.isFinite(kalori) ? kalori : null };
+}
+
+// AYBÜ günlük listesinde ayrı kategori başlığı yok; sabit sırayla geliyor:
+// çorba, ana yemek, yardımcı/pilav, tatlı-meyve. Sayfada açık bir kategori
+// başlığı bulunamayan günler için bu sırayla etiketleniyor.
+const POZISYONEL_KATEGORILER = ["Çorba", "Ana Yemek", "Yardımcı Yemek", "Tatlı/Meyve"];
+
+function pozisyonelKategoriUygula(gun: GunMenusu): void {
+  const hicKategoriYok = gun.yemekler.every((y) => !y.kategori);
+  if (!hicKategoriYok) return;
+  gun.yemekler.forEach((y, idx) => {
+    y.kategori = POZISYONEL_KATEGORILER[idx] ?? POZISYONEL_KATEGORILER[POZISYONEL_KATEGORILER.length - 1];
+  });
 }
 
 function pad2(n: number): string {
@@ -155,7 +170,10 @@ export function parseAybuMenu(html: string, referenceIso: string): GunMenusu[] {
   for (const line of bolum) {
     const gunIndex = findGunIndex(line);
     if (gunIndex !== -1 && gunIndex < 5) {
-      if (mevcutGun && mevcutGun.yemekler.length > 0) gunler.push(mevcutGun);
+      if (mevcutGun && mevcutGun.yemekler.length > 0) {
+        pozisyonelKategoriUygula(mevcutGun);
+        gunler.push(mevcutGun);
+      }
       const tarih = secilenHafta ? addDays(secilenHafta.iso, gunIndex) : referenceIso;
       mevcutGun = { gun_adi: GUNLER[gunIndex], tarih, yemekler: [] };
       mevcutKategori = null;
@@ -175,7 +193,10 @@ export function parseAybuMenu(html: string, referenceIso: string): GunMenusu[] {
       mevcutGun.yemekler.push(yemek);
     }
   }
-  if (mevcutGun && mevcutGun.yemekler.length > 0) gunler.push(mevcutGun);
+  if (mevcutGun && mevcutGun.yemekler.length > 0) {
+    pozisyonelKategoriUygula(mevcutGun);
+    gunler.push(mevcutGun);
+  }
 
   return gunler;
 }

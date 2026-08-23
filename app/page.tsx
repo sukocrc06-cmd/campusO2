@@ -438,6 +438,26 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
           Modülü aç <Icon name="arrow" size={17} />
         </a>
       </section>
+
+      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
+        <span className="module-launch-icon"><Icon name="shield" size={34} /></span>
+        <div>
+          <small>VOL 1-6</small>
+          <h1>Öğrenci Kulüpleri</h1>
+          <p>
+            {role === "faculty"
+              ? "Danışmanı olduğun kulübü yönet: üye başvurularını onayla, logo ve site linkini güncelle, yönetici yetkisi ver."
+              : "Kampüs kulüplerine göz at, başvur ve üyelik durumunu takip et."}
+          </p>
+        </div>
+        <a
+          className="button button-primary"
+          href={role === "student" ? "/student/kulupler" : "/academician/kulupler"}
+          style={{ textDecoration: "none" }}
+        >
+          Modülü aç <Icon name="arrow" size={17} />
+        </a>
+      </section>
     </div>
   );
 }
@@ -971,6 +991,7 @@ function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: Qr
                   <button onClick={() => { window.location.href = "/admin/staj"; }}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
           <button onClick={() => { window.location.href = "/admin/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>
           <button onClick={() => { window.location.href = "/admin/sosyal-sorumluluk"; }}><Icon name="check" size={19} /><span>Sosyal Sorumluluk</span></button>
+          <button onClick={() => { window.location.href = "/admin/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
           <button onClick={() => { window.location.href = "/admin/davet"; }}><Icon name="users" size={19} /><span>Yetki Ver</span></button>
           <button onClick={() => { window.location.href = "/admin/kullanicilar"; }}><Icon name="user" size={19} /><span>Kullanıcılar</span></button>
         </nav>
@@ -1231,6 +1252,7 @@ export default function Home() {
             <button onClick={() => { window.location.href = "/academician/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>
           )}
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/sosyal-sorumluluk" : "/academician/sosyal-sorumluluk"; }}><Icon name="users" size={19} /><span>Sosyal Sorumluluk</span></button>
+          <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/kulupler" : "/academician/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
                     <button onClick={() => { window.open("https://acadex-1lku.vercel.app", "_blank"); }}><Icon name="spark" size={19} /><span>Acadex</span></button>
         </nav>
 

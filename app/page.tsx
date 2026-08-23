@@ -476,6 +476,24 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
           Modülü aç <Icon name="arrow" size={17} />
         </a>
       </section>
+
+      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
+        <span className="module-launch-icon"><Icon name="book" size={34} /></span>
+        <div>
+          <small>VOL 1-8</small>
+          <h1>Ders ve Sınav Takvimi</h1>
+          <p>
+            Bölümüne ve sınıfına göre haftalık ders programını ve yaklaşan sınavları (vize/final/bütünleme) görüntüle.
+          </p>
+        </div>
+        <a
+          className="button button-primary"
+          href="/ders-programi-sinav-takvimi"
+          style={{ textDecoration: "none" }}
+        >
+          Modülü aç <Icon name="arrow" size={17} />
+        </a>
+      </section>
     </div>
   );
 }
@@ -1011,6 +1029,7 @@ function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: Qr
           <button onClick={() => { window.location.href = "/admin/sosyal-sorumluluk"; }}><Icon name="check" size={19} /><span>Sosyal Sorumluluk</span></button>
           <button onClick={() => { window.location.href = "/admin/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
           <button onClick={() => { window.location.href = "/admin/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
+          <button onClick={() => { window.location.href = "/admin/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
           <button onClick={() => { window.location.href = "/admin/davet"; }}><Icon name="users" size={19} /><span>Yetki Ver</span></button>
           <button onClick={() => { window.location.href = "/admin/kullanicilar"; }}><Icon name="user" size={19} /><span>Kullanıcılar</span></button>
         </nav>
@@ -1273,6 +1292,7 @@ export default function Home() {
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/sosyal-sorumluluk" : "/academician/sosyal-sorumluluk"; }}><Icon name="users" size={19} /><span>Sosyal Sorumluluk</span></button>
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/kulupler" : "/academician/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
           <button onClick={() => { window.location.href = "/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
+          <button onClick={() => { window.location.href = "/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
                     <button onClick={() => { window.open("https://acadex-1lku.vercel.app", "_blank"); }}><Icon name="spark" size={19} /><span>Acadex</span></button>
         </nav>
 

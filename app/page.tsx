@@ -951,6 +951,7 @@ function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: Qr
                   <button onClick={() => { window.location.href = "/admin/staj"; }}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
           <button onClick={() => { window.location.href = "/admin/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>
           <button onClick={() => { window.location.href = "/admin/davet"; }}><Icon name="users" size={19} /><span>Yetki Ver</span></button>
+          <button onClick={() => { window.location.href = "/admin/kullanicilar"; }}><Icon name="user" size={19} /><span>Kullanıcılar</span></button>
         </nav>
 
         <div className="admin-sidebar-empty">

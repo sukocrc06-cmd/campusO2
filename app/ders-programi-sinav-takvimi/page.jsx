@@ -13,6 +13,7 @@ import {
   yaklasanSinaviBul,
   gunFarkiMetni,
 } from "../../lib/ders-sinav-kisisel";
+import { TAKVIM_TURLERI, AY_ADLARI, GUN_KISALTMALARI, tarihIso, bugunIso, ayIzgarasiUret } from "../../lib/kisisel-takvim";
 
 const inputStyle = { height: 42, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 11, fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" };
 const labelStyle = { display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 700, color: "#5b6b85" };
@@ -51,6 +52,20 @@ export default function DersSinavTakvimiPage() {
   const [notAcik, setNotAcik] = useState(null); // `${hedef_tip}:${hedef_id}`
   const [notTaslak, setNotTaslak] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const bugunTarih = new Date();
+  const [takvimEtkinlikleri, setTakvimEtkinlikleri] = useState([]);
+  const [takvimYil, setTakvimYil] = useState(bugunTarih.getFullYear());
+  const [takvimAy, setTakvimAy] = useState(bugunTarih.getMonth());
+  const [secilenGun, setSecilenGun] = useState(bugunIso());
+  const [yeniTur, setYeniTur] = useState("ders");
+  const [yeniBaslik, setYeniBaslik] = useState("");
+  const [yeniSaat, setYeniSaat] = useState("");
+
+  async function takvimEtkinlikleriYukle(uid) {
+    const { data } = await supabase.from("kisisel_takvim_etkinlikleri").select("*").eq("kullanici_id", uid).order("saat", { ascending: true });
+    setTakvimEtkinlikleri(data || []);
+  }
 
   async function kisiselleriYukle(uid) {
     const { data } = await supabase.from("ders_sinav_kisisel").select("*").eq("kullanici_id", uid);
@@ -91,6 +106,7 @@ export default function DersSinavTakvimiPage() {
       }
 
       await kisiselleriYukle(session.user.id);
+      await takvimEtkinlikleriYukle(session.user.id);
       setLoading(false);
     }
     init();
@@ -205,6 +221,47 @@ export default function DersSinavTakvimiPage() {
     else icsIndir(sinavTakvimindenIcsUret(filtrelenmisSinav), "campuso-sinav-takvimim.ics");
   }
 
+  const takvimGunEtkinlikleri = useMemo(() => {
+    const map = new Map();
+    takvimEtkinlikleri.forEach((e) => {
+      if (!map.has(e.tarih)) map.set(e.tarih, []);
+      map.get(e.tarih).push(e);
+    });
+    return map;
+  }, [takvimEtkinlikleri]);
+
+  const takvimIzgara = useMemo(() => ayIzgarasiUret(takvimYil, takvimAy), [takvimYil, takvimAy]);
+  const secilenGunEtkinlikleri = takvimGunEtkinlikleri.get(secilenGun) || [];
+
+  function ayDegistir(fark) {
+    let yeniAy = takvimAy + fark;
+    let yeniYil = takvimYil;
+    if (yeniAy < 0) { yeniAy = 11; yeniYil -= 1; }
+    if (yeniAy > 11) { yeniAy = 0; yeniYil += 1; }
+    setTakvimAy(yeniAy);
+    setTakvimYil(yeniYil);
+  }
+
+  async function handleEtkinlikEkle(e) {
+    e.preventDefault();
+    if (!yeniBaslik.trim()) return;
+    setBusy(true); setError("");
+    const { data, error: err } = await supabase.from("kisisel_takvim_etkinlikleri").insert([{
+      kullanici_id: userId, tarih: secilenGun, tur: yeniTur, baslik: yeniBaslik.trim(), saat: yeniSaat || null,
+    }]).select().maybeSingle();
+    if (err) setError("Etkinlik eklenemedi: " + err.message);
+    else if (data) { setTakvimEtkinlikleri((prev) => [...prev, data]); setYeniBaslik(""); setYeniSaat(""); }
+    setBusy(false);
+  }
+
+  async function handleEtkinlikSil(id) {
+    setBusy(true); setError("");
+    const { error: err } = await supabase.from("kisisel_takvim_etkinlikleri").delete().eq("id", id);
+    if (err) setError("Silinemedi: " + err.message);
+    else setTakvimEtkinlikleri((prev) => prev.filter((e) => e.id !== id));
+    setBusy(false);
+  }
+
   return (
     <div style={{ minHeight: "100dvh", background: "#f5f8fc", fontFamily: "system-ui, sans-serif", color: "#0f1b33" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 22px", borderBottom: "1px solid #e3ebf6", background: "#fff" }}>
@@ -262,10 +319,6 @@ export default function DersSinavTakvimiPage() {
 
         {loading ? (
           <p style={{ color: "#5b6b85" }}>Yükleniyor…</p>
-        ) : !secimTamam ? (
-          <div style={{ padding: 32, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>
-            {bolumler.length === 0 ? "Henüz ders programı veya sınav takvimi verisi yok." : "Programı görmek için bölüm ve sınıf seç."}
-          </div>
         ) : (
           <>
             <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
@@ -273,16 +326,119 @@ export default function DersSinavTakvimiPage() {
               <button type="button" onClick={() => setTab("sinav")} style={{ padding: "10px 18px", borderRadius: 999, border: tab === "sinav" ? "1px solid #175cd3" : "1px solid #e3ebf6", background: tab === "sinav" ? "#175cd3" : "#fff", color: tab === "sinav" ? "#fff" : "#5b6b85", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                 Sınav Takvimi {filtrelenmisSinav.length > 0 ? `(${filtrelenmisSinav.length})` : ""}
               </button>
+              <button type="button" onClick={() => setTab("takvim")} style={{ padding: "10px 18px", borderRadius: 999, border: tab === "takvim" ? "1px solid #175cd3" : "1px solid #e3ebf6", background: tab === "takvim" ? "#175cd3" : "#fff", color: tab === "takvim" ? "#fff" : "#5b6b85", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                🗓️ Takvimim {takvimEtkinlikleri.length > 0 ? `(${takvimEtkinlikleri.length})` : ""}
+              </button>
               <div style={{ flex: 1 }} />
-              <button type="button" onClick={() => setGizlenenleriGoster((p) => !p)} style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
-                {gizlenenleriGoster ? "Gizlenenleri Gizle" : "Gizlenenleri Göster"}
-              </button>
-              <button type="button" onClick={() => handleIcsIndir(tab)} style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #c7deff", background: "#fff", color: "#0e4bae", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
-                📅 Takvime Aktar (.ics)
-              </button>
+              {tab !== "takvim" && (
+                <>
+                  <button type="button" onClick={() => setGizlenenleriGoster((p) => !p)} style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
+                    {gizlenenleriGoster ? "Gizlenenleri Gizle" : "Gizlenenleri Göster"}
+                  </button>
+                  <button type="button" onClick={() => handleIcsIndir(tab)} style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #c7deff", background: "#fff", color: "#0e4bae", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
+                    📅 Takvime Aktar (.ics)
+                  </button>
+                </>
+              )}
             </div>
 
-            {tab === "ders" && (
+            {tab === "takvim" && (
+              <section>
+                <div style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 18, marginBottom: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                    <button type="button" onClick={() => ayDegistir(-1)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #e3ebf6", background: "#fff", cursor: "pointer", fontSize: 14 }}>←</button>
+                    <div style={{ fontSize: 14, fontWeight: 800 }}>{AY_ADLARI[takvimAy]} {takvimYil}</div>
+                    <button type="button" onClick={() => ayDegistir(1)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #e3ebf6", background: "#fff", cursor: "pointer", fontSize: 14 }}>→</button>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                    {Object.entries(TAKVIM_TURLERI).map(([anahtar, tur]) => (
+                      <div key={anahtar} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#5b6b85" }}>
+                        <span style={{ width: 10, height: 10, borderRadius: "50%", background: tur.color, display: "inline-block" }} />
+                        {tur.label}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
+                    {GUN_KISALTMALARI.map((g) => (
+                      <div key={g} style={{ textAlign: "center", fontSize: 10.5, fontWeight: 800, color: "#8fa0bc" }}>{g}</div>
+                    ))}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+                    {takvimIzgara.flat().map((gun, idx) => {
+                      if (gun === null) return <div key={idx} />;
+                      const iso = tarihIso(takvimYil, takvimAy, gun);
+                      const etkinlikler = takvimGunEtkinlikleri.get(iso) || [];
+                      const buGunMu = iso === bugunIso();
+                      const seciliMi = iso === secilenGun;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setSecilenGun(iso)}
+                          style={{
+                            minHeight: 56, borderRadius: 10, padding: "6px 4px", textAlign: "left", cursor: "pointer",
+                            border: seciliMi ? "2px solid #175cd3" : buGunMu ? "1px solid #175cd3" : "1px solid #e3ebf6",
+                            background: seciliMi ? "#eef5ff" : "#fff", display: "flex", flexDirection: "column", gap: 3,
+                          }}
+                        >
+                          <span style={{ fontSize: 11, fontWeight: buGunMu ? 800 : 600, color: buGunMu ? "#175cd3" : "#0f1b33" }}>{gun}</span>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+                            {etkinlikler.slice(0, 3).map((e) => (
+                              <span key={e.id} style={{ width: 6, height: 6, borderRadius: "50%", background: TAKVIM_TURLERI[e.tur]?.color || "#8fa0bc", display: "inline-block" }} />
+                            ))}
+                            {etkinlikler.length > 3 && <span style={{ fontSize: 8, color: "#8fa0bc" }}>+{etkinlikler.length - 3}</span>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 18 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>
+                    {new Date(secilenGun).toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric", weekday: "long" })}
+                  </div>
+
+                  {secilenGunEtkinlikleri.length === 0 ? (
+                    <div style={{ fontSize: 12.5, color: "#8fa0bc", marginBottom: 14 }}>Bu tarihte henüz bir etkinlik yok.</div>
+                  ) : (
+                    <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
+                      {secilenGunEtkinlikleri.map((e) => {
+                        const tur = TAKVIM_TURLERI[e.tur] || TAKVIM_TURLERI.diger;
+                        return (
+                          <div key={e.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: tur.bg, flexWrap: "wrap" }}>
+                            <div>
+                              <span style={{ fontSize: 10.5, fontWeight: 800, color: tur.color, textTransform: "uppercase", letterSpacing: "0.04em" }}>{tur.label}</span>
+                              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{e.baslik}{e.saat ? <span style={{ fontWeight: 500, color: "#5b6b85" }}> · {e.saat}</span> : null}</div>
+                            </div>
+                            <button onClick={() => handleEtkinlikSil(e.id)} disabled={busy} style={{ minHeight: 26, padding: "0 10px", fontSize: 10.5, fontWeight: 700, borderRadius: 7, border: "1px solid #f2c5ba", background: "#fff", color: "#984333", cursor: "pointer" }}>Sil</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleEtkinlikEkle} style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}>
+                    <select style={inputStyle} value={yeniTur} onChange={(e) => setYeniTur(e.target.value)}>
+                      {Object.entries(TAKVIM_TURLERI).map(([anahtar, tur]) => <option key={anahtar} value={anahtar}>{tur.label}</option>)}
+                    </select>
+                    <input style={{ ...inputStyle, gridColumn: "span 2" }} placeholder="Örn. Financial Data Analysis sunumu" maxLength={140} value={yeniBaslik} onChange={(e) => setYeniBaslik(e.target.value)} />
+                    <input style={inputStyle} type="time" value={yeniSaat} onChange={(e) => setYeniSaat(e.target.value)} />
+                    <button type="submit" disabled={busy || !yeniBaslik.trim()} className="button button-primary" style={{ minHeight: 42, padding: "0 16px", fontSize: 12.5 }}>Ekle</button>
+                  </form>
+                </div>
+              </section>
+            )}
+
+            {tab !== "takvim" && !secimTamam && (
+              <div style={{ padding: 32, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>
+                {bolumler.length === 0 ? "Henüz ders programı veya sınav takvimi verisi yok." : "Programı görmek için bölüm ve sınıf seç."}
+              </div>
+            )}
+
+            {tab === "ders" && secimTamam && (
               filtrelenmisDers.length === 0 ? (
                 <div style={{ padding: 28, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>Bu bölüm/sınıf için ders programı girilmemiş.</div>
               ) : (
@@ -332,7 +488,7 @@ export default function DersSinavTakvimiPage() {
               )
             )}
 
-            {tab === "sinav" && (
+            {tab === "sinav" && secimTamam && (
               filtrelenmisSinav.length === 0 ? (
                 <div style={{ padding: 28, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>Bu bölüm/sınıf için sınav takvimi girilmemiş.</div>
               ) : (

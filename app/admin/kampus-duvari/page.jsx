@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabase";
 import { heroGradient } from "../../../lib/profil-secenekleri";
+import { SUSTURMA_SURELERI, susturmaBitisTarihi } from "../../../lib/kampus-duvari-yardimcilari";
 
 function baslangicHarfi(isim) {
   return (isim || "?").trim().charAt(0).toUpperCase() || "?";
@@ -34,9 +35,14 @@ export default function AdminKampusDuvariPage() {
   const [gonderiler, setGonderiler] = useState([]);
   const [yorumSayilari, setYorumSayilari] = useState({});
   const [sikayetler, setSikayetler] = useState([]);
+  const [onayBekleyenGonderiler, setOnayBekleyenGonderiler] = useState([]);
+  const [onayBekleyenYorumlar, setOnayBekleyenYorumlar] = useState([]);
+  const [yasakliKelimeler, setYasakliKelimeler] = useState([]);
+  const [yeniKelime, setYeniKelime] = useState("");
   const [profilMap, setProfilMap] = useState({});
   const [genisletilmis, setGenisletilmis] = useState({});
   const [yorumlarMap, setYorumlarMap] = useState({});
+  const [susturSecim, setSusturSecim] = useState({});
 
   async function profilleriYukle(idler) {
     const eksik = idler.filter((id) => id && !profilMap[id]);
@@ -52,10 +58,13 @@ export default function AdminKampusDuvariPage() {
   }
 
   async function loadAll() {
-    const [{ data: g, error: gErr }, { data: y, error: yErr }, { data: s, error: sErr }] = await Promise.all([
-      supabase.from("gonderiler").select("*").order("created_at", { ascending: false }).limit(60),
+    const [{ data: g, error: gErr }, { data: y, error: yErr }, { data: s, error: sErr }, { data: obG }, { data: obY }, { data: kelimeler }] = await Promise.all([
+      supabase.from("gonderiler").select("*").order("sabitlenmis", { ascending: false }).order("created_at", { ascending: false }).limit(60),
       supabase.from("yorumlar").select("id, gonderi_id"),
       supabase.from("kampus_duvari_sikayetleri").select("*").order("created_at", { ascending: false }).limit(40),
+      supabase.from("gonderiler").select("*").eq("onay_bekliyor", true).order("created_at", { ascending: false }),
+      supabase.from("yorumlar").select("*").eq("onay_bekliyor", true).order("created_at", { ascending: false }),
+      supabase.from("kampus_duvari_yasakli_kelimeler").select("*").order("kelime", { ascending: true }),
     ]);
     if (gErr) setError("Gönderiler alınamadı: " + gErr.message);
     else setGonderiler(g || []);
@@ -66,8 +75,16 @@ export default function AdminKampusDuvariPage() {
     }
     if (sErr) setError((prev) => prev || "Şikayetler alınamadı: " + sErr.message);
     else setSikayetler(s || []);
+    setOnayBekleyenGonderiler(obG || []);
+    setOnayBekleyenYorumlar(obY || []);
+    setYasakliKelimeler(kelimeler || []);
 
-    const idler = new Set([...(g || []).map((row) => row.yazar_id), ...(s || []).map((row) => row.bildiren_id)]);
+    const idler = new Set([
+      ...(g || []).map((row) => row.yazar_id),
+      ...(s || []).map((row) => row.bildiren_id),
+      ...(obG || []).map((row) => row.yazar_id),
+      ...(obY || []).map((row) => row.yazar_id),
+    ]);
     await profilleriYukle(Array.from(idler));
   }
 
@@ -90,7 +107,8 @@ export default function AdminKampusDuvariPage() {
     gonderi: gonderiler.length,
     yorum: Object.values(yorumSayilari).reduce((a, b) => a + b, 0),
     sikayet: sikayetler.length,
-  }), [gonderiler, yorumSayilari, sikayetler]);
+    onayBekleyen: onayBekleyenGonderiler.length + onayBekleyenYorumlar.length,
+  }), [gonderiler, yorumSayilari, sikayetler, onayBekleyenGonderiler, onayBekleyenYorumlar]);
 
   async function handleGonderiSil(id) {
     setBusy(true); setError(""); setMessage("");
@@ -116,6 +134,65 @@ export default function AdminKampusDuvariPage() {
     const { error: err } = await supabase.from("kampus_duvari_sikayetleri").delete().eq("id", id);
     if (err) setError("Kapatılamadı: " + err.message);
     else { setMessage("Şikayet kapatıldı."); setSikayetler((prev) => prev.filter((s) => s.id !== id)); }
+    setBusy(false);
+  }
+
+  async function handleGonderiOnayla(id) {
+    setBusy(true); setError(""); setMessage("");
+    const { error: err } = await supabase.from("gonderiler").update({ onay_bekliyor: false }).eq("id", id);
+    if (err) setError("Onaylanamadı: " + err.message);
+    else { setMessage("Gönderi onaylandı, artık herkes görebilir."); await loadAll(); }
+    setBusy(false);
+  }
+
+  async function handleYorumOnayla(id) {
+    setBusy(true); setError(""); setMessage("");
+    const { error: err } = await supabase.from("yorumlar").update({ onay_bekliyor: false }).eq("id", id);
+    if (err) setError("Onaylanamadı: " + err.message);
+    else { setMessage("Yorum onaylandı."); await loadAll(); }
+    setBusy(false);
+  }
+
+  async function handleGonderiSabitle(id, mevcut) {
+    setBusy(true); setError(""); setMessage("");
+    const { error: err } = await supabase.from("gonderiler").update({ sabitlenmis: !mevcut }).eq("id", id);
+    if (err) setError("İşlem başarısız: " + err.message);
+    else { setMessage(mevcut ? "Sabitleme kaldırıldı." : "Gönderi duvarın en üstüne sabitlendi."); await loadAll(); }
+    setBusy(false);
+  }
+
+  async function handleKelimeEkle(e) {
+    e.preventDefault();
+    const kelime = yeniKelime.trim().toLowerCase();
+    if (!kelime) return;
+    setBusy(true); setError("");
+    const { error: err } = await supabase.from("kampus_duvari_yasakli_kelimeler").insert([{ kelime }]);
+    if (err) setError("Eklenemedi: " + err.message);
+    else { setYeniKelime(""); await loadAll(); }
+    setBusy(false);
+  }
+
+  async function handleKelimeSil(id) {
+    setBusy(true); setError("");
+    const { error: err } = await supabase.from("kampus_duvari_yasakli_kelimeler").delete().eq("id", id);
+    if (err) setError("Silinemedi: " + err.message);
+    else setYasakliKelimeler((prev) => prev.filter((k) => k.id !== id));
+    setBusy(false);
+  }
+
+  async function handleSustur(kullaniciId) {
+    const saat = susturSecim[kullaniciId] || SUSTURMA_SURELERI[0].saat;
+    const sebep = window.prompt("Susturma sebebi (opsiyonel):") ?? "";
+    setBusy(true); setError(""); setMessage("");
+    const { data: { session } } = await supabase.auth.getSession();
+    const { error: err } = await supabase.from("kampus_duvari_susturmalar").insert([{
+      kullanici_id: kullaniciId,
+      sebep: sebep.trim() || null,
+      bitis: susturmaBitisTarihi(Number(saat)),
+      olusturan_id: session?.user?.id || null,
+    }]);
+    if (err) setError("Susturulamadı: " + err.message);
+    else setMessage("Kullanıcı susturuldu.");
     setBusy(false);
   }
 
@@ -163,10 +240,48 @@ export default function AdminKampusDuvariPage() {
                 <small style={{ color: "var(--muted)", fontSize: 11 }}>Bekleyen şikayet</small>
                 <div style={{ fontSize: 22, fontWeight: 800, marginTop: 4, color: stats.sikayet > 0 ? "#ef5c63" : "#22b879" }}>{stats.sikayet}</div>
               </div>
+              <div style={{ padding: 16, borderRadius: 14, border: "1px solid var(--line)", background: "#fff" }}>
+                <small style={{ color: "var(--muted)", fontSize: 11 }}>Onay bekleyen</small>
+                <div style={{ fontSize: 22, fontWeight: 800, marginTop: 4, color: stats.onayBekleyen > 0 ? "#ef5c63" : "#22b879" }}>{stats.onayBekleyen}</div>
+              </div>
             </section>
 
             {error ? <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "#fff4f0", border: "1px solid #f2c5ba", color: "#984333", fontSize: 13, fontWeight: 600 }}>{error}</div> : null}
             {message ? <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "#effbf6", border: "1px solid #bde5d5", color: "#0b5c42", fontSize: 13, fontWeight: 600 }}>{message}</div> : null}
+
+            {(onayBekleyenGonderiler.length > 0 || onayBekleyenYorumlar.length > 0) && (
+              <section style={{ background: "#fff8ec", border: "1px solid #ffd58a", borderRadius: 16, padding: 18, marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#8a5a12", marginBottom: 10 }}>Onay Bekleyen İçerik ({stats.onayBekleyen}) — anahtar kelime filtresine takıldı</div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {onayBekleyenGonderiler.map((g) => {
+                    const yazar = profilMap[g.yazar_id];
+                    return (
+                      <div key={g.id} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px" }}>
+                        <div style={{ fontSize: 12, marginBottom: 6 }}><b>{yazar?.full_name || "Öğrenci"}</b> · gönderi · {zamanFormat(g.created_at)}</div>
+                        <div style={{ fontSize: 12.5, color: "#5b6b85", marginBottom: 8 }}>{g.icerik}</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => handleGonderiOnayla(g.id)} disabled={busy} style={{ minHeight: 28, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #bde5d5", background: "#effbf6", color: "#0b5c42", cursor: "pointer" }}>Onayla</button>
+                          <button onClick={() => handleGonderiSil(g.id)} disabled={busy} style={{ minHeight: 28, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Reddet / Sil</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {onayBekleyenYorumlar.map((y) => {
+                    const yazar = profilMap[y.yazar_id];
+                    return (
+                      <div key={y.id} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px" }}>
+                        <div style={{ fontSize: 12, marginBottom: 6 }}><b>{yazar?.full_name || "Öğrenci"}</b> · yorum · {zamanFormat(y.created_at)}</div>
+                        <div style={{ fontSize: 12.5, color: "#5b6b85", marginBottom: 8 }}>{y.icerik}</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => handleYorumOnayla(y.id)} disabled={busy} style={{ minHeight: 28, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #bde5d5", background: "#effbf6", color: "#0b5c42", cursor: "pointer" }}>Onayla</button>
+                          <button onClick={() => handleYorumSil(y.id, y.gonderi_id)} disabled={busy} style={{ minHeight: 28, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Reddet / Sil</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             {sikayetler.length > 0 && (
               <section style={{ background: "#fff4f0", border: "1px solid #f2c5ba", borderRadius: 16, padding: 18, marginBottom: 24 }}>
@@ -192,6 +307,24 @@ export default function AdminKampusDuvariPage() {
               </section>
             )}
 
+            <section style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 16, padding: 18, marginBottom: 24 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>Yasaklı Kelimeler</div>
+              <form onSubmit={handleKelimeEkle} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input value={yeniKelime} onChange={(e) => setYeniKelime(e.target.value)} placeholder="Örn. küfür1" style={{ flex: 1, height: 36, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 9, fontSize: 12.5, outline: "none" }} />
+                <button type="submit" disabled={busy} style={{ minHeight: 36, padding: "0 14px", fontSize: 12, fontWeight: 700, borderRadius: 9, border: "none", background: "#175cd3", color: "#fff", cursor: "pointer" }}>Ekle</button>
+              </form>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {yasakliKelimeler.length === 0 ? (
+                  <span style={{ fontSize: 12, color: "#8fa0bc" }}>Henüz yasaklı kelime eklenmedi. Eklenen kelimeyi içeren gönderi/yorumlar otomatik olarak "onay bekliyor" durumuna alınır.</span>
+                ) : yasakliKelimeler.map((k) => (
+                  <span key={k.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#f5f8fc", border: "1px solid #e3ebf6" }}>
+                    {k.kelime}
+                    <button onClick={() => handleKelimeSil(k.id)} disabled={busy} style={{ border: "none", background: "none", color: "#984333", cursor: "pointer", fontWeight: 800, padding: 0 }}>×</button>
+                  </span>
+                ))}
+              </div>
+            </section>
+
             <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>Tüm Gönderiler</div>
             {gonderiler.length === 0 ? (
               <div style={{ display: "grid", placeItems: "center", minHeight: 100, border: "1px dashed var(--line)", borderRadius: 14, background: "var(--bg)", color: "var(--muted)", fontSize: 13 }}>Henüz gönderi yok.</div>
@@ -202,7 +335,8 @@ export default function AdminKampusDuvariPage() {
                   const yorumSayisi = yorumSayilari[g.id] || 0;
                   const yorumlar = yorumlarMap[g.id] || [];
                   return (
-                    <div key={g.id} style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 14, padding: 16 }}>
+                    <div key={g.id} style={{ background: "#fff", border: g.sabitlenmis ? "1px solid #ffd58a" : "1px solid #e3ebf6", borderRadius: 14, padding: 16 }}>
+                      {g.sabitlenmis && <div style={{ fontSize: 10.5, fontWeight: 800, color: "#c65d1f", marginBottom: 6 }}>📌 SABİTLENMİŞ</div>}
                       <div style={{ display: "flex", gap: 10 }}>
                         <Avatar profil={yazar} />
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -211,7 +345,14 @@ export default function AdminKampusDuvariPage() {
                               <b style={{ fontSize: 13 }}>{yazar?.full_name || "Öğrenci"}</b>
                               <span style={{ fontSize: 11, color: "#8fa0bc", marginLeft: 8 }}>{zamanFormat(g.created_at)}</span>
                             </div>
-                            <button onClick={() => handleGonderiSil(g.id)} disabled={busy} style={{ minHeight: 28, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Sil</button>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              <button onClick={() => handleGonderiSabitle(g.id, g.sabitlenmis)} disabled={busy} style={{ minHeight: 28, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #ffd58a", background: g.sabitlenmis ? "#ffd58a" : "#fff8ec", color: "#8a5a12", cursor: "pointer" }}>{g.sabitlenmis ? "Sabitlemeyi Kaldır" : "Sabitle"}</button>
+                              <select value={susturSecim[g.yazar_id] || SUSTURMA_SURELERI[0].saat} onChange={(e) => setSusturSecim((prev) => ({ ...prev, [g.yazar_id]: e.target.value }))} style={{ height: 28, fontSize: 11, borderRadius: 8, border: "1px solid #e3ebf6" }}>
+                                {SUSTURMA_SURELERI.map((s) => <option key={s.saat} value={s.saat}>{s.label}</option>)}
+                              </select>
+                              <button onClick={() => handleSustur(g.yazar_id)} disabled={busy} style={{ minHeight: 28, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", cursor: "pointer" }}>Yazarı Sustur</button>
+                              <button onClick={() => handleGonderiSil(g.id)} disabled={busy} style={{ minHeight: 28, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Sil</button>
+                            </div>
                           </div>
                           <p style={{ margin: "6px 0 0", fontSize: 13.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{g.icerik}</p>
                           {g.gorsel_url ? <img src={g.gorsel_url} alt="" style={{ marginTop: 8, borderRadius: 10, maxHeight: 220, objectFit: "cover", border: "1px solid #e3ebf6" }} /> : null}
@@ -231,7 +372,10 @@ export default function AdminKampusDuvariPage() {
                                       <b>{yYazar?.full_name || "Öğrenci"}</b> <span style={{ color: "#8fa0bc", fontSize: 10.5 }}>{zamanFormat(y.created_at)}</span>
                                       <div style={{ marginTop: 2 }}>{y.icerik}</div>
                                     </div>
-                                    <button onClick={() => handleYorumSil(y.id, g.id)} disabled={busy} style={{ minHeight: 26, padding: "0 8px", fontSize: 10.5, fontWeight: 700, borderRadius: 7, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer", flex: "none" }}>Sil</button>
+                                    <div style={{ display: "flex", gap: 6, flex: "none" }}>
+                                      <button onClick={() => handleSustur(y.yazar_id)} disabled={busy} style={{ minHeight: 26, padding: "0 8px", fontSize: 10.5, fontWeight: 700, borderRadius: 7, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", cursor: "pointer" }}>Sustur</button>
+                                      <button onClick={() => handleYorumSil(y.id, g.id)} disabled={busy} style={{ minHeight: 26, padding: "0 8px", fontSize: 10.5, fontWeight: 700, borderRadius: 7, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Sil</button>
+                                    </div>
                                   </div>
                                 );
                               })}

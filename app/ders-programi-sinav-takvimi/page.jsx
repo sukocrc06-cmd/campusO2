@@ -4,6 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 import { GUNLER } from "../../lib/ders-sinav-excel";
+import {
+  dersProgramindanIcsUret,
+  sinavTakvimindenIcsUret,
+  icsIndir,
+  sinavCakismalariniBul,
+  yaklasanDersiBul,
+  yaklasanSinaviBul,
+  gunFarkiMetni,
+} from "../../lib/ders-sinav-kisisel";
 
 const inputStyle = { height: 42, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 11, fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" };
 const labelStyle = { display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 700, color: "#5b6b85" };
@@ -24,14 +33,31 @@ export default function DersSinavTakvimiPage() {
   const [error, setError] = useState("");
   const [roleHref, setRoleHref] = useState("/");
   const [tab, setTab] = useState("ders"); // ders | sinav
+  const [userId, setUserId] = useState(null);
+  const [isAcademician, setIsAcademician] = useState(false);
+  const [kendiAdi, setKendiAdi] = useState("");
 
   const [dersListe, setDersListe] = useState([]);
   const [sinavListe, setSinavListe] = useState([]);
+  const [kisiselMap, setKisiselMap] = useState({}); // `${hedef_tip}:${hedef_id}` -> {gizli, not_metni}
 
   const [bolumler, setBolumler] = useState([]);
   const [siniflar, setSiniflar] = useState([]);
   const [secilenBolum, setSecilenBolum] = useState("");
   const [secilenSinif, setSecilenSinif] = useState("");
+  const [sadeceDerslerim, setSadeceDerslerim] = useState(false);
+  const [gizlenenleriGoster, setGizlenenleriGoster] = useState(false);
+
+  const [notAcik, setNotAcik] = useState(null); // `${hedef_tip}:${hedef_id}`
+  const [notTaslak, setNotTaslak] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function kisiselleriYukle(uid) {
+    const { data } = await supabase.from("ders_sinav_kisisel").select("*").eq("kullanici_id", uid);
+    const map = {};
+    (data || []).forEach((row) => { map[`${row.hedef_tip}:${row.hedef_id}`] = row; });
+    setKisiselMap(map);
+  }
 
   useEffect(() => {
     async function init() {
@@ -39,9 +65,13 @@ export default function DersSinavTakvimiPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setError("Oturum bulunamadı. Giriş yapıp tekrar deneyin."); setLoading(false); return; }
 
-      const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
-      const isAcademician = session.user.email?.toLowerCase() !== "suko.crc06@gmail.com" && profile?.role === "academician";
-      setRoleHref(isAcademician ? "/?role=faculty" : "/?role=student");
+      const { data: profile } = await supabase.from("profiles").select("role, bolum, sinif, full_name").eq("id", session.user.id).maybeSingle();
+      const akademisyenMi = session.user.email?.toLowerCase() !== "suko.crc06@gmail.com" && profile?.role === "academician";
+      setIsAcademician(akademisyenMi);
+      setRoleHref(akademisyenMi ? "/?role=faculty" : "/?role=student");
+      setUserId(session.user.id);
+      setKendiAdi(profile?.full_name || "");
+      if (akademisyenMi) setSadeceDerslerim(true);
 
       const [{ data: d, error: dErr }, { data: s, error: sErr }] = await Promise.all([
         supabase.from("ders_programi").select("*"),
@@ -55,15 +85,19 @@ export default function DersSinavTakvimiPage() {
       const bolumSet = new Set([...(d || []).map((r) => r.bolum), ...(s || []).map((r) => r.bolum)]);
       const bolumDizi = Array.from(bolumSet).filter(Boolean).sort();
       setBolumler(bolumDizi);
-      if (bolumDizi.length === 1) setSecilenBolum(bolumDizi[0]);
+      if (!akademisyenMi) {
+        if (profile?.bolum && bolumDizi.includes(profile.bolum)) setSecilenBolum(profile.bolum);
+        else if (bolumDizi.length === 1) setSecilenBolum(bolumDizi[0]);
+      }
 
+      await kisiselleriYukle(session.user.id);
       setLoading(false);
     }
     init();
   }, []);
 
   useEffect(() => {
-    if (!secilenBolum) { setSiniflar([]); setSecilenSinif(""); return; }
+    if (isAcademician || !secilenBolum) { if (!isAcademician) { setSiniflar([]); setSecilenSinif(""); } return; }
     const sinifSet = new Set([
       ...dersListe.filter((r) => r.bolum === secilenBolum).map((r) => r.sinif),
       ...sinavListe.filter((r) => r.bolum === secilenBolum).map((r) => r.sinif),
@@ -71,19 +105,55 @@ export default function DersSinavTakvimiPage() {
     const sinifDizi = Array.from(sinifSet).filter(Boolean).sort();
     setSiniflar(sinifDizi);
     if (sinifDizi.length === 1) setSecilenSinif(sinifDizi[0]);
-    else setSecilenSinif("");
-  }, [secilenBolum, dersListe, sinavListe]);
+  }, [secilenBolum, dersListe, sinavListe, isAcademician]);
 
-  const filtrelenmisDers = useMemo(
-    () => dersListe.filter((d) => d.bolum === secilenBolum && d.sinif === secilenSinif),
-    [dersListe, secilenBolum, secilenSinif],
-  );
-  const filtrelenmisSinav = useMemo(
-    () => sinavListe
-      .filter((s) => s.bolum === secilenBolum && s.sinif === secilenSinif)
-      .sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat)),
-    [sinavListe, secilenBolum, secilenSinif],
-  );
+  // Profilden geldiğinde sınıf seçimini de dene
+  useEffect(() => {
+    async function secilenSinifiProfildenAyarla() {
+      if (isAcademician || !userId || !secilenBolum) return;
+      const { data: profile } = await supabase.from("profiles").select("sinif").eq("id", userId).maybeSingle();
+      if (profile?.sinif) {
+        const sinifSet = new Set([
+          ...dersListe.filter((r) => r.bolum === secilenBolum).map((r) => r.sinif),
+          ...sinavListe.filter((r) => r.bolum === secilenBolum).map((r) => r.sinif),
+        ]);
+        if (sinifSet.has(profile.sinif)) setSecilenSinif(profile.sinif);
+      }
+    }
+    secilenSinifiProfildenAyarla();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secilenBolum]);
+
+  function hocaEslesiyorMu(hocaAdi) {
+    if (!kendiAdi || !hocaAdi) return false;
+    return hocaAdi.toLocaleLowerCase("tr-TR").includes(kendiAdi.toLocaleLowerCase("tr-TR")) || kendiAdi.toLocaleLowerCase("tr-TR").includes(hocaAdi.toLocaleLowerCase("tr-TR"));
+  }
+
+  const temelFiltrelenmisDers = useMemo(() => {
+    if (isAcademician) return sadeceDerslerim ? dersListe.filter((d) => hocaEslesiyorMu(d.hoca_adi)) : dersListe;
+    return dersListe.filter((d) => d.bolum === secilenBolum && d.sinif === secilenSinif);
+  }, [dersListe, secilenBolum, secilenSinif, isAcademician, sadeceDerslerim, kendiAdi]);
+
+  const temelFiltrelenmisSinav = useMemo(() => {
+    const liste = isAcademician
+      ? (sadeceDerslerim ? sinavListe.filter((s) => hocaEslesiyorMu(s.hoca_adi)) : sinavListe)
+      : sinavListe.filter((s) => s.bolum === secilenBolum && s.sinif === secilenSinif);
+    return [...liste].sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat));
+  }, [sinavListe, secilenBolum, secilenSinif, isAcademician, sadeceDerslerim, kendiAdi]);
+
+  const filtrelenmisDers = useMemo(() => {
+    if (gizlenenleriGoster) return temelFiltrelenmisDers;
+    return temelFiltrelenmisDers.filter((d) => !kisiselMap[`ders:${d.id}`]?.gizli);
+  }, [temelFiltrelenmisDers, kisiselMap, gizlenenleriGoster]);
+
+  const filtrelenmisSinav = useMemo(() => {
+    if (gizlenenleriGoster) return temelFiltrelenmisSinav;
+    return temelFiltrelenmisSinav.filter((s) => !kisiselMap[`sinav:${s.id}`]?.gizli);
+  }, [temelFiltrelenmisSinav, kisiselMap, gizlenenleriGoster]);
+
+  const cakisanSinavlar = useMemo(() => sinavCakismalariniBul(filtrelenmisSinav), [filtrelenmisSinav]);
+  const yaklasanDers = useMemo(() => yaklasanDersiBul(filtrelenmisDers), [filtrelenmisDers]);
+  const yaklasanSinav = useMemo(() => yaklasanSinaviBul(filtrelenmisSinav), [filtrelenmisSinav]);
 
   const gunlukProgram = useMemo(() => {
     const map = new Map(GUNLER.map((g) => [g, []]));
@@ -93,7 +163,47 @@ export default function DersSinavTakvimiPage() {
   }, [filtrelenmisDers]);
 
   const bugun = todayIso();
-  const secimTamam = secilenBolum && secilenSinif;
+  const secimTamam = isAcademician || (secilenBolum && secilenSinif);
+
+  async function handleGizleAc(hedefTip, hedefId) {
+    const anahtar = `${hedefTip}:${hedefId}`;
+    const mevcut = kisiselMap[anahtar];
+    setBusy(true);
+    if (mevcut) {
+      const { error: err } = await supabase.from("ders_sinav_kisisel").update({ gizli: !mevcut.gizli }).eq("id", mevcut.id);
+      if (!err) setKisiselMap((prev) => ({ ...prev, [anahtar]: { ...mevcut, gizli: !mevcut.gizli } }));
+    } else {
+      const { data, error: err } = await supabase.from("ders_sinav_kisisel").insert([{ kullanici_id: userId, hedef_tip: hedefTip, hedef_id: hedefId, gizli: true }]).select().maybeSingle();
+      if (!err && data) setKisiselMap((prev) => ({ ...prev, [anahtar]: data }));
+    }
+    setBusy(false);
+  }
+
+  function notDuzenlemeyeBasla(hedefTip, hedefId) {
+    const anahtar = `${hedefTip}:${hedefId}`;
+    setNotAcik(anahtar);
+    setNotTaslak(kisiselMap[anahtar]?.not_metni || "");
+  }
+
+  async function handleNotKaydet(hedefTip, hedefId) {
+    const anahtar = `${hedefTip}:${hedefId}`;
+    const mevcut = kisiselMap[anahtar];
+    setBusy(true);
+    if (mevcut) {
+      const { error: err } = await supabase.from("ders_sinav_kisisel").update({ not_metni: notTaslak.trim() || null }).eq("id", mevcut.id);
+      if (!err) setKisiselMap((prev) => ({ ...prev, [anahtar]: { ...mevcut, not_metni: notTaslak.trim() || null } }));
+    } else if (notTaslak.trim()) {
+      const { data, error: err } = await supabase.from("ders_sinav_kisisel").insert([{ kullanici_id: userId, hedef_tip: hedefTip, hedef_id: hedefId, not_metni: notTaslak.trim() }]).select().maybeSingle();
+      if (!err && data) setKisiselMap((prev) => ({ ...prev, [anahtar]: data }));
+    }
+    setNotAcik(null);
+    setBusy(false);
+  }
+
+  function handleIcsIndir(tur) {
+    if (tur === "ders") icsIndir(dersProgramindanIcsUret(filtrelenmisDers), "campuso-ders-programim.ics");
+    else icsIndir(sinavTakvimindenIcsUret(filtrelenmisSinav), "campuso-sinav-takvimim.ics");
+  }
 
   return (
     <div style={{ minHeight: "100dvh", background: "#f5f8fc", fontFamily: "system-ui, sans-serif", color: "#0f1b33" }}>
@@ -113,20 +223,42 @@ export default function DersSinavTakvimiPage() {
           <div style={{ padding: "14px 16px", borderRadius: 12, background: "#fff4f0", border: "1px solid #f2c5ba", color: "#984333", fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{error}</div>
         ) : null}
 
-        <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 18, marginBottom: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-          <label style={labelStyle}>Bölüm
-            <select style={inputStyle} value={secilenBolum} onChange={(e) => setSecilenBolum(e.target.value)}>
-              <option value="">Seçiniz…</option>
-              {bolumler.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </label>
-          <label style={labelStyle}>Sınıf
-            <select style={inputStyle} value={secilenSinif} onChange={(e) => setSecilenSinif(e.target.value)} disabled={!secilenBolum}>
-              <option value="">Seçiniz…</option>
-              {siniflar.map((s) => <option key={s} value={s}>{s}. sınıf</option>)}
-            </select>
-          </label>
-        </section>
+        {!loading && secimTamam && (yaklasanDers || yaklasanSinav) && (
+          <section style={{ background: "linear-gradient(135deg, #0e4bae, #175cd3)", borderRadius: 16, padding: 18, marginBottom: 18, color: "#fff", display: "grid", gap: 6 }}>
+            {yaklasanDers && yaklasanDers.farkDk < 60 * 24 * 2 ? (
+              <div style={{ fontSize: 13, fontWeight: 700 }}>📚 {yaklasanDers.farkDk < 0 ? "" : yaklasanDers.farkDk < 60 ? `${yaklasanDers.farkDk} dk sonra` : gunFarkiMetni(new Date(yaklasanDers.tarih))} — {yaklasanDers.ders.ders_adi} ({yaklasanDers.ders.baslangic_saat}{yaklasanDers.ders.derslik ? `, ${yaklasanDers.ders.derslik}` : ""})</div>
+            ) : null}
+            {yaklasanSinav ? (
+              <div style={{ fontSize: 13, fontWeight: 700 }}>📝 {gunFarkiMetni(new Date(yaklasanSinav.tarih))} — {yaklasanSinav.sinav.sinav_turu}: {yaklasanSinav.sinav.ders_adi} ({yaklasanSinav.sinav.saat})</div>
+            ) : null}
+          </section>
+        )}
+
+        {!isAcademician && (
+          <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 18, marginBottom: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+            <label style={labelStyle}>Bölüm
+              <select style={inputStyle} value={secilenBolum} onChange={(e) => setSecilenBolum(e.target.value)}>
+                <option value="">Seçiniz…</option>
+                {bolumler.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </label>
+            <label style={labelStyle}>Sınıf
+              <select style={inputStyle} value={secilenSinif} onChange={(e) => setSecilenSinif(e.target.value)} disabled={!secilenBolum}>
+                <option value="">Seçiniz…</option>
+                {siniflar.map((s) => <option key={s} value={s}>{s}. sınıf</option>)}
+              </select>
+            </label>
+          </section>
+        )}
+
+        {isAcademician && (
+          <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: "14px 18px", marginBottom: 20, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" onClick={() => setSadeceDerslerim((p) => !p)} style={{ minHeight: 34, padding: "0 14px", fontSize: 12, fontWeight: 700, borderRadius: 999, border: sadeceDerslerim ? "1px solid #175cd3" : "1px solid #e3ebf6", background: sadeceDerslerim ? "#175cd3" : "#fff", color: sadeceDerslerim ? "#fff" : "#5b6b85", cursor: "pointer" }}>
+              {sadeceDerslerim ? "✓ Sadece Derslerim" : "Sadece Derslerim"}
+            </button>
+            <span style={{ fontSize: 11.5, color: "#8fa0bc" }}>Öğretim üyesi adınla eşleşen ders/sınavlar otomatik filtrelenir.</span>
+          </section>
+        )}
 
         {loading ? (
           <p style={{ color: "#5b6b85" }}>Yükleniyor…</p>
@@ -136,10 +268,17 @@ export default function DersSinavTakvimiPage() {
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
               <button type="button" onClick={() => setTab("ders")} style={{ padding: "10px 18px", borderRadius: 999, border: tab === "ders" ? "1px solid #175cd3" : "1px solid #e3ebf6", background: tab === "ders" ? "#175cd3" : "#fff", color: tab === "ders" ? "#fff" : "#5b6b85", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Ders Programı</button>
               <button type="button" onClick={() => setTab("sinav")} style={{ padding: "10px 18px", borderRadius: 999, border: tab === "sinav" ? "1px solid #175cd3" : "1px solid #e3ebf6", background: tab === "sinav" ? "#175cd3" : "#fff", color: tab === "sinav" ? "#fff" : "#5b6b85", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                 Sınav Takvimi {filtrelenmisSinav.length > 0 ? `(${filtrelenmisSinav.length})` : ""}
+              </button>
+              <div style={{ flex: 1 }} />
+              <button type="button" onClick={() => setGizlenenleriGoster((p) => !p)} style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
+                {gizlenenleriGoster ? "Gizlenenleri Gizle" : "Gizlenenleri Göster"}
+              </button>
+              <button type="button" onClick={() => handleIcsIndir(tab)} style={{ padding: "8px 12px", borderRadius: 999, border: "1px solid #c7deff", background: "#fff", color: "#0e4bae", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
+                📅 Takvime Aktar (.ics)
               </button>
             </div>
 
@@ -155,15 +294,36 @@ export default function DersSinavTakvimiPage() {
                         <div style={{ fontSize: 11, color: "#c3cee0" }}>—</div>
                       ) : (
                         <div style={{ display: "grid", gap: 8 }}>
-                          {gunlukProgram.get(gun).map((d) => (
-                            <div key={d.id} style={{ padding: "8px 10px", borderRadius: 10, background: "#f5f8fc", border: "1px solid #e3ebf6" }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: "#0e4bae" }}>{d.baslangic_saat}–{d.bitis_saat}</div>
-                              <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2 }}>{d.ders_adi}</div>
-                              {(d.derslik || d.hoca_adi) && (
-                                <div style={{ fontSize: 10, color: "#5b6b85", marginTop: 2 }}>{[d.derslik, d.hoca_adi].filter(Boolean).join(" · ")}</div>
-                              )}
-                            </div>
-                          ))}
+                          {gunlukProgram.get(gun).map((d) => {
+                            const anahtar = `ders:${d.id}`;
+                            const kisisel = kisiselMap[anahtar];
+                            return (
+                              <div key={d.id} style={{ padding: "8px 10px", borderRadius: 10, background: kisisel?.gizli ? "#f5f8fc" : "#f5f8fc", border: "1px solid #e3ebf6", opacity: kisisel?.gizli ? 0.5 : 1 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: "#0e4bae" }}>{d.baslangic_saat}–{d.bitis_saat}</div>
+                                <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2 }}>{d.ders_adi}</div>
+                                {(d.derslik || d.hoca_adi) && (
+                                  <div style={{ fontSize: 10, color: "#5b6b85", marginTop: 2 }}>{[d.derslik, d.hoca_adi].filter(Boolean).join(" · ")}</div>
+                                )}
+                                {kisisel?.not_metni && notAcik !== anahtar && (
+                                  <div style={{ fontSize: 10, color: "#8a5a12", background: "#fff8ec", borderRadius: 6, padding: "3px 6px", marginTop: 5 }}>📌 {kisisel.not_metni}</div>
+                                )}
+                                {notAcik === anahtar ? (
+                                  <div style={{ marginTop: 5 }}>
+                                    <input style={{ ...inputStyle, height: 28, fontSize: 10.5 }} maxLength={500} value={notTaslak} onChange={(e) => setNotTaslak(e.target.value)} placeholder="Kişisel not…" />
+                                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                                      <button onClick={() => handleNotKaydet("ders", d.id)} disabled={busy} style={{ fontSize: 9.5, fontWeight: 700, border: "none", background: "#175cd3", color: "#fff", borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>Kaydet</button>
+                                      <button onClick={() => setNotAcik(null)} style={{ fontSize: 9.5, fontWeight: 700, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>Vazgeç</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div style={{ display: "flex", gap: 8, marginTop: 5 }}>
+                                    <button onClick={() => notDuzenlemeyeBasla("ders", d.id)} style={{ fontSize: 9.5, fontWeight: 700, border: "none", background: "none", color: "#175cd3", cursor: "pointer", padding: 0 }}>{kisisel?.not_metni ? "Notu Düzenle" : "Not Ekle"}</button>
+                                    <button onClick={() => handleGizleAc("ders", d.id)} disabled={busy} style={{ fontSize: 9.5, fontWeight: 700, border: "none", background: "none", color: "#8fa0bc", cursor: "pointer", padding: 0 }}>{kisisel?.gizli ? "Göster" : "Gizle"}</button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -178,17 +338,40 @@ export default function DersSinavTakvimiPage() {
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
                   {filtrelenmisSinav.map((s) => {
+                    const anahtar = `sinav:${s.id}`;
+                    const kisisel = kisiselMap[anahtar];
                     const gecmisMi = s.tarih < bugun;
+                    const cakisiyorMu = cakisanSinavlar.has(s.id);
                     const renk = SINAV_RENK[s.sinav_turu] || { color: "#5b6b85", bg: "#f5f8fc" };
                     return (
-                      <div key={s.id} style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 14, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", opacity: gecmisMi ? 0.55 : 1 }}>
-                        <div>
-                          <div style={{ fontWeight: 800, fontSize: 14 }}>{s.ders_adi} {s.ders_kodu ? <span style={{ fontWeight: 500, color: "#5b6b85" }}>({s.ders_kodu})</span> : null}</div>
-                          <div style={{ fontSize: 12, color: "#5b6b85", marginTop: 4 }}>
-                            {new Date(s.tarih).toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" })} · {s.saat} {s.derslik ? `· ${s.derslik}` : ""}
+                      <div key={s.id} style={{ background: "#fff", border: cakisiyorMu ? "1px solid #ef5c63" : "1px solid #e3ebf6", borderRadius: 14, padding: 16, opacity: gecmisMi ? 0.55 : kisisel?.gizli ? 0.5 : 1 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: 14 }}>{s.ders_adi} {s.ders_kodu ? <span style={{ fontWeight: 500, color: "#5b6b85" }}>({s.ders_kodu})</span> : null}</div>
+                            <div style={{ fontSize: 12, color: "#5b6b85", marginTop: 4 }}>
+                              {new Date(s.tarih).toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" })} · {s.saat} {s.derslik ? `· ${s.derslik}` : ""} {s.hoca_adi ? `· ${s.hoca_adi}` : ""}
+                            </div>
+                            {cakisiyorMu && <div style={{ fontSize: 11, fontWeight: 800, color: "#ef5c63", marginTop: 4 }}>⚠️ Başka bir sınavla çakışıyor!</div>}
                           </div>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: renk.color, background: renk.bg, padding: "5px 12px", borderRadius: 999 }}>{s.sinav_turu}</span>
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: renk.color, background: renk.bg, padding: "5px 12px", borderRadius: 999 }}>{s.sinav_turu}</span>
+                        {kisisel?.not_metni && notAcik !== anahtar && (
+                          <div style={{ fontSize: 11, color: "#8a5a12", background: "#fff8ec", borderRadius: 8, padding: "5px 10px", marginTop: 8 }}>📌 {kisisel.not_metni}</div>
+                        )}
+                        {notAcik === anahtar ? (
+                          <div style={{ marginTop: 8 }}>
+                            <input style={{ ...inputStyle, height: 32, fontSize: 12 }} maxLength={500} value={notTaslak} onChange={(e) => setNotTaslak(e.target.value)} placeholder="Kişisel not…" />
+                            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                              <button onClick={() => handleNotKaydet("sinav", s.id)} disabled={busy} style={{ fontSize: 11, fontWeight: 700, border: "none", background: "#175cd3", color: "#fff", borderRadius: 8, padding: "5px 10px", cursor: "pointer" }}>Kaydet</button>
+                              <button onClick={() => setNotAcik(null)} style={{ fontSize: 11, fontWeight: 700, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", borderRadius: 8, padding: "5px 10px", cursor: "pointer" }}>Vazgeç</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                            <button onClick={() => notDuzenlemeyeBasla("sinav", s.id)} style={{ fontSize: 11, fontWeight: 700, border: "none", background: "none", color: "#175cd3", cursor: "pointer", padding: 0 }}>{kisisel?.not_metni ? "Notu Düzenle" : "Not Ekle"}</button>
+                            <button onClick={() => handleGizleAc("sinav", s.id)} disabled={busy} style={{ fontSize: 11, fontWeight: 700, border: "none", background: "none", color: "#8fa0bc", cursor: "pointer", padding: 0 }}>{kisisel?.gizli ? "Göster" : "Gizle"}</button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

@@ -16,7 +16,7 @@ const inputStyle = { height: 42, padding: "0 12px", border: "1px solid #e3ebf6",
 const labelStyle = { display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 700, color: "#5b6b85" };
 
 const DERS_BOS_FORM = { bolum: "", sinif: "", ders_kodu: "", ders_adi: "", gun: GUNLER[0], baslangic_saat: "", bitis_saat: "", derslik: "", hoca_adi: "" };
-const SINAV_BOS_FORM = { bolum: "", sinif: "", ders_kodu: "", ders_adi: "", sinav_turu: SINAV_TURLERI[0], tarih: "", saat: "", derslik: "" };
+const SINAV_BOS_FORM = { bolum: "", sinif: "", ders_kodu: "", ders_adi: "", sinav_turu: SINAV_TURLERI[0], tarih: "", saat: "", derslik: "", hoca_adi: "" };
 
 export default function AdminDersSinavPage() {
   const [tab, setTab] = useState("ders"); // ders | sinav
@@ -141,7 +141,7 @@ export default function AdminDersSinavPage() {
     const { error: err } = await supabase.from("sinav_takvimi").insert([{
       bolum: sinavForm.bolum.trim(), sinif: sinavForm.sinif.trim(), ders_kodu: sinavForm.ders_kodu.trim() || null,
       ders_adi: sinavForm.ders_adi.trim(), sinav_turu: sinavForm.sinav_turu, tarih: sinavForm.tarih, saat: sinavForm.saat,
-      derslik: sinavForm.derslik.trim() || null,
+      derslik: sinavForm.derslik.trim() || null, hoca_adi: sinavForm.hoca_adi.trim() || null,
     }]);
     if (err) setError("Eklenemedi: " + err.message);
     else { setMessage("Sınav eklendi."); setSinavForm(SINAV_BOS_FORM); await loadAll(); }
@@ -279,7 +279,7 @@ export default function AdminDersSinavPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 800 }}>Excel ile toplu içe aktar</div>
-                      <div style={{ fontSize: 12, color: "#5b6b85", marginTop: 2 }}>Bölüm, Sınıf, Ders Kodu, Ders Adı, Sınav Türü, Tarih, Saat, Derslik sütunlarını içeren bir .xlsx dosyası yükle.</div>
+                      <div style={{ fontSize: 12, color: "#5b6b85", marginTop: 2 }}>Bölüm, Sınıf, Ders Kodu, Ders Adı, Sınav Türü, Tarih, Saat, Derslik, Öğretim Üyesi sütunlarını içeren bir .xlsx dosyası yükle.</div>
                     </div>
                     <button type="button" onClick={indirSinavTakvimiSablonu} style={{ minHeight: 38, padding: "0 14px", fontSize: 12, fontWeight: 700, borderRadius: 10, border: "1px solid #c7deff", background: "#fff", color: "#0e4bae", cursor: "pointer", whiteSpace: "nowrap" }}>Şablonu İndir</button>
                   </div>
@@ -321,6 +321,7 @@ export default function AdminDersSinavPage() {
                     <label style={labelStyle}>Tarih *<input style={inputStyle} type="date" value={sinavForm.tarih} onChange={(e) => setSinavForm((f) => ({ ...f, tarih: e.target.value }))} /></label>
                     <label style={labelStyle}>Saat *<input style={inputStyle} type="time" value={sinavForm.saat} onChange={(e) => setSinavForm((f) => ({ ...f, saat: e.target.value }))} /></label>
                     <label style={labelStyle}>Derslik<input style={inputStyle} value={sinavForm.derslik} onChange={(e) => setSinavForm((f) => ({ ...f, derslik: e.target.value }))} /></label>
+                    <label style={labelStyle}>Öğretim Üyesi<input style={inputStyle} value={sinavForm.hoca_adi} onChange={(e) => setSinavForm((f) => ({ ...f, hoca_adi: e.target.value }))} /></label>
                     <div style={{ alignSelf: "end" }}>
                       <button type="submit" disabled={busy} className="button button-primary" style={{ minHeight: 42, padding: "0 16px", fontSize: 12, width: "100%" }}>Ekle</button>
                     </div>
@@ -335,7 +336,7 @@ export default function AdminDersSinavPage() {
                       <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #e3ebf6", borderRadius: 10, fontSize: 12.5, flexWrap: "wrap" }}>
                         <div>
                           <b>{s.ders_adi}</b> {s.ders_kodu ? `(${s.ders_kodu})` : ""} · {s.bolum} / {s.sinif}. sınıf
-                          <div style={{ color: "#5b6b85", marginTop: 2 }}>{s.sinav_turu} · {s.tarih} {s.saat} {s.derslik ? `· ${s.derslik}` : ""}</div>
+                          <div style={{ color: "#5b6b85", marginTop: 2 }}>{s.sinav_turu} · {s.tarih} {s.saat} {s.derslik ? `· ${s.derslik}` : ""} {s.hoca_adi ? `· ${s.hoca_adi}` : ""}</div>
                         </div>
                         <button onClick={() => handleSil("sinav_takvimi", s.id)} disabled={busy} style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Sil</button>
                       </div>

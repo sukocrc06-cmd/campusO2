@@ -514,29 +514,22 @@ function ModuleHome({
 }) {
   return (
     <div className="clean-dashboard">
-      <section className={`welcome-banner clean-welcome ${role === "student" ? "student-banner" : "faculty-banner"}`}>
+      <section className={`welcome-banner clean-welcome banner-with-cta ${role === "student" ? "student-banner" : "faculty-banner"}`}>
         <div>
-          <span className="banner-kicker">VOL 1 AKTİF{unreadCount ? ` · ${unreadCount} yeni bildirim` : ""}</span>
+          <span className="banner-kicker">{unreadCount ? `${unreadCount} yeni bildirim` : "Kampüs güncel"}</span>
           <h2>{displayName ? `Merhaba, ${displayName}.` : `${roleCopy[role].panel} hazır.`}</h2>
           <p>{todaySummary || "İlk CampusO modülü olan QR Kodla Ders Yoklaması kullanıma açıldı."}</p>
         </div>
-        <span className="clean-ready-badge"><Icon name="qr" size={25} /><b>Vol 1</b></span>
-      </section>
-
-      <section className="module-launch-card panel">
-        <span className="module-launch-icon" style={moduleIconStyle("blue")}><Icon name="qr" size={34} /></span>
-        <div>
-          <small>VOL 1</small>
-          <h1>QR Kodla Ders Yoklaması</h1>
-          <p>
-            {role === "faculty"
-              ? "Ders grubunu oluştur, katılım kodunu paylaş ve süreli yoklamayı başlat."
-              : "Profilini tanımla, akademisyenin katılım koduyla derse katıl ve yoklamanı tamamla."}
-          </p>
+        <div className="banner-cta">
+          <span className="banner-cta-icon"><Icon name="qr" size={22} /></span>
+          <div className="banner-cta-copy">
+            <small>VOL 1</small>
+            <b>QR Kodla Ders Yoklaması</b>
+          </div>
+          <button className="button button-primary banner-cta-button" onClick={onOpenQr}>
+            Modülü aç <Icon name="arrow" size={16} />
+          </button>
         </div>
-        <button className="button button-primary" onClick={onOpenQr}>
-          Modülü aç <Icon name="arrow" size={17} />
-        </button>
       </section>
 
       {MODULE_CATEGORIES.map((category) => {

@@ -6894,6 +6894,89 @@ input:focus-visible {
   min-height: 178px;
 }
 
+.banner-with-cta {
+  flex-wrap: wrap;
+}
+
+.banner-cta {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 14px;
+  padding: 12px 16px 12px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(255, 255, 255, .1);
+  backdrop-filter: blur(8px);
+}
+
+.banner-cta-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: var(--white);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .16);
+}
+
+.banner-cta-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--white);
+}
+
+.banner-cta-copy small {
+  font-size: 9px;
+  font-weight: 780;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  opacity: .68;
+}
+
+.banner-cta-copy b {
+  font-size: 14px;
+  font-weight: 720;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+}
+
+.banner-cta-button {
+  min-height: 38px;
+  padding: 0 16px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .banner-with-cta {
+    align-items: flex-start;
+  }
+
+  .banner-cta {
+    width: 100%;
+  }
+
+  .banner-cta-copy b {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 480px) {
+  .banner-cta {
+    flex-wrap: wrap;
+  }
+
+  .banner-cta-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .clean-ready-badge {
   position: relative;
   z-index: 2;

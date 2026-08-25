@@ -181,7 +181,6 @@ function bugunIso() {
 }
 
 type ProfileInfo = { fullName: string; bolum: string; sinif: string; avatarUrl: string; heroRenk: string };
-type Theme = "light" | "dark";
 
 function activePeriodOf(store: QrStore) {
   return store.periods.find((period) => period.id === store.activePeriodId)
@@ -281,37 +280,7 @@ function Landing() {
           </div>
         </div>
 
-        <div className="hero-product" aria-label="CampusO öğrenci paneli ön izlemesi">
-          <div className="product-glow" />
-          <div className="product-window">
-            <div className="mini-sidebar">
-              <Brand inverse />
-              <div className="mini-nav">
-                <span className="active"><Icon name="home" size={17} /></span>
-                <span><Icon name="book" size={17} /></span>
-                <span><Icon name="calendar" size={17} /></span>
-                <span><Icon name="message" size={17} /></span>
-              </div>
-              <span className="mini-avatar">BU</span>
-            </div>
-            <div className="mini-main">
-              <div className="mini-top"><span>Merhaba, Barış 👋</span><span className="mini-bell"><Icon name="bell" size={15} /></span></div>
-              <div className="mini-id-card">
-                <div><small>GENEL NOT ORTALAMASI</small><strong>2,50</strong><span>/ 4.00</span></div>
-                <div className="mini-progress"><i /></div>
-                <p>İşletme Fakültesi · YBS</p>
-              </div>
-              <div className="mini-grid">
-                <div><span className="mini-icon blue"><Icon name="book" size={16} /></span><b>Derslerim</b><small>8 aktif ders</small></div>
-                <div><span className="mini-icon teal"><Icon name="qr" size={16} /></span><b>QR Yoklama</b><small>MIS-800</small></div>
-                <div><span className="mini-icon coral"><Icon name="spark" size={16} /></span><b>Acadex</b><small>3 yeni fırsat</small></div>
-              </div>
-              <div className="mini-event"><span>12</span><div><b>Kariyer Günleri</b><small>12 Temmuz · 13.00</small></div><i><Icon name="chevron" size={15} /></i></div>
-            </div>
-          </div>
-          <div className="floating-chip chip-one"><Icon name="check" size={16} /><span><b>Yoklama tamamlandı</b><small>32 / 32 öğrenci</small></span></div>
-          <div className="floating-chip chip-two"><Icon name="spark" size={16} /><span><b>Yeni Acadex eşleşmesi</b><small>%94 ortak ilgi alanı</small></span></div>
-        </div>
+        <HeroCarousel />
       </section>
 
       <section className="feature-strip" id="modules">
@@ -321,6 +290,140 @@ function Landing() {
         <div><Icon name="users" /><span><b>Sosyal kampüs</b><small>Kulüpler, etkinlikler ve yaşam</small></span></div>
       </section>
     </main>
+  );
+}
+
+type HeroSlide = {
+  key: string;
+  accent: "blue" | "teal" | "coral" | "amber";
+  icon: IconName;
+  title: string;
+  subtitle: string;
+  stat: { label: string; value: string };
+  rows: Array<{ icon: IconName; title: string; detail: string }>;
+  chip: { icon: IconName; title: string; detail: string };
+};
+
+const HERO_SLIDES: HeroSlide[] = [
+  {
+    key: "ders",
+    accent: "blue",
+    icon: "book",
+    title: "Ders ve Sınav Takvimi",
+    subtitle: "Haftalık program tek ekranda",
+    stat: { label: "BUGÜN", value: "3 ders" },
+    rows: [
+      { icon: "book", title: "MIS 302 · Veri Tabanı", detail: "10.00 · B Blok 204" },
+      { icon: "calendar", title: "Vize Sınavı", detail: "Finans ve Bankacılık" },
+      { icon: "check", title: "Devamsızlık", detail: "%96 katılım" },
+    ],
+    chip: { icon: "check", title: "Yoklama tamamlandı", detail: "32 / 32 öğrenci" },
+  },
+  {
+    key: "qr",
+    accent: "teal",
+    icon: "qr",
+    title: "QR Yoklama",
+    subtitle: "Saniyeler içinde güvenli giriş",
+    stat: { label: "AKTİF OTURUM", value: "MIS-800" },
+    rows: [
+      { icon: "qr", title: "QR kod aktif", detail: "Kalan süre 04:12" },
+      { icon: "users", title: "Katılımcılar", detail: "28 öğrenci okuttu" },
+      { icon: "spark", title: "Anlık senkron", detail: "Sistem güncel" },
+    ],
+    chip: { icon: "spark", title: "Yeni Acadex eşleşmesi", detail: "%94 ortak ilgi alanı" },
+  },
+  {
+    key: "acadex",
+    accent: "coral",
+    icon: "spark",
+    title: "Acadex Ağı",
+    subtitle: "Danışman, araştırma ve yayın ağı",
+    stat: { label: "FIRSATLAR", value: "3 yeni" },
+    rows: [
+      { icon: "spark", title: "Araştırma eşleşmesi", detail: "Finans · Prof. Dr. A. Yıldız" },
+      { icon: "graduation", title: "Yayın daveti", detail: "Uluslararası konferans" },
+      { icon: "users", title: "Ağ bağlantısı", detail: "12 yeni takipçi" },
+    ],
+    chip: { icon: "check", title: "Profil onaylandı", detail: "Acadex ağına katıldın" },
+  },
+  {
+    key: "sosyal",
+    accent: "amber",
+    icon: "users",
+    title: "Sosyal & Kampüs Hayatı",
+    subtitle: "Kulüpler, etkinlikler ve duvar",
+    stat: { label: "YAKLAŞAN", value: "Kariyer Günleri" },
+    rows: [
+      { icon: "calendar", title: "Kariyer Günleri", detail: "12 Temmuz · 13.00" },
+      { icon: "shield", title: "Öğrenci Kulüpleri", detail: "4 aktif kulübün var" },
+      { icon: "message", title: "Kampüs Duvarı", detail: "2 yeni duyuru" },
+    ],
+    chip: { icon: "spark", title: "Yeni etkinlik eklendi", detail: "Sosyal Sorumluluk Kulübü" },
+  },
+];
+
+function HeroCarousel() {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setIndex((current) => (current + 1) % HERO_SLIDES.length);
+    }, 4200);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const slide = HERO_SLIDES[index];
+
+  return (
+    <div className="hero-product" aria-label="CampusO modül ön izlemesi">
+      <div className="product-glow" />
+      <div className="product-window">
+        <div className="mini-sidebar">
+          <Brand inverse />
+          <div className="mini-nav">
+            {HERO_SLIDES.map((item, i) => (
+              <span key={item.key} className={i === index ? "active" : ""}>
+                <Icon name={item.icon} size={17} />
+              </span>
+            ))}
+          </div>
+          <span className="mini-avatar">CO</span>
+        </div>
+        <div className="mini-main" key={slide.key}>
+          <div className="mini-top"><span>{slide.title}</span><span className="mini-bell"><Icon name="bell" size={15} /></span></div>
+          <div className="mini-id-card">
+            <div><small>{slide.stat.label}</small><strong>{slide.stat.value}</strong></div>
+            <div className="mini-progress"><i /></div>
+            <p>{slide.subtitle}</p>
+          </div>
+          <div className="mini-grid">
+            {slide.rows.map((row) => (
+              <div key={row.title}>
+                <span className={`mini-icon ${slide.accent}`}><Icon name={row.icon} size={16} /></span>
+                <b>{row.title}</b><small>{row.detail}</small>
+              </div>
+            ))}
+          </div>
+          <div className="mini-event"><span><Icon name={slide.icon} size={16} /></span><div><b>{slide.chip.title}</b><small>{slide.chip.detail}</small></div><i><Icon name="chevron" size={15} /></i></div>
+        </div>
+      </div>
+      <div className="floating-chip chip-one"><Icon name="check" size={16} /><span><b>Yoklama tamamlandı</b><small>32 / 32 öğrenci</small></span></div>
+      <div className="floating-chip chip-two"><Icon name={slide.chip.icon} size={16} /><span><b>{slide.chip.title}</b><small>{slide.chip.detail}</small></span></div>
+      <div className="hero-carousel-dots" role="tablist" aria-label="Modül önizleme seçimi">
+        {HERO_SLIDES.map((item, i) => (
+          <button
+            key={item.key}
+            type="button"
+            role="tab"
+            aria-selected={i === index}
+            aria-label={item.title}
+            className={i === index ? "active" : ""}
+            onClick={() => setIndex(i)}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -436,208 +539,124 @@ function ModuleHome({
         </button>
       </section>
 
-      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon" style={moduleIconStyle("teal")}><Icon name="briefcase" size={34} /></span>
-        <div>
-          <small>VOL 2</small>
-          <h1>Staj Takip</h1>
-          <p>
-            {role === "faculty"
-              ? "Öğrenci staj başvurularını incele, onayla veya reddet."
-              : "Staj başvurusu oluştur ve durumunu takip et."}
-          </p>
-        </div>
-        <a
-          className="button button-primary"
-          href={role === "student" ? "/student/staj" : "/academician/staj"}
-          style={{ textDecoration: "none" }}
-        >
-          Modülü aç <Icon name="arrow" size={17} />
-        </a>
-      </section>
-            <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon" style={moduleIconStyle("coral")}><Icon name="spark" size={34} /></span>
-        <div>
-          <small>ACADEX</small>
-          <h1>Acadex Eğitim Modülü</h1>
-          <p>
-            Ders ağacı, eşleşme ve akademik fırsatlar için Acadex platformuna geç.
-          </p>
-        </div>
-        <a
-          className="button button-primary"
-          href="https://acadex-1lku.vercel.app"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ textDecoration: "none" }}
-        >
-          Acadex’i aç <Icon name="arrow" size={17} />
-        </a>
-      </section>
-
-      {role === "faculty" && (
-        <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-          <span className="module-launch-icon" style={moduleIconStyle("amber")}><Icon name="graduation" size={34} /></span>
-          <div>
-            <small>VOL 1-4</small>
-            <h1>Akademik Teşvik Hesaplama Robotu</h1>
-            <p>
-              Yayın, atıf, proje ve diğer faaliyetlerini gir; toplam teşvik puanını anında hesapla ve kaydet.
-            </p>
+      {MODULE_CATEGORIES.map((category) => {
+        const items = category.items.filter((item) => !item.role || item.role === role);
+        if (items.length === 0) return null;
+        return (
+          <div className="dashboard-category" key={category.title}>
+            <p className="dashboard-category-title">{category.title}</p>
+            <div className="module-grid">
+              {items.map((item) => {
+                const badge = item.badgeKey === "unread" ? unreadCount : undefined;
+                const href = item.hrefFor ? item.hrefFor(role) : (item.href || "#");
+                return (
+                  <a
+                    key={item.title}
+                    className="module-grid-card"
+                    href={href}
+                    target={item.external ? "_blank" : undefined}
+                    rel={item.external ? "noopener noreferrer" : undefined}
+                  >
+                    <span className="module-grid-icon" style={moduleIconStyle(item.accent)}><Icon name={item.icon} size={22} /></span>
+                    <h3>
+                      {item.title}
+                      {!!badge && (
+                        <span style={{ marginLeft: 7, fontSize: 10, fontWeight: 800, color: "#fff", background: "#ef5c63", borderRadius: 999, padding: "1.5px 7px", verticalAlign: "middle" }}>
+                          {badge}
+                        </span>
+                      )}
+                    </h3>
+                    <p>{typeof item.desc === "function" ? item.desc(role) : item.desc}</p>
+                    <span className="grid-cta">{item.external ? "Aç" : "Modülü aç"} <Icon name="arrow" size={13} /></span>
+                  </a>
+                );
+              })}
+            </div>
           </div>
-          <a
-            className="button button-primary"
-            href="/academician/tesvik"
-            style={{ textDecoration: "none" }}
-          >
-            Modülü aç <Icon name="arrow" size={17} />
-          </a>
-        </section>
-      )}
-
-      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon" style={moduleIconStyle("green")}><Icon name="users" size={34} /></span>
-        <div>
-          <small>VOL 1-5</small>
-          <h1>Sosyal Sorumluluk Durumu</h1>
-          <p>
-            {role === "faculty"
-              ? "Öğrencilerin gönderdiği sosyal sorumluluk faaliyeti kayıtlarını incele, onayla veya reddet."
-              : "Katıldığın sosyal sorumluluk faaliyetlerini kaydet, onay durumunu ve toplam saatini takip et."}
-          </p>
-        </div>
-        <a
-          className="button button-primary"
-          href={role === "student" ? "/student/sosyal-sorumluluk" : "/academician/sosyal-sorumluluk"}
-          style={{ textDecoration: "none" }}
-        >
-          Modülü aç <Icon name="arrow" size={17} />
-        </a>
-      </section>
-
-      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon" style={moduleIconStyle("sky")}><Icon name="shield" size={34} /></span>
-        <div>
-          <small>VOL 1-6</small>
-          <h1>Öğrenci Kulüpleri</h1>
-          <p>
-            {role === "faculty"
-              ? "Danışmanı olduğun kulübü yönet: üye başvurularını onayla, logo ve site linkini güncelle, yönetici yetkisi ver."
-              : "Kampüs kulüplerine göz at, başvur ve üyelik durumunu takip et."}
-          </p>
-        </div>
-        <a
-          className="button button-primary"
-          href={role === "student" ? "/student/kulupler" : "/academician/kulupler"}
-          style={{ textDecoration: "none" }}
-        >
-          Modülü aç <Icon name="arrow" size={17} />
-        </a>
-      </section>
-
-      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon" style={moduleIconStyle("amber")}><Icon name="calendar" size={34} /></span>
-        <div>
-          <small>VOL 1-7</small>
-          <h1>Yemek Menüsü</h1>
-          <p>
-            AYBÜ SKS'nin haftalık yemek menüsünü günlere göre görüntüle — bugünün yemekleri ve haftanın diğer günleri tek ekranda.
-          </p>
-        </div>
-        <a
-          className="button button-primary"
-          href="/yemek-menusu"
-          style={{ textDecoration: "none" }}
-        >
-          Modülü aç <Icon name="arrow" size={17} />
-        </a>
-      </section>
-
-      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon" style={moduleIconStyle("blue")}><Icon name="book" size={34} /></span>
-        <div>
-          <small>VOL 1-8</small>
-          <h1>Ders ve Sınav Takvimi</h1>
-          <p>
-            Bölümüne ve sınıfına göre haftalık ders programını ve yaklaşan sınavları (vize/final/bütünleme) görüntüle.
-          </p>
-        </div>
-        <a
-          className="button button-primary"
-          href="/ders-programi-sinav-takvimi"
-          style={{ textDecoration: "none" }}
-        >
-          Modülü aç <Icon name="arrow" size={17} />
-        </a>
-      </section>
-
-      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon" style={moduleIconStyle("coral")}><Icon name="user" size={34} /></span>
-        <div>
-          <small>VOL 1-10</small>
-          <h1>Özelleştirilmiş Profil</h1>
-          <p>
-            Profil fotoğrafını, hero kapak rengini, bölüm/sınıf/numaranı ve kısa hakkımda yazını düzenle — profilini kampüse aç.
-          </p>
-        </div>
-        <a
-          className="button button-primary"
-          href="/profil"
-          style={{ textDecoration: "none" }}
-        >
-          Modülü aç <Icon name="arrow" size={17} />
-        </a>
-      </section>
-
-      {role === "student" && (
-        <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-          <span className="module-launch-icon" style={moduleIconStyle("teal")}><Icon name="message" size={34} /></span>
-          <div>
-            <small>VOL 1-11</small>
-            <h1>
-              Kampüs Duvarı
-              {!!unreadCount && (
-                <span style={{ marginLeft: 10, fontSize: 11, fontWeight: 800, color: "#fff", background: "#ef5c63", borderRadius: 999, padding: "2px 9px", verticalAlign: "middle" }}>
-                  {unreadCount} yeni
-                </span>
-              )}
-            </h1>
-            <p>
-              Gönderi paylaş, arkadaşlarının gönderilerine yorum yap — şimdilik yalnız öğrenciler için.
-            </p>
-          </div>
-          <a
-            className="button button-primary"
-            href="/student/kampus-duvari"
-            style={{ textDecoration: "none" }}
-          >
-            Modülü aç <Icon name="arrow" size={17} />
-          </a>
-        </section>
-      )}
-
-      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon" style={moduleIconStyle("green")}><Icon name="check" size={34} /></span>
-        <div>
-          <small>VOL 1-12</small>
-          <h1>Yoklama Takibi</h1>
-          <p>
-            {role === "faculty"
-              ? "Kendi derslerinde yoklama al, devam yüzdesi eşiğinin altına düşen öğrencileri gör."
-              : "Derslerindeki devam yüzdeni ve yoklama geçmişini takip et."}
-          </p>
-        </div>
-        <a
-          className="button button-primary"
-          href={role === "student" ? "/student/yoklamalarim" : "/academician/yoklama"}
-          style={{ textDecoration: "none" }}
-        >
-          Modülü aç <Icon name="arrow" size={17} />
-        </a>
-      </section>
+        );
+      })}
     </div>
   );
 }
+
+type ModuleGridItem = {
+  title: string;
+  desc: string | ((role: Role) => string);
+  href?: string;
+  hrefFor?: (role: Role) => string;
+  icon: IconName;
+  accent: keyof typeof MODULE_ACCENTS;
+  role?: Role;
+  external?: boolean;
+  badgeKey?: "unread";
+};
+
+const MODULE_CATEGORIES: { title: string; items: ModuleGridItem[] }[] = [
+  {
+    title: "Akademik",
+    items: [
+      {
+        title: "Ders ve Sınav Takvimi", icon: "book", accent: "blue", href: "/ders-programi-sinav-takvimi",
+        desc: "Bölümüne ve sınıfına göre haftalık ders programını ve yaklaşan sınavları görüntüle.",
+      },
+      {
+        title: "Yoklama Takibi", icon: "check", accent: "green",
+        hrefFor: (role) => role === "student" ? "/student/yoklamalarim" : "/academician/yoklama",
+        desc: (role) => role === "faculty" ? "Kendi derslerinde yoklama al, devam yüzdesi eşiğini takip et." : "Derslerindeki devam yüzdeni ve yoklama geçmişini takip et.",
+      },
+      {
+        title: "Acadex Eğitim Modülü", icon: "spark", accent: "coral", href: "https://acadex-1lku.vercel.app", external: true,
+        desc: "Ders ağacı, eşleşme ve akademik fırsatlar için Acadex platformuna geç.",
+      },
+      {
+        title: "Akademik Teşvik Hesaplama Robotu", icon: "graduation", accent: "amber", href: "/academician/tesvik", role: "faculty",
+        desc: "Yayın, atıf, proje faaliyetlerini gir; toplam teşvik puanını hesapla.",
+      },
+    ],
+  },
+  {
+    title: "Kariyer & Gelişim",
+    items: [
+      {
+        title: "Staj Takip", icon: "briefcase", accent: "teal",
+        hrefFor: (role) => role === "student" ? "/student/staj" : "/academician/staj",
+        desc: (role) => role === "faculty" ? "Öğrenci staj başvurularını incele, onayla veya reddet." : "Staj başvurusu oluştur ve durumunu takip et.",
+      },
+    ],
+  },
+  {
+    title: "Sosyal & Kampüs Hayatı",
+    items: [
+      {
+        title: "Sosyal Sorumluluk", icon: "users", accent: "green",
+        hrefFor: (role) => role === "student" ? "/student/sosyal-sorumluluk" : "/academician/sosyal-sorumluluk",
+        desc: (role) => role === "faculty" ? "Öğrencilerin sosyal sorumluluk kayıtlarını incele, onayla." : "Katıldığın faaliyetleri kaydet, onay durumunu takip et.",
+      },
+      {
+        title: "Öğrenci Kulüpleri", icon: "shield", accent: "sky",
+        hrefFor: (role) => role === "student" ? "/student/kulupler" : "/academician/kulupler",
+        desc: (role) => role === "faculty" ? "Danışmanı olduğun kulübü yönet, üyeleri onayla." : "Kampüs kulüplerine göz at, başvur, üyeliğini takip et.",
+      },
+      {
+        title: "Yemek Menüsü", icon: "calendar", accent: "amber", href: "/yemek-menusu",
+        desc: "AYBÜ SKS'nin haftalık yemek menüsünü günlere göre görüntüle.",
+      },
+      {
+        title: "Kampüs Duvarı", icon: "message", accent: "teal", href: "/student/kampus-duvari", role: "student", badgeKey: "unread",
+        desc: "Gönderi paylaş, arkadaşlarının gönderilerine yorum yap.",
+      },
+    ],
+  },
+  {
+    title: "Hesabım",
+    items: [
+      {
+        title: "Özelleştirilmiş Profil", icon: "user", accent: "coral", href: "/profil",
+        desc: "Profil fotoğrafını, hero kapak rengini, bölüm/sınıf/numaranı düzenle.",
+      },
+    ],
+  },
+];
 
 function FacultyQr({ store, onAction }: { store: QrStore; onAction: QrActionRunner }) {
   const [courseName, setCourseName] = useState("");
@@ -1292,34 +1311,8 @@ export default function Home() {
   const [profileInfo, setProfileInfo] = useState<ProfileInfo | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [todaySummary, setTodaySummary] = useState<string | null>(null);
-  const [theme, setTheme] = useState<Theme>("light");
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifItems, setNotifItems] = useState<Array<{ id: string; tip: string; created_at: string; okundu: boolean }>>([]);
-
-  useEffect(() => {
-    let stored: Theme | null = null;
-    try {
-      stored = window.localStorage.getItem("campuso-theme") as Theme | null;
-    } catch {
-      stored = null;
-    }
-    const preferred = stored || (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    setTheme(preferred);
-    document.documentElement.setAttribute("data-theme", preferred);
-  }, []);
-
-  const toggleTheme = useCallback(() => {
-    setTheme((current) => {
-      const next: Theme = current === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      try {
-        window.localStorage.setItem("campuso-theme", next);
-      } catch {
-        // localStorage kapalıysa tercih sadece bu oturum için geçerli olur.
-      }
-      return next;
-    });
-  }, []);
 
   const refreshNotifCount = useCallback(async (userId: string) => {
     if (!supabase) return;
@@ -1553,7 +1546,6 @@ export default function Home() {
           <button onClick={() => { window.location.href = "/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
           <button onClick={() => { window.location.href = "/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/yoklamalarim" : "/academician/yoklama"; }}><Icon name="check" size={19} /><span>Yoklama Takibi</span></button>
-          <button onClick={() => { window.location.href = "/profil"; }}><Icon name="user" size={19} /><span>Profilim</span></button>
           {role === "student" && (
             <button onClick={() => { window.location.href = "/student/kampus-duvari"; }}><Icon name="message" size={19} /><span>Kampüs Duvarı</span></button>
           )}
@@ -1582,8 +1574,8 @@ export default function Home() {
             <Icon name="search" size={18} />
             <input aria-label="CampusO'da ara" placeholder="CampusO'da ara" disabled />
           </label>
-          <button className="header-icon" aria-label={theme === "dark" ? "Açık temaya geç" : "Koyu temaya geç"} onClick={toggleTheme} title={theme === "dark" ? "Açık tema" : "Koyu tema"}>
-            <Icon name={theme === "dark" ? "sun" : "moon"} size={19} />
+          <button className="header-icon" aria-label="Profilim" title="Profilim" onClick={() => { window.location.href = "/profil"; }}>
+            <Icon name="user" size={19} />
           </button>
           <div className="notif-wrap" style={{ position: "relative" }}>
             <button className="header-icon" aria-label={unreadCount ? `${unreadCount} okunmamış bildirim` : "Bildirimler"} onClick={openNotifDropdown}>

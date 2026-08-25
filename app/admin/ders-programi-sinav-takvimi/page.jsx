@@ -36,16 +36,26 @@ export default function AdminDersSinavPage() {
 
   const [filtreBolum, setFiltreBolum] = useState("");
   const [filtreSinif, setFiltreSinif] = useState("");
+  const [akademisyenler, setAkademisyenler] = useState([]);
+
+  function hocaAdinaGoreAkademisyenBul(hocaAdi) {
+    if (!hocaAdi) return null;
+    const temiz = hocaAdi.trim().toLocaleLowerCase("tr-TR");
+    const eslesen = akademisyenler.find((a) => (a.full_name || "").trim().toLocaleLowerCase("tr-TR") === temiz);
+    return eslesen?.id || null;
+  }
 
   async function loadAll() {
-    const [{ data: d, error: dErr }, { data: s, error: sErr }] = await Promise.all([
+    const [{ data: d, error: dErr }, { data: s, error: sErr }, { data: akademisyenListe }] = await Promise.all([
       supabase.from("ders_programi").select("*").order("bolum").order("sinif").order("gun").order("baslangic_saat"),
       supabase.from("sinav_takvimi").select("*").order("bolum").order("sinif").order("tarih").order("saat"),
+      supabase.from("profiles").select("id, full_name").eq("role", "academician"),
     ]);
     if (dErr) setError("Ders programı alınamadı: " + dErr.message);
     else setDersListe(d || []);
     if (sErr) setError((prev) => prev || "Sınav takvimi alınamadı: " + sErr.message);
     else setSinavListe(s || []);
+    setAkademisyenler(akademisyenListe || []);
   }
 
   useEffect(() => {
@@ -85,9 +95,11 @@ export default function AdminDersSinavPage() {
   async function handleDersIceAktar() {
     if (!dersOnizleme?.gecerli?.length) return;
     setBusy(true); setError(""); setMessage("");
-    const { error: err } = await supabase.from("ders_programi").insert(dersOnizleme.gecerli);
+    const satirlar = dersOnizleme.gecerli.map((satir) => ({ ...satir, akademisyen_id: hocaAdinaGoreAkademisyenBul(satir.hoca_adi) }));
+    const eslesenSayisi = satirlar.filter((s) => s.akademisyen_id).length;
+    const { error: err } = await supabase.from("ders_programi").insert(satirlar);
     if (err) setError("İçe aktarılamadı: " + err.message);
-    else { setMessage(`${dersOnizleme.gecerli.length} ders programı satırı eklendi.`); setDersOnizleme(null); await loadAll(); }
+    else { setMessage(`${satirlar.length} ders programı satırı eklendi${eslesenSayisi > 0 ? ` (${eslesenSayisi} satırda öğretim üyesi hesabı otomatik eşleşti)` : ""}.`); setDersOnizleme(null); await loadAll(); }
     setBusy(false);
   }
 
@@ -125,6 +137,7 @@ export default function AdminDersSinavPage() {
       bolum: dersForm.bolum.trim(), sinif: dersForm.sinif.trim(), ders_kodu: dersForm.ders_kodu.trim() || null,
       ders_adi: dersForm.ders_adi.trim(), gun: dersForm.gun, baslangic_saat: dersForm.baslangic_saat, bitis_saat: dersForm.bitis_saat,
       derslik: dersForm.derslik.trim() || null, hoca_adi: dersForm.hoca_adi.trim() || null,
+      akademisyen_id: hocaAdinaGoreAkademisyenBul(dersForm.hoca_adi.trim()),
     }]);
     if (err) setError("Eklenemedi: " + err.message);
     else { setMessage("Ders eklendi."); setDersForm(DERS_BOS_FORM); await loadAll(); }
@@ -182,7 +195,10 @@ export default function AdminDersSinavPage() {
             <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.02em" }}>Ders Programı & Sınav Takvimi Yönetimi</div>
           </div>
         </div>
-        <Link href="/" className="button button-secondary" style={{ minHeight: 40, padding: "0 16px", fontSize: 13 }}>Panele dön</Link>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Link href="/admin/yoklama" style={{ minHeight: 40, padding: "0 16px", fontSize: 13, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 12, border: "1px solid #c7deff", color: "#0e4bae" }}>Yoklama Yönetimi</Link>
+          <Link href="/" className="button button-secondary" style={{ minHeight: 40, padding: "0 16px", fontSize: 13 }}>Panele dön</Link>
+        </div>
       </header>
 
       <main style={{ width: "min(1080px, 100%)", margin: "0 auto", padding: "28px 20px 60px" }}>
@@ -264,6 +280,11 @@ export default function AdminDersSinavPage() {
                         <div>
                           <b>{d.ders_adi}</b> {d.ders_kodu ? `(${d.ders_kodu})` : ""} · {d.bolum} / {d.sinif}. sınıf
                           <div style={{ color: "#5b6b85", marginTop: 2 }}>{d.gun} {d.baslangic_saat}–{d.bitis_saat} {d.derslik ? `· ${d.derslik}` : ""} {d.hoca_adi ? `· ${d.hoca_adi}` : ""}</div>
+                          {d.hoca_adi && (
+                            <div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 700, color: d.akademisyen_id ? "#0b8f5c" : "#c65d1f" }}>
+                              {d.akademisyen_id ? "✓ Yoklama için hesap bağlı" : "⚠ Yoklama hesabı bağlanmadı — Yoklama Yönetimi'nden ata"}
+                            </div>
+                          )}
                         </div>
                         <button onClick={() => handleSil("ders_programi", d.id)} disabled={busy} style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Sil</button>
                       </div>

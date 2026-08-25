@@ -532,6 +532,26 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
           </a>
         </section>
       )}
+
+      <section className="module-launch-card panel" style={{ marginTop: 16 }}>
+        <span className="module-launch-icon"><Icon name="check" size={34} /></span>
+        <div>
+          <small>VOL 1-12</small>
+          <h1>Yoklama Takibi</h1>
+          <p>
+            {role === "faculty"
+              ? "Kendi derslerinde yoklama al, devam yüzdesi eşiğinin altına düşen öğrencileri gör."
+              : "Derslerindeki devam yüzdeni ve yoklama geçmişini takip et."}
+          </p>
+        </div>
+        <a
+          className="button button-primary"
+          href={role === "student" ? "/student/yoklamalarim" : "/academician/yoklama"}
+          style={{ textDecoration: "none" }}
+        >
+          Modülü aç <Icon name="arrow" size={17} />
+        </a>
+      </section>
     </div>
   );
 }
@@ -1068,6 +1088,7 @@ function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: Qr
           <button onClick={() => { window.location.href = "/admin/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
           <button onClick={() => { window.location.href = "/admin/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
           <button onClick={() => { window.location.href = "/admin/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
+          <button onClick={() => { window.location.href = "/admin/yoklama"; }}><Icon name="check" size={19} /><span>Yoklama Takibi</span></button>
           <button onClick={() => { window.location.href = "/admin/profiller"; }}><Icon name="user" size={19} /><span>Profil Yönetimi</span></button>
           <button onClick={() => { window.location.href = "/admin/kampus-duvari"; }}><Icon name="message" size={19} /><span>Kampüs Duvarı</span></button>
           <button onClick={() => { window.location.href = "/admin/davet"; }}><Icon name="users" size={19} /><span>Yetki Ver</span></button>
@@ -1337,6 +1358,7 @@ export default function Home() {
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/kulupler" : "/academician/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
           <button onClick={() => { window.location.href = "/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
           <button onClick={() => { window.location.href = "/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
+          <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/yoklamalarim" : "/academician/yoklama"; }}><Icon name="check" size={19} /><span>Yoklama Takibi</span></button>
           <button onClick={() => { window.location.href = "/profil"; }}><Icon name="user" size={19} /><span>Profilim</span></button>
           {role === "student" && (
             <button onClick={() => { window.location.href = "/student/kampus-duvari"; }}><Icon name="message" size={19} /><span>Kampüs Duvarı</span></button>

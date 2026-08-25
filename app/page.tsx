@@ -26,7 +26,9 @@ type IconName =
   | "user"
   | "chevron"
   | "shield"
-  | "settings";
+  | "settings"
+  | "sun"
+  | "moon";
 
 const roleCopy: Record<Role, { title: string; panel: string; description: string }> = {
   student: {
@@ -169,6 +171,18 @@ function formatTime(value: number) {
   return new Intl.DateTimeFormat("tr-TR", { dateStyle: "short", timeStyle: "short" }).format(value);
 }
 
+const GUN_ADLARI = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+function bugununGunAdi() {
+  return GUN_ADLARI[new Date().getDay()];
+}
+function bugunIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+type ProfileInfo = { fullName: string; bolum: string; sinif: string; avatarUrl: string; heroRenk: string };
+type Theme = "light" | "dark";
+
 function activePeriodOf(store: QrStore) {
   return store.periods.find((period) => period.id === store.activePeriodId)
     ?? store.periods.find((period) => period.isActive)
@@ -209,6 +223,8 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     chevron: <path d="m9 18 6-6-6-6" />,
     shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.1.4.3.7.6 1 .3.2.7.4 1.1.4h.1v4h-.1c-.4 0-.8.2-1.1.4-.3.3-.5.6-.6 1Z" /></>,
+    sun: <><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.4M12 19.1v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7" /></>,
+    moon: <path d="M20.5 14.7A8.5 8.5 0 1 1 9.3 3.5a7 7 0 0 0 11.2 11.2Z" />,
   };
 
   return <svg {...common}>{paths[name]}</svg>;
@@ -316,6 +332,40 @@ function RoleSymbol({ role, compact = false }: { role: Role; compact?: boolean }
   );
 }
 
+function initialsOf(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "CO";
+}
+
+function UserAvatar({ role, profileInfo, compact = false }: { role: Role; profileInfo: ProfileInfo | null; compact?: boolean }) {
+  if (!profileInfo?.fullName) return <RoleSymbol role={role} compact={compact} />;
+  const size = compact ? 34 : 44;
+  const bg = profileInfo.heroRenk || "var(--blue-700)";
+  if (profileInfo.avatarUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={profileInfo.avatarUrl}
+        alt={profileInfo.fullName}
+        width={size}
+        height={size}
+        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+      />
+    );
+  }
+  return (
+    <span
+      style={{
+        width: size, height: size, borderRadius: "50%", flexShrink: 0,
+        display: "grid", placeItems: "center", background: bg, color: "#fff",
+        fontWeight: 800, fontSize: compact ? 13 : 16, letterSpacing: "-.02em",
+      }}
+    >
+      {initialsOf(profileInfo.fullName)}
+    </span>
+  );
+}
+
 function QrVisual({ value }: { value: string }) {
   const [source, setSource] = useState("");
 
@@ -332,20 +382,46 @@ function QrVisual({ value }: { value: string }) {
     : <span className="qr-loading"><Icon name="qr" size={44} /></span>;
 }
 
-function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
+const MODULE_ACCENTS: Record<string, { icon: string; bg: string; border: string }> = {
+  blue: { icon: "#175cd3", bg: "linear-gradient(145deg, #ffffff, #e6f0ff)", border: "#c7deff" },
+  teal: { icon: "#0f8a8a", bg: "linear-gradient(145deg, #ffffff, #e6fbf8)", border: "#bdeee8" },
+  coral: { icon: "#e0663a", bg: "linear-gradient(145deg, #ffffff, #fff1eb)", border: "#ffd9c8" },
+  amber: { icon: "#b46d0c", bg: "linear-gradient(145deg, #ffffff, #fff4dd)", border: "#ffe1a8" },
+  green: { icon: "#1e9a70", bg: "linear-gradient(145deg, #ffffff, #e9f9f3)", border: "#bfe9d9" },
+  sky: { icon: "#1f8fc4", bg: "linear-gradient(145deg, #ffffff, #eaf7fd)", border: "#c3e8f6" },
+};
+
+function moduleIconStyle(accent: keyof typeof MODULE_ACCENTS): React.CSSProperties {
+  const a = MODULE_ACCENTS[accent];
+  return { color: a.icon, background: a.bg, borderColor: a.border };
+}
+
+function ModuleHome({
+  role,
+  onOpenQr,
+  displayName,
+  unreadCount,
+  todaySummary,
+}: {
+  role: Role;
+  onOpenQr: () => void;
+  displayName?: string;
+  unreadCount?: number;
+  todaySummary?: string | null;
+}) {
   return (
     <div className="clean-dashboard">
       <section className={`welcome-banner clean-welcome ${role === "student" ? "student-banner" : "faculty-banner"}`}>
         <div>
-          <span className="banner-kicker">VOL 1 AKTİF</span>
-          <h2>{roleCopy[role].panel} hazır.</h2>
-          <p>İlk CampusO modülü olan QR Kodla Ders Yoklaması kullanıma açıldı.</p>
+          <span className="banner-kicker">VOL 1 AKTİF{unreadCount ? ` · ${unreadCount} yeni bildirim` : ""}</span>
+          <h2>{displayName ? `Merhaba, ${displayName}.` : `${roleCopy[role].panel} hazır.`}</h2>
+          <p>{todaySummary || "İlk CampusO modülü olan QR Kodla Ders Yoklaması kullanıma açıldı."}</p>
         </div>
         <span className="clean-ready-badge"><Icon name="qr" size={25} /><b>Vol 1</b></span>
       </section>
 
       <section className="module-launch-card panel">
-        <span className="module-launch-icon"><Icon name="qr" size={34} /></span>
+        <span className="module-launch-icon" style={moduleIconStyle("blue")}><Icon name="qr" size={34} /></span>
         <div>
           <small>VOL 1</small>
           <h1>QR Kodla Ders Yoklaması</h1>
@@ -361,7 +437,7 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
       </section>
 
       <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon"><Icon name="briefcase" size={34} /></span>
+        <span className="module-launch-icon" style={moduleIconStyle("teal")}><Icon name="briefcase" size={34} /></span>
         <div>
           <small>VOL 2</small>
           <h1>Staj Takip</h1>
@@ -380,7 +456,7 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
         </a>
       </section>
             <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon"><Icon name="spark" size={34} /></span>
+        <span className="module-launch-icon" style={moduleIconStyle("coral")}><Icon name="spark" size={34} /></span>
         <div>
           <small>ACADEX</small>
           <h1>Acadex Eğitim Modülü</h1>
@@ -401,7 +477,7 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
 
       {role === "faculty" && (
         <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-          <span className="module-launch-icon"><Icon name="graduation" size={34} /></span>
+          <span className="module-launch-icon" style={moduleIconStyle("amber")}><Icon name="graduation" size={34} /></span>
           <div>
             <small>VOL 1-4</small>
             <h1>Akademik Teşvik Hesaplama Robotu</h1>
@@ -420,7 +496,7 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
       )}
 
       <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon"><Icon name="users" size={34} /></span>
+        <span className="module-launch-icon" style={moduleIconStyle("green")}><Icon name="users" size={34} /></span>
         <div>
           <small>VOL 1-5</small>
           <h1>Sosyal Sorumluluk Durumu</h1>
@@ -440,7 +516,7 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
       </section>
 
       <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon"><Icon name="shield" size={34} /></span>
+        <span className="module-launch-icon" style={moduleIconStyle("sky")}><Icon name="shield" size={34} /></span>
         <div>
           <small>VOL 1-6</small>
           <h1>Öğrenci Kulüpleri</h1>
@@ -460,7 +536,7 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
       </section>
 
       <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon"><Icon name="calendar" size={34} /></span>
+        <span className="module-launch-icon" style={moduleIconStyle("amber")}><Icon name="calendar" size={34} /></span>
         <div>
           <small>VOL 1-7</small>
           <h1>Yemek Menüsü</h1>
@@ -478,7 +554,7 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
       </section>
 
       <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon"><Icon name="book" size={34} /></span>
+        <span className="module-launch-icon" style={moduleIconStyle("blue")}><Icon name="book" size={34} /></span>
         <div>
           <small>VOL 1-8</small>
           <h1>Ders ve Sınav Takvimi</h1>
@@ -496,7 +572,7 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
       </section>
 
       <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon"><Icon name="user" size={34} /></span>
+        <span className="module-launch-icon" style={moduleIconStyle("coral")}><Icon name="user" size={34} /></span>
         <div>
           <small>VOL 1-10</small>
           <h1>Özelleştirilmiş Profil</h1>
@@ -515,10 +591,17 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
 
       {role === "student" && (
         <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-          <span className="module-launch-icon"><Icon name="message" size={34} /></span>
+          <span className="module-launch-icon" style={moduleIconStyle("teal")}><Icon name="message" size={34} /></span>
           <div>
             <small>VOL 1-11</small>
-            <h1>Kampüs Duvarı</h1>
+            <h1>
+              Kampüs Duvarı
+              {!!unreadCount && (
+                <span style={{ marginLeft: 10, fontSize: 11, fontWeight: 800, color: "#fff", background: "#ef5c63", borderRadius: 999, padding: "2px 9px", verticalAlign: "middle" }}>
+                  {unreadCount} yeni
+                </span>
+              )}
+            </h1>
             <p>
               Gönderi paylaş, arkadaşlarının gönderilerine yorum yap — şimdilik yalnız öğrenciler için.
             </p>
@@ -534,7 +617,7 @@ function ModuleHome({ role, onOpenQr }: { role: Role; onOpenQr: () => void }) {
       )}
 
       <section className="module-launch-card panel" style={{ marginTop: 16 }}>
-        <span className="module-launch-icon"><Icon name="check" size={34} /></span>
+        <span className="module-launch-icon" style={moduleIconStyle("green")}><Icon name="check" size={34} /></span>
         <div>
           <small>VOL 1-12</small>
           <h1>Yoklama Takibi</h1>
@@ -1206,6 +1289,66 @@ export default function Home() {
   const [panelView, setPanelView] = useState<PanelView>("home");
   const [qrStore, setQrStore] = useState<QrStore>(emptyQrStore);
   const [pendingAttendanceToken, setPendingAttendanceToken] = useState("");
+  const [profileInfo, setProfileInfo] = useState<ProfileInfo | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [todaySummary, setTodaySummary] = useState<string | null>(null);
+  const [theme, setTheme] = useState<Theme>("light");
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifItems, setNotifItems] = useState<Array<{ id: string; tip: string; created_at: string; okundu: boolean }>>([]);
+
+  useEffect(() => {
+    let stored: Theme | null = null;
+    try {
+      stored = window.localStorage.getItem("campuso-theme") as Theme | null;
+    } catch {
+      stored = null;
+    }
+    const preferred = stored || (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    setTheme(preferred);
+    document.documentElement.setAttribute("data-theme", preferred);
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((current) => {
+      const next: Theme = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try {
+        window.localStorage.setItem("campuso-theme", next);
+      } catch {
+        // localStorage kapalıysa tercih sadece bu oturum için geçerli olur.
+      }
+      return next;
+    });
+  }, []);
+
+  const refreshNotifCount = useCallback(async (userId: string) => {
+    if (!supabase) return;
+    const { count } = await supabase
+      .from("kampus_duvari_bildirimleri")
+      .select("id", { count: "exact", head: true })
+      .eq("kullanici_id", userId)
+      .eq("okundu", false);
+    setUnreadCount(count || 0);
+  }, []);
+
+  const openNotifDropdown = useCallback(async () => {
+    if (!supabase) return;
+    setNotifOpen((current) => !current);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase
+      .from("kampus_duvari_bildirimleri")
+      .select("id, tip, created_at, okundu")
+      .eq("kullanici_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    setNotifItems(data || []);
+    const unreadIds = (data || []).filter((n) => !n.okundu).map((n) => n.id);
+    if (unreadIds.length) {
+      await supabase.from("kampus_duvari_bildirimleri").update({ okundu: true }).in("id", unreadIds);
+      setUnreadCount(0);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1249,7 +1392,55 @@ export default function Home() {
       if (session.role === "admin") {
         setAdminOpen(true);
       } else {
-        setRole(session.role === "academician" ? "faculty" : "student");
+        const resolvedRole: Role = session.role === "academician" ? "faculty" : "student";
+        setRole(resolvedRole);
+        void loadDashboardExtras(session.user.id, resolvedRole);
+      }
+    }
+
+    async function loadDashboardExtras(userId: string, resolvedRole: Role) {
+      if (!supabase) return;
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("full_name, bolum, sinif, avatar_url, hero_renk")
+        .eq("id", userId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (profileRow) {
+        setProfileInfo({
+          fullName: profileRow.full_name || "",
+          bolum: profileRow.bolum || "",
+          sinif: profileRow.sinif || "",
+          avatarUrl: profileRow.avatar_url || "",
+          heroRenk: profileRow.hero_renk || "",
+        });
+      }
+
+      void refreshNotifCount(userId);
+
+      const gunAdi = bugununGunAdi();
+      if (resolvedRole === "faculty") {
+        const { count: dersSayisi } = await supabase
+          .from("ders_programi")
+          .select("id", { count: "exact", head: true })
+          .eq("akademisyen_id", userId)
+          .eq("gun", gunAdi);
+        if (!cancelled) {
+          setTodaySummary(dersSayisi ? `Bugün ${dersSayisi} dersin var.` : "Bugün programında ders görünmüyor.");
+        }
+      } else if (profileRow?.bolum && profileRow?.sinif) {
+        const [{ count: dersSayisi }, { count: sinavSayisi }] = await Promise.all([
+          supabase.from("ders_programi").select("id", { count: "exact", head: true })
+            .eq("bolum", profileRow.bolum).eq("sinif", profileRow.sinif).eq("gun", gunAdi),
+          supabase.from("sinav_takvimi").select("id", { count: "exact", head: true })
+            .eq("bolum", profileRow.bolum).eq("sinif", profileRow.sinif).eq("tarih", bugunIso()),
+        ]);
+        if (!cancelled) {
+          const parcalar: string[] = [];
+          if (dersSayisi) parcalar.push(`${dersSayisi} dersin`);
+          if (sinavSayisi) parcalar.push(`${sinavSayisi} sınavın`);
+          setTodaySummary(parcalar.length ? `Bugün ${parcalar.join(" ve ")} var.` : "Bugün programında ders/sınav görünmüyor.");
+        }
       }
     }
 
@@ -1331,6 +1522,9 @@ export default function Home() {
   }
 
   const copy = roleCopy[role];
+  const profileLine = profileInfo?.fullName
+    ? [profileInfo.bolum, profileInfo.sinif ? `${profileInfo.sinif}. sınıf` : ""].filter(Boolean).join(" · ") || copy.title
+    : "Kullanıcı verisi bağlı değil";
 
   return (
     <main className="app-shell clean-app-shell">
@@ -1341,8 +1535,8 @@ export default function Home() {
         </div>
 
         <div className="role-card clean-role-card">
-          <RoleSymbol role={role} compact />
-          <span><b>{copy.panel}</b><small>Kullanıcı verisi bağlı değil</small></span>
+          <UserAvatar role={role} profileInfo={profileInfo} compact />
+          <span><b>{profileInfo?.fullName || copy.panel}</b><small>{profileLine}</small></span>
           <button aria-label="Panel görünümünü aç" onClick={() => setProfileOpen(true)}><Icon name="switch" size={17} /></button>
         </div>
 
@@ -1381,24 +1575,54 @@ export default function Home() {
           <button className="menu-button" onClick={() => setMobileOpen(true)} aria-label="Menüyü aç"><Icon name="menu" /></button>
           <button className="mobile-app-identity" onClick={() => setProfileOpen(true)} aria-label="Panel görünümünü aç">
             <span className="mobile-seal">CO</span>
-            <span><b>{copy.panel}</b><small>Kullanıcı verisi bağlı değil</small></span>
+            <span><b>{profileInfo?.fullName || copy.panel}</b><small>{profileLine}</small></span>
           </button>
           <div className="breadcrumbs"><span>{copy.panel}</span><b>{panelView === "home" ? "Ana Sayfa" : "QR Yoklama"}</b></div>
           <label className="global-search clean-search">
             <Icon name="search" size={18} />
             <input aria-label="CampusO'da ara" placeholder="CampusO'da ara" disabled />
           </label>
-          <button className="header-icon clean-disabled-icon" aria-label="Henüz bildirim bulunmuyor" disabled><Icon name="bell" size={20} /></button>
+          <button className="header-icon" aria-label={theme === "dark" ? "Açık temaya geç" : "Koyu temaya geç"} onClick={toggleTheme} title={theme === "dark" ? "Açık tema" : "Koyu tema"}>
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={19} />
+          </button>
+          <div className="notif-wrap" style={{ position: "relative" }}>
+            <button className="header-icon" aria-label={unreadCount ? `${unreadCount} okunmamış bildirim` : "Bildirimler"} onClick={openNotifDropdown}>
+              <Icon name="bell" size={20} />
+              {unreadCount > 0 && (
+                <span style={{ position: "absolute", top: 4, right: 4, minWidth: 15, height: 15, padding: "0 3px", borderRadius: 999, background: "#ef5c63", color: "#fff", fontSize: 9.5, fontWeight: 800, display: "grid", placeItems: "center" }}>
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+            {notifOpen && (
+              <div style={{ position: "absolute", right: 0, top: "calc(100% + 8px)", width: 300, maxHeight: 340, overflowY: "auto", background: "var(--white)", border: "1px solid var(--line)", borderRadius: 14, boxShadow: "var(--shadow)", padding: 8, zIndex: 40 }}>
+                {notifItems.length === 0 ? (
+                  <div style={{ padding: "18px 10px", textAlign: "center", color: "var(--muted)", fontSize: 12.5 }}>Henüz bildirim yok.</div>
+                ) : (
+                  notifItems.map((n) => (
+                    <div key={n.id} style={{ padding: "9px 10px", borderRadius: 9, fontSize: 12, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <span style={{ marginTop: 2 }}><Icon name={n.tip === "duyuru" ? "spark" : "message"} size={15} /></span>
+                      <span>
+                        {n.tip === "duyuru" ? "Yeni bir duyuru paylaşıldı." : "Gönderine yeni bir yorum geldi."}
+                        <br />
+                        <small style={{ color: "var(--muted)" }}>{new Date(n.created_at).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}</small>
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
           <button className="header-profile" onClick={() => setProfileOpen(true)} title="Panel görünümünü aç">
-            <RoleSymbol role={role} compact />
-            <span><b>{copy.panel}</b><small>Kişisel veri bulunmuyor</small></span>
+            <UserAvatar role={role} profileInfo={profileInfo} compact />
+            <span><b>{profileInfo?.fullName || copy.panel}</b><small>{profileLine}</small></span>
             <Icon name="switch" size={15} />
           </button>
         </header>
 
         <div className="page-body">
           {panelView === "home"
-            ? <ModuleHome role={role} onOpenQr={() => setPanelView("qr")} />
+            ? <ModuleHome role={role} onOpenQr={() => setPanelView("qr")} displayName={profileInfo?.fullName} unreadCount={unreadCount} todaySummary={todaySummary} />
             : <QrModule role={role} store={qrStore} onAction={runQrAction} onProfileChange={updateStudentProfile} pendingToken={pendingAttendanceToken} onPendingHandled={clearPendingAttendance} />}
         </div>
       </section>

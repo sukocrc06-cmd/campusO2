@@ -128,14 +128,14 @@ export default function AdminDersSinavPage() {
 
   async function handleDersManuelEkle(e) {
     e.preventDefault();
-    if (!dersForm.bolum.trim() || !dersForm.sinif.trim() || !dersForm.ders_adi.trim() || !dersForm.baslangic_saat || !dersForm.bitis_saat) {
-      setError("Bölüm, sınıf, ders adı, başlangıç ve bitiş saati zorunludur.");
+    if (!dersForm.bolum.trim() || !dersForm.sinif.trim() || !dersForm.ders_adi.trim()) {
+      setError("Bölüm, sınıf ve ders adı zorunludur.");
       return;
     }
     setBusy(true); setError(""); setMessage("");
     const { error: err } = await supabase.from("ders_programi").insert([{
       bolum: dersForm.bolum.trim(), sinif: dersForm.sinif.trim(), ders_kodu: dersForm.ders_kodu.trim() || null,
-      ders_adi: dersForm.ders_adi.trim(), gun: dersForm.gun, baslangic_saat: dersForm.baslangic_saat, bitis_saat: dersForm.bitis_saat,
+      ders_adi: dersForm.ders_adi.trim(), gun: dersForm.gun, baslangic_saat: dersForm.baslangic_saat || null, bitis_saat: dersForm.bitis_saat || null,
       derslik: dersForm.derslik.trim() || null, hoca_adi: dersForm.hoca_adi.trim() || null,
       akademisyen_id: hocaAdinaGoreAkademisyenBul(dersForm.hoca_adi.trim()),
     }]);
@@ -261,8 +261,8 @@ export default function AdminDersSinavPage() {
                         {GUNLER.map((g) => <option key={g} value={g}>{g}</option>)}
                       </select>
                     </label>
-                    <label style={labelStyle}>Başlangıç Saati *<input style={inputStyle} type="time" value={dersForm.baslangic_saat} onChange={(e) => setDersForm((f) => ({ ...f, baslangic_saat: e.target.value }))} /></label>
-                    <label style={labelStyle}>Bitiş Saati *<input style={inputStyle} type="time" value={dersForm.bitis_saat} onChange={(e) => setDersForm((f) => ({ ...f, bitis_saat: e.target.value }))} /></label>
+                    <label style={labelStyle}>Başlangıç Saati (varsa)<input style={inputStyle} type="time" value={dersForm.baslangic_saat} onChange={(e) => setDersForm((f) => ({ ...f, baslangic_saat: e.target.value }))} /></label>
+                    <label style={labelStyle}>Bitiş Saati (varsa)<input style={inputStyle} type="time" value={dersForm.bitis_saat} onChange={(e) => setDersForm((f) => ({ ...f, bitis_saat: e.target.value }))} /></label>
                     <label style={labelStyle}>Derslik<input style={inputStyle} value={dersForm.derslik} onChange={(e) => setDersForm((f) => ({ ...f, derslik: e.target.value }))} /></label>
                     <label style={labelStyle}>Öğretim Üyesi<input style={inputStyle} value={dersForm.hoca_adi} onChange={(e) => setDersForm((f) => ({ ...f, hoca_adi: e.target.value }))} /></label>
                     <div style={{ alignSelf: "end" }}>
@@ -279,7 +279,7 @@ export default function AdminDersSinavPage() {
                       <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #e3ebf6", borderRadius: 10, fontSize: 12.5, flexWrap: "wrap" }}>
                         <div>
                           <b>{d.ders_adi}</b> {d.ders_kodu ? `(${d.ders_kodu})` : ""} · {d.bolum} / {d.sinif}. sınıf
-                          <div style={{ color: "#5b6b85", marginTop: 2 }}>{d.gun} {d.baslangic_saat}–{d.bitis_saat} {d.derslik ? `· ${d.derslik}` : ""} {d.hoca_adi ? `· ${d.hoca_adi}` : ""}</div>
+                          <div style={{ color: "#5b6b85", marginTop: 2 }}>{d.gun}{d.baslangic_saat && d.bitis_saat ? ` ${d.baslangic_saat}–${d.bitis_saat}` : " · saat girilmedi"} {d.derslik ? `· ${d.derslik}` : ""} {d.hoca_adi ? `· ${d.hoca_adi}` : ""}</div>
                           {d.hoca_adi && (
                             <div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 700, color: d.akademisyen_id ? "#0b8f5c" : "#c65d1f" }}>
                               {d.akademisyen_id ? "✓ Yoklama için hesap bağlı" : "⚠ Yoklama hesabı bağlanmadı — Yoklama Yönetimi'nden ata"}

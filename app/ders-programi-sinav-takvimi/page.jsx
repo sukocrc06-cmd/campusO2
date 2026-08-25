@@ -174,7 +174,7 @@ export default function DersSinavTakvimiPage() {
   const gunlukProgram = useMemo(() => {
     const map = new Map(GUNLER.map((g) => [g, []]));
     filtrelenmisDers.forEach((d) => { if (map.has(d.gun)) map.get(d.gun).push(d); });
-    map.forEach((list) => list.sort((a, b) => a.baslangic_saat.localeCompare(b.baslangic_saat)));
+    map.forEach((list) => list.sort((a, b) => (a.baslangic_saat || "99:99").localeCompare(b.baslangic_saat || "99:99")));
     return map;
   }, [filtrelenmisDers]);
 
@@ -455,7 +455,7 @@ export default function DersSinavTakvimiPage() {
                             const kisisel = kisiselMap[anahtar];
                             return (
                               <div key={d.id} style={{ padding: "8px 10px", borderRadius: 10, background: kisisel?.gizli ? "#f5f8fc" : "#f5f8fc", border: "1px solid #e3ebf6", opacity: kisisel?.gizli ? 0.5 : 1 }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "#0e4bae" }}>{d.baslangic_saat}–{d.bitis_saat}</div>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: d.baslangic_saat && d.bitis_saat ? "#0e4bae" : "#8fa0bc" }}>{d.baslangic_saat && d.bitis_saat ? `${d.baslangic_saat}–${d.bitis_saat}` : "Saat girilmedi"}</div>
                                 <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2 }}>{d.ders_adi}</div>
                                 {(d.derslik || d.hoca_adi) && (
                                   <div style={{ fontSize: 10, color: "#5b6b85", marginTop: 2 }}>{[d.derslik, d.hoca_adi].filter(Boolean).join(" · ")}</div>

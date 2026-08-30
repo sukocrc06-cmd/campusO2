@@ -36,9 +36,9 @@ export default function AdminKuluplerPage() {
     else setUyelikler(uData || []);
     setAkademisyenler(aData || []);
 
-    const danismanIds = Array.from(new Set((kData || []).map((k) => k.danisman_id).filter(Boolean)));
-    if (danismanIds.length) {
-      const { data: profiles } = await supabase.from("profiles").select("id, full_name, email").in("id", danismanIds);
+    const ilgiliIds = Array.from(new Set((kData || []).flatMap((k) => [k.danisman_id, k.baskan_id]).filter(Boolean)));
+    if (ilgiliIds.length) {
+      const { data: profiles } = await supabase.from("profiles").select("id, full_name, email").in("id", ilgiliIds);
       const map = {};
       (profiles || []).forEach((p) => { map[p.id] = p; });
       setProfileMap(map);
@@ -239,6 +239,7 @@ export default function AdminKuluplerPage() {
                       </div>
                       <div style={{ fontSize: 12, color: "var(--slate)", marginTop: 6 }}>
                         Danışman: {profileMap[k.danisman_id]?.full_name || profileMap[k.danisman_id]?.email || "Atanmadı"}
+                        {" · "}Başkan: {k.baskan_id ? (profileMap[k.baskan_id]?.full_name || profileMap[k.baskan_id]?.email || "—") : "Atanmadı"}
                         {" · "}{uyeSayisi(k.id)} aktif üye
                         {bekleyenSayisi(k.id) > 0 ? ` · ${bekleyenSayisi(k.id)} bekleyen` : ""}
                       </div>

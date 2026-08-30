@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabase";
-import { KULUP_KATEGORILERI, KULUP_UYELIK_DURUM } from "../../../lib/kulup-kategoriler";
+import { KULUP_KATEGORILERI, KULUP_UYELIK_DURUM, KULUP_UNVANLARI } from "../../../lib/kulup-kategoriler";
 
 function StatusBadge({ status }) {
   const s = KULUP_UYELIK_DURUM[status] || { label: status, color: "#5b6b85", bg: "#f5f8fc" };
@@ -43,12 +43,25 @@ export default function StudentKuluplerPage() {
   const [uyelikler, setUyelikler] = useState([]); // kendi üyelikleri
   const [kategoriFilter, setKategoriFilter] = useState("all");
   const [motivasyonlar, setMotivasyonlar] = useState({}); // kulup_id -> metin
+  const [ilgiAlanlari, setIlgiAlanlari] = useState({}); // kulup_id -> metin
+  const [kurulMap, setKurulMap] = useState({}); // kulup_id -> [{student_id, full_name, unvan, rol}]
 
   const [yonetilenKulup, setYonetilenKulup] = useState(null);
   const [yonetimUyeler, setYonetimUyeler] = useState([]);
   const [profileMap, setProfileMap] = useState({});
   const [editForm, setEditForm] = useState({ ad: "", aciklama: "", kategori: "", website_url: "" });
   const [logoFile, setLogoFile] = useState(null);
+  const [unvanTaslak, setUnvanTaslak] = useState({});
+
+  async function loadKurul() {
+    const { data } = await supabase.rpc("campuso_kulup_kurulu");
+    const map = {};
+    (data || []).forEach((row) => {
+      map[row.kulup_id] = map[row.kulup_id] || [];
+      map[row.kulup_id].push(row);
+    });
+    setKurulMap(map);
+  }
 
   async function loadAll(uid) {
     const [{ data: kData, error: kErr }, { data: uData, error: uErr }] = await Promise.all([
@@ -59,6 +72,7 @@ export default function StudentKuluplerPage() {
     else setKulupler(kData || []);
     if (uErr) setError((prev) => prev || "Üyelikler alınamadı: " + uErr.message);
     else setUyelikler(uData || []);
+    await loadKurul();
 
     const yonetici = (uData || []).find((u) => u.rol === "yonetici" && u.durum === "aktif");
     if (yonetici) {
@@ -108,9 +122,39 @@ export default function StudentKuluplerPage() {
   async function handleKatil(kulupId) {
     if (!userId) return;
     setBusy(true); setError(""); setMessage("");
-    const { error: err } = await supabase.from("kulup_uyelikleri").insert([{ kulup_id: kulupId, student_id: userId, rol: "uye", durum: "beklemede", motivasyon: motivasyonlar[kulupId]?.trim() || null }]);
+    const { error: err } = await supabase.from("kulup_uyelikleri").insert([{
+      kulup_id: kulupId,
+      student_id: userId,
+      rol: "uye",
+      durum: "beklemede",
+      motivasyon: motivasyonlar[kulupId]?.trim() || null,
+      ilgi_alani: ilgiAlanlari[kulupId]?.trim() || null,
+    }]);
     if (err) setError("Başvuru gönderilemedi: " + err.message);
     else { setMessage("Başvurun gönderildi; kulüp yönetiminin onayını bekliyor."); await loadAll(userId); }
+    setBusy(false);
+  }
+
+  async function handleBaskanYap(studentId) {
+    if (!yonetilenKulup) return;
+    setBusy(true); setError(""); setMessage("");
+    const { error: err } = await supabase.from("kulupler").update({ baskan_id: studentId }).eq("id", yonetilenKulup.id);
+    if (err) { setError("Başkan atanamadı: " + err.message); setBusy(false); return; }
+    const uyelik = yonetimUyeler.find((u) => u.student_id === studentId);
+    if (uyelik && (uyelik.rol !== "yonetici" || uyelik.unvan !== "Başkan")) {
+      await supabase.from("kulup_uyelikleri").update({ rol: "yonetici", unvan: "Başkan" }).eq("id", uyelik.id);
+    }
+    setMessage("Başkan atandı.");
+    await loadAll(userId);
+    setBusy(false);
+  }
+
+  async function handleUnvanKaydet(uyelikId) {
+    const unvan = (unvanTaslak[uyelikId] || "").trim();
+    setBusy(true); setError(""); setMessage("");
+    const { error: err } = await supabase.from("kulup_uyelikleri").update({ unvan: unvan || null }).eq("id", uyelikId);
+    if (err) setError("Unvan kaydedilemedi: " + err.message);
+    else { setMessage("Unvan güncellendi."); await loadYonetimUyeler(yonetilenKulup.id); }
     setBusy(false);
   }
 
@@ -227,17 +271,37 @@ export default function StudentKuluplerPage() {
                               </a>
                             ) : null}
 
+                            {(kurulMap[k.id] || []).length > 0 && (
+                              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {[...(kurulMap[k.id] || [])].sort((a, b) => (a.unvan === "Başkan" ? -1 : b.unvan === "Başkan" ? 1 : 0)).map((m) => (
+                                  <span key={m.student_id} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: "#f5f8fc", border: "1px solid #e3ebf6", fontSize: 10.5 }}>
+                                    <b>{m.full_name}</b>
+                                    <span style={{ color: "#175cd3", fontWeight: 700 }}>{m.unvan || "Yönetici"}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
                             {!uyelik && (
-                              <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                                <input
-                                  style={{ ...inputStyle, height: 38, minWidth: 220, flex: 1 }}
-                                  placeholder="Neden katılmak istiyorsun? (opsiyonel)"
-                                  value={motivasyonlar[k.id] || ""}
-                                  onChange={(e) => setMotivasyonlar((m) => ({ ...m, [k.id]: e.target.value }))}
-                                />
-                                <button onClick={() => handleKatil(k.id)} disabled={busy} className="button button-primary" style={{ minHeight: 38, padding: "0 16px", fontSize: 12 }}>
-                                  {busy ? "…" : "Katıl"}
-                                </button>
+                              <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f5f8fc", border: "1px dashed #e3ebf6" }}>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: "#5b6b85", marginBottom: 8 }}>KATILIM FORMU</div>
+                                <div style={{ display: "grid", gap: 8 }}>
+                                  <textarea
+                                    style={{ ...inputStyle, height: 56, padding: 10, resize: "vertical" }}
+                                    placeholder="Neden katılmak istiyorsun? (opsiyonel)"
+                                    value={motivasyonlar[k.id] || ""}
+                                    onChange={(e) => setMotivasyonlar((m) => ({ ...m, [k.id]: e.target.value }))}
+                                  />
+                                  <input
+                                    style={{ ...inputStyle, height: 38 }}
+                                    placeholder="Hangi alanda katkı sağlamak istersin? (opsiyonel — örn. Etkinlik, Tasarım)"
+                                    value={ilgiAlanlari[k.id] || ""}
+                                    onChange={(e) => setIlgiAlanlari((m) => ({ ...m, [k.id]: e.target.value }))}
+                                  />
+                                  <button onClick={() => handleKatil(k.id)} disabled={busy} className="button button-primary" style={{ minHeight: 38, padding: "0 16px", fontSize: 12, width: "fit-content" }}>
+                                    {busy ? "…" : "Başvuruyu Gönder"}
+                                  </button>
+                                </div>
                               </div>
                             )}
                             {uyelik && (
@@ -318,6 +382,25 @@ export default function StudentKuluplerPage() {
                   </form>
                 </section>
 
+                <section style={{ padding: 18, borderRadius: 16, border: "1px solid #c7deff", background: "#f4f8ff", marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0e4bae", marginBottom: 8 }}>YÖNETİM KURULU</div>
+                  {(() => {
+                    const kurul = yonetimUyeler.filter((u) => u.durum === "aktif" && (u.rol === "yonetici" || u.unvan));
+                    if (kurul.length === 0) return <div style={{ fontSize: 12.5, color: "#5b6b85" }}>Henüz kurul üyesi atanmadı. Aşağıdaki üye listesinden "Başkan Yap" veya unvan atayarak kurulu oluşturabilirsin.</div>;
+                    const sirali = [...kurul].sort((a, b) => (a.unvan === "Başkan" ? -1 : b.unvan === "Başkan" ? 1 : 0));
+                    return (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {sirali.map((u) => (
+                          <span key={u.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#fff", border: "1px solid #c7deff", fontSize: 12 }}>
+                            <b>{profileMap[u.student_id]?.full_name || profileMap[u.student_id]?.email || "Üye"}</b>
+                            <span style={{ color: "#0e4bae", fontWeight: 700 }}>{u.unvan || "Yönetici"}</span>
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </section>
+
                 <section style={{ padding: 22, borderRadius: 18, border: "1px solid #e3ebf6", background: "#fff", boxShadow: "0 18px 45px -28px rgba(15,43,90,.28)" }}>
                   <h2 style={{ margin: "0 0 14px", fontSize: 16 }}>Üyeler</h2>
                   {yonetimUyeler.length === 0 ? (
@@ -326,21 +409,42 @@ export default function StudentKuluplerPage() {
                     <div style={{ display: "grid", gap: 10 }}>
                       {yonetimUyeler.map((u) => {
                         const p = profileMap[u.student_id];
+                        const baskanMi = yonetilenKulup.baskan_id === u.student_id;
                         return (
-                          <div key={u.id} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 14px", border: "1px solid #e3ebf6", borderRadius: 12 }}>
+                          <div key={u.id} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 14px", border: baskanMi ? "1px solid #ffd58a" : "1px solid #e3ebf6", borderRadius: 12 }}>
                             <div>
                               <div style={{ fontWeight: 700, fontSize: 13 }}>
                                 {p?.full_name || p?.email || `${u.student_id?.slice(0, 8)}…`}
-                                {u.rol === "yonetici" && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, color: "#175cd3", background: "#e6f0ff", padding: "2px 8px", borderRadius: 999 }}>YÖNETİCİ</span>}
+                                {baskanMi && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, color: "#c65d1f", background: "#fff4e0", padding: "2px 8px", borderRadius: 999 }}>📌 BAŞKAN</span>}
+                                {!baskanMi && u.rol === "yonetici" && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, color: "#175cd3", background: "#e6f0ff", padding: "2px 8px", borderRadius: 999 }}>{u.unvan || "YÖNETİCİ"}</span>}
                               </div>
                               {u.motivasyon ? <div style={{ fontSize: 12, color: "#5b6b85", marginTop: 4, maxWidth: 420 }}>{u.motivasyon}</div> : null}
+                              {u.ilgi_alani ? <div style={{ fontSize: 11.5, color: "#0e4bae", marginTop: 3, maxWidth: 420 }}>İlgi alanı: {u.ilgi_alani}</div> : null}
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               <StatusBadge status={u.durum} />
                               {u.durum === "beklemede" && (
                                 <>
                                   <button onClick={() => handleYonetimKarar(u.id, "aktif")} disabled={busy} className="button button-primary" style={{ minHeight: 34, padding: "0 12px", fontSize: 12 }}>Onayla</button>
                                   <button onClick={() => handleYonetimKarar(u.id, "reddedildi")} disabled={busy} style={{ minHeight: 34, padding: "0 12px", fontSize: 12, fontWeight: 700, borderRadius: 10, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Reddet</button>
+                                </>
+                              )}
+                              {u.durum === "aktif" && (
+                                <>
+                                  <select
+                                    value={unvanTaslak[u.id] ?? (u.unvan || "")}
+                                    onChange={(e) => setUnvanTaslak((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                                    style={{ height: 34, fontSize: 11.5, borderRadius: 8, border: "1px solid #e3ebf6", padding: "0 6px" }}
+                                  >
+                                    <option value="">— Unvan yok —</option>
+                                    {KULUP_UNVANLARI.map((unvan) => <option key={unvan} value={unvan}>{unvan}</option>)}
+                                  </select>
+                                  <button onClick={() => handleUnvanKaydet(u.id)} disabled={busy} style={{ minHeight: 34, padding: "0 10px", fontSize: 11.5, fontWeight: 700, borderRadius: 8, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", cursor: "pointer" }}>Unvanı Kaydet</button>
+                                  {!baskanMi && (
+                                    <button onClick={() => handleBaskanYap(u.student_id)} disabled={busy} style={{ minHeight: 34, padding: "0 12px", fontSize: 12, fontWeight: 700, borderRadius: 10, border: "1px solid #ffd58a", background: "#fff8eb", color: "#c65d1f", cursor: "pointer" }}>
+                                      Başkan Yap
+                                    </button>
+                                  )}
                                 </>
                               )}
                             </div>

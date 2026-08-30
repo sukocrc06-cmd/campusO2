@@ -355,7 +355,13 @@ export default function AdminKampusDuvariPage() {
                             </div>
                           </div>
                           <p style={{ margin: "6px 0 0", fontSize: 13.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{g.icerik}</p>
-                          {g.gorsel_url ? <img src={g.gorsel_url} alt="" style={{ marginTop: 8, borderRadius: 10, maxHeight: 220, objectFit: "cover", border: "1px solid #e3ebf6" }} /> : null}
+                          {(g.gorsel_urls && g.gorsel_urls.length > 0 ? g.gorsel_urls : (g.gorsel_url ? [g.gorsel_url] : [])).length > 0 ? (
+                            <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {(g.gorsel_urls && g.gorsel_urls.length > 0 ? g.gorsel_urls : [g.gorsel_url]).map((u) => (
+                                <img key={u} src={u} alt="" style={{ borderRadius: 10, height: 120, width: 120, objectFit: "cover", border: "1px solid #e3ebf6" }} />
+                              ))}
+                            </div>
+                          ) : null}
                           <button type="button" onClick={() => toggleYorumlar(g.id)} style={{ marginTop: 8, border: "none", background: "none", color: "#175cd3", fontWeight: 700, fontSize: 12, cursor: "pointer", padding: 0 }}>
                             Yorumlar {yorumSayisi > 0 ? `(${yorumSayisi})` : ""}
                           </button>

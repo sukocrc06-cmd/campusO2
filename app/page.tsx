@@ -499,6 +499,29 @@ function moduleIconStyle(accent: keyof typeof MODULE_ACCENTS): React.CSSProperti
   return { color: a.icon, background: a.bg, borderColor: a.border };
 }
 
+// Acadex SSO — lets a faculty ("academician") user land straight in
+// Acadex's teacher panel from here, with no separate Acadex account to
+// register by hand. Calls our own /api/acadex-sso route (which verifies
+// this session server-side and holds the shared secret Acadex's Edge
+// Function requires), then does a full-page navigation to the one-time
+// magic-link URL it returns — Acadex's sso-callback.html turns that into a
+// real session and forwards into teacher.html. Students/admins keep using
+// the plain marketing link to Acadex instead (see call sites below).
+async function goToAcadexTeacherPanel() {
+  try {
+    const response = await fetchWithAuth("/api/acadex-sso", { method: "POST" });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.redirectUrl) {
+      window.alert(data?.message || "Acadex Hoca Paneline giriş yapılamadı, lütfen tekrar deneyin.");
+      return;
+    }
+    window.location.href = data.redirectUrl;
+  } catch (err) {
+    console.error("Acadex SSO error:", err);
+    window.alert("Acadex Hoca Paneline giriş yapılamadı, lütfen tekrar deneyin.");
+  }
+}
+
 function ModuleHome({
   role,
   onOpenQr,
@@ -542,13 +565,20 @@ function ModuleHome({
               {items.map((item) => {
                 const badge = item.badgeKey === "unread" ? unreadCount : undefined;
                 const href = item.hrefFor ? item.hrefFor(role) : (item.href || "#");
+                // The Acadex card SSOs faculty straight into the teacher
+                // panel instead of just linking out — see
+                // goToAcadexTeacherPanel() above. Students/admins keep the
+                // plain external link (they don't get an Acadex teacher
+                // account this way).
+                const isAcadexSso = item.ssoTarget === "acadex" && role === "faculty";
                 return (
                   <a
                     key={item.title}
                     className="module-grid-card"
-                    href={href}
-                    target={item.external ? "_blank" : undefined}
-                    rel={item.external ? "noopener noreferrer" : undefined}
+                    href={isAcadexSso ? "#" : href}
+                    target={!isAcadexSso && item.external ? "_blank" : undefined}
+                    rel={!isAcadexSso && item.external ? "noopener noreferrer" : undefined}
+                    onClick={isAcadexSso ? (e) => { e.preventDefault(); goToAcadexTeacherPanel(); } : undefined}
                   >
                     <span className="module-grid-icon" style={moduleIconStyle(item.accent)}><Icon name={item.icon} size={22} /></span>
                     <h3>
@@ -582,6 +612,7 @@ type ModuleGridItem = {
   role?: Role;
   external?: boolean;
   badgeKey?: "unread";
+  ssoTarget?: "acadex";
 };
 
 const MODULE_CATEGORIES: { title: string; items: ModuleGridItem[] }[] = [
@@ -598,8 +629,8 @@ const MODULE_CATEGORIES: { title: string; items: ModuleGridItem[] }[] = [
         desc: (role) => role === "faculty" ? "Kendi derslerinde yoklama al, devam yüzdesi eşiğini takip et." : "Derslerindeki devam yüzdeni ve yoklama geçmişini takip et.",
       },
       {
-        title: "Acadex Eğitim Modülü", icon: "spark", accent: "coral", href: "https://acadex-1lku.vercel.app", external: true,
-        desc: "Ders ağacı, eşleşme ve akademik fırsatlar için Acadex platformuna geç.",
+        title: "Acadex Eğitim Modülü", icon: "spark", accent: "coral", href: "https://acadex-1lku.vercel.app", external: true, ssoTarget: "acadex",
+        desc: (role) => role === "faculty" ? "Hoca Paneline tek tıkla geç — ayrıca kayıt olmana gerek yok." : "Ders ağacı, eşleşme ve akademik fırsatlar için Acadex platformuna geç.",
       },
       {
         title: "Akademik Teşvik Hesaplama Robotu", icon: "graduation", accent: "amber", href: "/academician/tesvik", role: "faculty",
@@ -1542,7 +1573,7 @@ export default function Home() {
           {role === "student" && (
             <button onClick={() => { window.location.href = "/student/kampus-duvari"; }}><Icon name="message" size={19} /><span>Kampüs Duvarı</span></button>
           )}
-                    <button onClick={() => { window.open("https://acadex-1lku.vercel.app", "_blank"); }}><Icon name="spark" size={19} /><span>Acadex</span></button>
+                    <button onClick={() => { if (role === "faculty") { goToAcadexTeacherPanel(); } else { window.open("https://acadex-1lku.vercel.app", "_blank"); } }}><Icon name="spark" size={19} /><span>Acadex</span></button>
         </nav>
 
         <div className="clean-sidebar-empty">

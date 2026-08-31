@@ -666,8 +666,8 @@ const MODULE_CATEGORIES: { title: string; items: ModuleGridItem[] }[] = [
         desc: "AYBÜ SKS'nin haftalık yemek menüsünü günlere göre görüntüle.",
       },
       {
-        title: "Kampüs Duvarı", icon: "message", accent: "teal", href: "/student/kampus-duvari", role: "student", badgeKey: "unread",
-        desc: "Gönderi paylaş, arkadaşlarının gönderilerine yorum yap.",
+        title: "Kampüs Duvarı", icon: "message", accent: "teal", href: "/student/kampus-duvari", badgeKey: "unread",
+        desc: (role) => role === "faculty" ? "Öğrenci paylaşımlarını ve kampüs gündemini takip et." : "Gönderi paylaş, arkadaşlarının gönderilerine yorum yap.",
       },
     ],
   },
@@ -1570,9 +1570,7 @@ export default function Home() {
           <button onClick={() => { window.location.href = "/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
           <button onClick={() => { window.location.href = "/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/yoklamalarim" : "/academician/yoklama"; }}><Icon name="check" size={19} /><span>Yoklama Takibi</span></button>
-          {role === "student" && (
-            <button onClick={() => { window.location.href = "/student/kampus-duvari"; }}><Icon name="message" size={19} /><span>Kampüs Duvarı</span></button>
-          )}
+          <button onClick={() => { window.location.href = "/student/kampus-duvari"; }}><Icon name="message" size={19} /><span>Kampüs Duvarı</span></button>
                     <button onClick={() => { if (role === "faculty") { goToAcadexTeacherPanel(); } else { window.open("https://acadex-1lku.vercel.app", "_blank"); } }}><Icon name="spark" size={19} /><span>Acadex</span></button>
         </nav>
 

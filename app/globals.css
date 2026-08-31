@@ -7754,6 +7754,17 @@ input:focus-visible {
   box-shadow: var(--shadow);
 }
 
+.kd-compose-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.kd-compose-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .kd-textarea {
   width: 100%;
   min-height: 70px;
@@ -7767,6 +7778,48 @@ input:focus-visible {
   outline: none;
   resize: vertical;
   box-sizing: border-box;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+.kd-textarea:focus {
+  background: var(--white);
+  border-color: var(--blue-700);
+  box-shadow: 0 0 0 3px rgba(23, 92, 211, .1);
+}
+
+.kd-compose-image-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.kd-compose-image-btn:hover {
+  color: var(--blue-700);
+  border-color: var(--blue-700);
+}
+
+.kd-compose-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.kd-compose-counter {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.kd-compose-counter.warn {
+  color: var(--coral, #ef5c63);
 }
 
 .kd-compose-previews {
@@ -7863,10 +7916,17 @@ input:focus-visible {
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow);
+  transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+}
+
+.kd-card:hover {
+  box-shadow: 0 16px 34px -22px rgba(15, 43, 90, .32);
+  transform: translateY(-1px);
 }
 
 .kd-card.pinned {
   border-color: var(--amber);
+  background: linear-gradient(180deg, rgba(255, 177, 59, .06), var(--white) 90px);
 }
 
 .kd-pinned-badge {
@@ -7902,8 +7962,10 @@ input:focus-visible {
 }
 
 .kd-post-name {
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 780;
+  letter-spacing: -.01em;
+  color: var(--ink);
 }
 
 .kd-post-time {
@@ -7912,11 +7974,13 @@ input:focus-visible {
 }
 
 .kd-post-text {
-  margin: 6px 0 0;
+  margin: 7px 0 0;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.65;
+  color: var(--ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .kd-mention {
@@ -8005,7 +8069,7 @@ input:focus-visible {
 }
 
 .kd-gallery-1 .kd-gallery-item {
-  aspect-ratio: 16 / 10;
+  aspect-ratio: auto;
 }
 
 .kd-gallery-item img {
@@ -8013,6 +8077,13 @@ input:focus-visible {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.kd-gallery-1 .kd-gallery-item img {
+  height: auto;
+  max-height: 420px;
+  object-fit: contain;
+  background: var(--bg);
 }
 
 .kd-gallery-more {

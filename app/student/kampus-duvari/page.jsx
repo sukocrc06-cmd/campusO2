@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabase";
 import { heroGradient } from "../../../lib/profil-secenekleri";
-import { hashtagleriAyikla, REAKSIYONLAR, metniParcala } from "../../../lib/kampus-duvari-yardimcilari";
+import { hashtagleriAyikla, REAKSIYONLAR, metniParcala, reaksiyonEmoji } from "../../../lib/kampus-duvari-yardimcilari";
 
 function baslangicHarfi(isim) {
   return (isim || "?").trim().charAt(0).toUpperCase() || "?";
@@ -127,6 +127,7 @@ function ReactionBar({ gonderiId, tepkim, sayilar, onTepki }) {
 
 export default function KampusDuvariPage() {
   const [userId, setUserId] = useState(null);
+  const [viewerRole, setViewerRole] = useState(null); // "student" | "academician"
   const [kendiBolum, setKendiBolum] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -231,11 +232,13 @@ export default function KampusDuvariPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setError("Oturum bulunamadı. Giriş yapıp tekrar deneyin."); setLoading(false); return; }
       const { data: profile } = await supabase.from("profiles").select("role, bolum").eq("id", session.user.id).maybeSingle();
-      if (profile?.role !== "student") { setError("Kampüs Duvarı şu an yalnız öğrenciler için açık."); setLoading(false); return; }
+      if (!["student", "academician"].includes(profile?.role)) { setError("Kampüs Duvarı şu an yalnız öğrenciler ve akademisyenler için açık."); setLoading(false); return; }
       setUserId(session.user.id);
+      setViewerRole(profile.role);
       setKendiBolum(profile?.bolum || "");
+      await profilleriYukle([session.user.id]);
       await loadGonderiler(session.user.id);
-      await bildirimleriYukle(session.user.id);
+      if (profile.role === "student") await bildirimleriYukle(session.user.id);
       setLoading(false);
     }
     init();
@@ -532,17 +535,19 @@ export default function KampusDuvariPage() {
     <div className="kd-shell">
       <header className="kd-header">
         <div className="kd-header-left">
-          <Link href="/?role=student" className="kd-back">←</Link>
+          <Link href={viewerRole === "academician" ? "/?role=faculty" : "/?role=student"} className="kd-back">←</Link>
           <div>
             <div className="kd-kicker">VOL 1-11 · KAMPÜS DUVARI</div>
             <div className="kd-title">Kampüs Duvarı</div>
           </div>
         </div>
         <div className="kd-header-actions">
+          {viewerRole === "student" && (
           <button type="button" className="kd-icon-btn" onClick={handleBildirimAc} aria-label="Bildirimler">
             🔔
             {okunmamisSayisi > 0 && <span className="kd-icon-badge">{okunmamisSayisi}</span>}
           </button>
+          )}
           {bildirimAcik && (
             <div className="kd-notif-panel">
               {bildirimler.length === 0 ? (
@@ -559,7 +564,7 @@ export default function KampusDuvariPage() {
               })}
             </div>
           )}
-          <Link href="/?role=student" className="kd-return-link">Panele dön</Link>
+          <Link href={viewerRole === "academician" ? "/?role=faculty" : "/?role=student"} className="kd-return-link">Panele dön</Link>
         </div>
       </header>
 
@@ -570,44 +575,62 @@ export default function KampusDuvariPage() {
           <p className="kd-loading">Yükleniyor…</p>
         ) : !userId ? null : (
           <>
-            <form onSubmit={handlePaylas} className="kd-compose">
-              <div className="kd-mention-wrap">
-                <textarea
-                  ref={(el) => (textRefs.current.post = el)}
-                  className="kd-textarea"
-                  maxLength={2000}
-                  placeholder="Kampüste neler oluyor? Bir şeyler paylaş… (#etiket, @isim kullanabilirsin)"
-                  value={icerik}
-                  onChange={(e) => handleMetinDegisti(e, "post")}
-                />
-                {mentionAktif?.hedef === "post" && (
-                  <MentionDropdown sonuclar={mentionAktif.sonuclar} yukleniyor={mentionAktif.yukleniyor} onSec={handleMentionSec} />
-                )}
+            {viewerRole === "academician" && (
+              <div className="kd-error" style={{ background: "var(--bg)", color: "var(--muted)", border: "1px solid var(--line)" }}>
+                Kampüs Duvarı'nı görüntülüyorsun. Paylaşım, yorum ve tepki verme şu an yalnızca öğrenciler için açık.
               </div>
-              {gorselOnizlemeler.length > 0 && (
-                <div className="kd-compose-previews">
-                  {gorselOnizlemeler.map((u, i) => (
-                    <div key={u} className="kd-compose-preview">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={u} alt="" />
-                      <button type="button" aria-label="Kaldır" onClick={() => setGorselFiles((prev) => prev.filter((_, idx) => idx !== i))}>✕</button>
+            )}
+            {viewerRole === "student" && (
+            <form onSubmit={handlePaylas} className="kd-compose">
+              <div className="kd-compose-row">
+                <Avatar profil={profilMap[userId]} size={40} />
+                <div className="kd-compose-main">
+                  <div className="kd-mention-wrap">
+                    <textarea
+                      ref={(el) => (textRefs.current.post = el)}
+                      className="kd-textarea"
+                      maxLength={2000}
+                      placeholder="Kampüste neler oluyor? Bir şeyler paylaş… (#etiket, @isim kullanabilirsin)"
+                      value={icerik}
+                      onChange={(e) => handleMetinDegisti(e, "post")}
+                    />
+                    {mentionAktif?.hedef === "post" && (
+                      <MentionDropdown sonuclar={mentionAktif.sonuclar} yukleniyor={mentionAktif.yukleniyor} onSec={handleMentionSec} />
+                    )}
+                  </div>
+                  {gorselOnizlemeler.length > 0 && (
+                    <div className="kd-compose-previews">
+                      {gorselOnizlemeler.map((u, i) => (
+                        <div key={u} className="kd-compose-preview">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={u} alt="" />
+                          <button type="button" aria-label="Kaldır" onClick={() => setGorselFiles((prev) => prev.filter((_, idx) => idx !== i))}>✕</button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                  <div className="kd-compose-footer">
+                    <label className="kd-compose-image-btn">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => setGorselFiles(Array.from(e.target.files || []).slice(0, 4))}
+                        hidden
+                      />
+                      🖼️ {gorselFiles.length > 0 ? `${gorselFiles.length} görsel seçildi` : "Görsel ekle"}
+                    </label>
+                    <div className="kd-compose-footer-right">
+                      <span className={`kd-compose-counter${icerik.length > 1800 ? " warn" : ""}`}>{icerik.length}/2000</span>
+                      <button type="submit" disabled={busy || !icerik.trim()} className="button button-primary" style={{ minHeight: 40, padding: "0 18px", fontSize: 13, opacity: busy || !icerik.trim() ? 0.6 : 1 }}>
+                        {busy ? "…" : "Paylaş"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              )}
-              <div className="kd-compose-footer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => setGorselFiles(Array.from(e.target.files || []).slice(0, 4))}
-                  style={{ fontSize: 12 }}
-                />
-                <button type="submit" disabled={busy} className="button button-primary" style={{ minHeight: 40, padding: "0 18px", fontSize: 13, opacity: busy ? 0.6 : 1 }}>
-                  {busy ? "…" : "Paylaş"}
-                </button>
               </div>
             </form>
+            )}
 
             <div className="kd-filters">
               {kendiBolum ? (
@@ -615,9 +638,11 @@ export default function KampusDuvariPage() {
                   Sadece {kendiBolum}
                 </button>
               ) : null}
+              {viewerRole === "student" && (
               <button type="button" className={`kd-chip${sadeceKaydedilenler ? " active" : ""}`} onClick={() => setSadeceKaydedilenler((prev) => !prev)}>
                 🔖 Kaydedilenler
               </button>
+              )}
               {etiketler.map((etiket) => (
                 <button key={etiket} type="button" className={`kd-chip${aktifEtiket === etiket ? " active" : ""}`} onClick={() => setAktifEtiket((prev) => (prev === etiket ? null : etiket))}>
                   {etiket}
@@ -667,21 +692,33 @@ export default function KampusDuvariPage() {
                           )}
                           <Gallery urls={gorseller} onAc={(i) => setLightbox({ urls: gorseller, index: i })} />
                           <div className="kd-post-actions">
-                            <ReactionBar gonderiId={g.id} tepkim={gonderiTepkilerim[g.id]} sayilar={gonderiTepkiSayilari[g.id]} onTepki={handleGonderiTepki} />
+                            {viewerRole === "student" ? (
+                              <ReactionBar gonderiId={g.id} tepkim={gonderiTepkilerim[g.id]} sayilar={gonderiTepkiSayilari[g.id]} onTepki={handleGonderiTepki} />
+                            ) : (
+                              Object.entries(gonderiTepkiSayilari[g.id] || {}).some(([, adet]) => adet > 0) ? (
+                                <div className="kd-reactions">
+                                  {Object.entries(gonderiTepkiSayilari[g.id] || {}).filter(([, adet]) => adet > 0).map(([tip, adet]) => (
+                                    <span key={tip} className="kd-reaction-btn">{reaksiyonEmoji(tip)} {adet}</span>
+                                  ))}
+                                </div>
+                              ) : null
+                            )}
                             <button type="button" className="kd-link-btn comment" onClick={() => toggleYorumlar(g.id)}>
                               💬 Yorumlar {yorumlar.length > 0 ? `(${yorumlar.length})` : ""}
                             </button>
+                            {viewerRole === "student" && (
                             <button type="button" className={`kd-link-btn save${kayitliMi ? " active" : ""}`} onClick={() => handleKaydet(g.id)}>
                               {kayitliMi ? "🔖 Kaydedildi" : "🔖 Kaydet"}
                             </button>
-                            {kendisiMi ? (
+                            )}
+                            {viewerRole === "student" && (kendisiMi ? (
                               <>
                                 <button type="button" className="kd-link-btn" onClick={() => gonderiDuzenlemeyeBasla(g)}>Düzenle</button>
                                 <button type="button" className="kd-link-btn danger" disabled={busy} onClick={() => handleGonderiSil(g.id)}>Sil</button>
                               </>
                             ) : (
                               <button type="button" className="kd-link-btn" onClick={() => handleSikayet("gonderi", g.id)}>Şikayet Et</button>
-                            )}
+                            ))}
                           </div>
                         </div>
                       </div>
@@ -716,6 +753,7 @@ export default function KampusDuvariPage() {
                                       )}
                                     </div>
                                   )}
+                                  {viewerRole === "student" && (
                                   <div className="kd-comment-actions">
                                     <button type="button" className="kd-link-btn" style={{ color: yBegendimMi ? "#ef5c63" : "var(--muted)" }} onClick={() => handleYorumBegen(y.id)}>
                                       {yBegendimMi ? "❤️" : "🤍"} {yBegeniSayisi > 0 ? yBegeniSayisi : ""}
@@ -729,10 +767,15 @@ export default function KampusDuvariPage() {
                                       <button type="button" className="kd-link-btn" onClick={() => handleSikayet("yorum", y.id)}>Şikayet Et</button>
                                     )}
                                   </div>
+                                  )}
+                                  {viewerRole === "academician" && yBegeniSayisi > 0 && (
+                                    <div className="kd-comment-actions"><span className="kd-link-btn">❤️ {yBegeniSayisi}</span></div>
+                                  )}
                                 </div>
                               </div>
                             );
                           })}
+                          {viewerRole === "student" && (
                           <div className="kd-mention-wrap">
                             <form onSubmit={(e) => handleYorumEkle(g.id, e)} className="kd-comment-form">
                               <input
@@ -749,6 +792,7 @@ export default function KampusDuvariPage() {
                               <MentionDropdown sonuclar={mentionAktif.sonuclar} yukleniyor={mentionAktif.yukleniyor} onSec={handleMentionSec} />
                             )}
                           </div>
+                          )}
                         </div>
                       )}
                     </div>

@@ -78,7 +78,19 @@ async function runSync() {
     return { ok: false, mesaj, gunSayisi: gunler.length };
   }
 
-  const mesaj = `${gunler.length} gün için menü güncellendi (${gunler.map((g) => g.gun_adi).join(", ")}).`;
+  // Geçmiş günler (bugünden eski) artık ihtiyaç değil; her başarılı
+  // senkronizasyonda otomatik temizlenir ki panel hep güncel haftayı göstersin.
+  const bugun = todayIso();
+  const { error: silmeHatasi, count: silinenSayisi } = await supabase
+    .from("yemek_menusu")
+    .delete({ count: "exact" })
+    .lt("tarih", bugun);
+  if (silmeHatasi) {
+    console.error("CampusO yemek menü eski gün temizliği hatası", silmeHatasi);
+  }
+
+  const temizlikNotu = silinenSayisi ? ` ${silinenSayisi} geçmiş gün temizlendi.` : "";
+  const mesaj = `${gunler.length} gün için menü güncellendi (${gunler.map((g) => g.gun_adi).join(", ")}).${temizlikNotu}`;
   await supabase.from("yemek_menu_sync_loglari").insert([{ basarili: true, bulunan_gun_sayisi: gunler.length, mesaj }]);
   return { ok: true, mesaj, gunSayisi: gunler.length, gunler };
 }

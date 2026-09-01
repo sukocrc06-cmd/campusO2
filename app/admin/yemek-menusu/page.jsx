@@ -31,7 +31,7 @@ export default function AdminYemekMenusuPage() {
   async function loadData() {
     const bugun = todayIso();
     const [{ data: gData, error: gErr }, { data: lData }] = await Promise.all([
-      supabase.from("yemek_menusu").select("*").gte("tarih", new Date(new Date(bugun).getTime() - 6 * 86400000).toISOString().slice(0, 10)).order("tarih", { ascending: true }).limit(10),
+      supabase.from("yemek_menusu").select("*").gte("tarih", bugun).order("tarih", { ascending: true }).limit(10),
       supabase.from("yemek_menu_sync_loglari").select("*").order("calisma_zamani", { ascending: false }).limit(5),
     ]);
     if (gErr) setError("Menü alınamadı: " + gErr.message);

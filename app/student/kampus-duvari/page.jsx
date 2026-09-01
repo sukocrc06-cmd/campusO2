@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { supabase } from "../../../lib/supabase";
+import { supabase, fetchWithAuth } from "../../../lib/supabase";
 import { heroGradient } from "../../../lib/profil-secenekleri";
 import { hashtagleriAyikla, REAKSIYONLAR, metniParcala, reaksiyonEmoji } from "../../../lib/kampus-duvari-yardimcilari";
 
@@ -379,13 +379,37 @@ export default function KampusDuvariPage() {
     if (!icerik.trim()) { setError("Bir şeyler yazmadan paylaşamazsın."); return; }
     setBusy(true); setError("");
     const gorselUrls = [];
+    const gorselKayitlari = [];
     for (const file of gorselFiles) {
       const ext = file.name.split(".").pop();
       const path = `${userId}/gonderi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("gonderi-gorselleri").upload(path, file);
       if (upErr) { setError("Görsel yüklenemedi: " + upErr.message); setBusy(false); return; }
-      gorselUrls.push(supabase.storage.from("gonderi-gorselleri").getPublicUrl(path).data.publicUrl);
+      const url = supabase.storage.from("gonderi-gorselleri").getPublicUrl(path).data.publicUrl;
+      gorselUrls.push(url);
+      gorselKayitlari.push({ url, path });
     }
+
+    if (gorselKayitlari.length > 0) {
+      try {
+        const modRes = await fetchWithAuth("/api/moderate-image", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ items: gorselKayitlari }),
+        });
+        const modData = await modRes.json().catch(() => null);
+        if (modData?.flagged) {
+          setError("Görsel(ler) uygunsuz bulunduğu için paylaşım engellendi: " + (modData.nedenler || []).join(", "));
+          setGorselFiles([]);
+          setBusy(false);
+          return;
+        }
+      } catch {
+        // Moderasyon servisi cevap vermezse paylaşımı engellemiyoruz (fail-open),
+        // sadece görsel taraması atlanmış oluyor.
+      }
+    }
+
     const metin = icerik.trim();
     const { data: eklenen, error: err } = await supabase
       .from("gonderiler")

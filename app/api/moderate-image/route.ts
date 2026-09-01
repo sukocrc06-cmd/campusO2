@@ -9,8 +9,13 @@ const SIGHTENGINE_MODELS = "nudity-2.1,offensive-2.0,gore-2.0,violence,weapon";
 
 // Sightengine skor eşikleri — aşılırsa görsel reddedilir. Kategoriler
 // modele göre farklı alanlarda gelir (bkz. checkSightengineResult).
+// nudity-2.1 modeli tek bir "raw" skor değil, ayrı yoğunluk seviyeleri
+// döndürüyor (sexual_activity, sexual_display, erotica, very_suggestive,
+// suggestive, mildly_suggestive, none) — bu yüzden nudity için birden
+// fazla alan ayrı ayrı kontrol ediliyor.
 const ESIK = {
-  nudity: 0.55,
+  nuditySert: 0.5, // sexual_activity / sexual_display / erotica
+  nudityOrta: 0.6, // very_suggestive (iç çamaşırı, dekolte vb. net uygunsuz sayılan pozlar)
   offensive: 0.5,
   gore: 0.55,
   violence: 0.55,
@@ -35,9 +40,19 @@ function sightengineConfigured() {
 function checkSightengineResult(json: any): string[] {
   const nedenler: string[] = [];
 
-  const nudityRisk = json?.nudity?.sexual_activity ?? json?.nudity?.raw ?? 0;
-  if (typeof nudityRisk === "number" && nudityRisk >= ESIK.nudity) {
+  const nudity = json?.nudity ?? {};
+  const nuditySertSkor = Math.max(
+    Number(nudity.sexual_activity ?? 0),
+    Number(nudity.sexual_display ?? 0),
+    Number(nudity.erotica ?? 0),
+    Number(nudity.raw ?? 0), // eski nudity-1.x API'lerle uyumluluk için
+  );
+  const nudityOrtaSkor = Number(nudity.very_suggestive ?? 0);
+
+  if (nuditySertSkor >= ESIK.nuditySert) {
     nedenler.push("uygunsuz/müstehcen görsel");
+  } else if (nudityOrtaSkor >= ESIK.nudityOrta) {
+    nedenler.push("uygunsuz/açık saçık görsel");
   }
 
   const offensiveProb = json?.offensive?.prob ?? 0;

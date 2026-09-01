@@ -32,6 +32,7 @@ export default function AdminKampusDuvariPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  const [adminId, setAdminId] = useState(null);
   const [gonderiler, setGonderiler] = useState([]);
   const [yorumSayilari, setYorumSayilari] = useState({});
   const [sikayetler, setSikayetler] = useState([]);
@@ -43,6 +44,9 @@ export default function AdminKampusDuvariPage() {
   const [genisletilmis, setGenisletilmis] = useState({});
   const [yorumlarMap, setYorumlarMap] = useState({});
   const [susturSecim, setSusturSecim] = useState({});
+  const [susturulmuslar, setSusturulmuslar] = useState([]);
+  const [duyuruMetni, setDuyuruMetni] = useState("");
+  const [duyuruGonderiliyor, setDuyuruGonderiliyor] = useState(false);
 
   async function profilleriYukle(idler) {
     const eksik = idler.filter((id) => id && !profilMap[id]);
@@ -58,13 +62,14 @@ export default function AdminKampusDuvariPage() {
   }
 
   async function loadAll() {
-    const [{ data: g, error: gErr }, { data: y, error: yErr }, { data: s, error: sErr }, { data: obG }, { data: obY }, { data: kelimeler }] = await Promise.all([
+    const [{ data: g, error: gErr }, { data: y, error: yErr }, { data: s, error: sErr }, { data: obG }, { data: obY }, { data: kelimeler }, { data: susturmalar }] = await Promise.all([
       supabase.from("gonderiler").select("*").order("sabitlenmis", { ascending: false }).order("created_at", { ascending: false }).limit(60),
       supabase.from("yorumlar").select("id, gonderi_id"),
       supabase.from("kampus_duvari_sikayetleri").select("*").order("created_at", { ascending: false }).limit(40),
       supabase.from("gonderiler").select("*").eq("onay_bekliyor", true).order("created_at", { ascending: false }),
       supabase.from("yorumlar").select("*").eq("onay_bekliyor", true).order("created_at", { ascending: false }),
       supabase.from("kampus_duvari_yasakli_kelimeler").select("*").order("kelime", { ascending: true }),
+      supabase.from("kampus_duvari_susturmalar").select("*").gt("bitis", new Date().toISOString()).order("bitis", { ascending: true }),
     ]);
     if (gErr) setError("Gönderiler alınamadı: " + gErr.message);
     else setGonderiler(g || []);
@@ -78,12 +83,14 @@ export default function AdminKampusDuvariPage() {
     setOnayBekleyenGonderiler(obG || []);
     setOnayBekleyenYorumlar(obY || []);
     setYasakliKelimeler(kelimeler || []);
+    setSusturulmuslar(susturmalar || []);
 
     const idler = new Set([
       ...(g || []).map((row) => row.yazar_id),
       ...(s || []).map((row) => row.bildiren_id),
       ...(obG || []).map((row) => row.yazar_id),
       ...(obY || []).map((row) => row.yazar_id),
+      ...(susturmalar || []).map((row) => row.kullanici_id),
     ]);
     await profilleriYukle(Array.from(idler));
   }
@@ -97,6 +104,7 @@ export default function AdminKampusDuvariPage() {
         setLoading(false);
         return;
       }
+      setAdminId(session.user.id);
       await loadAll();
       setLoading(false);
     }
@@ -180,6 +188,30 @@ export default function AdminKampusDuvariPage() {
     setBusy(false);
   }
 
+  async function handleDuyuruGonder(e) {
+    e.preventDefault();
+    const metin = duyuruMetni.trim();
+    if (!metin || !adminId) return;
+    setDuyuruGonderiliyor(true); setError(""); setMessage("");
+    const { error: err } = await supabase.from("gonderiler").insert([{
+      yazar_id: adminId,
+      icerik: metin,
+      resmi_duyuru: true,
+      sabitlenmis: true,
+    }]);
+    if (err) setError("Duyuru gönderilemedi: " + err.message);
+    else { setMessage("Resmi duyuru duvara gönderildi ve sabitlendi."); setDuyuruMetni(""); await loadAll(); }
+    setDuyuruGonderiliyor(false);
+  }
+
+  async function handleSusturmaKaldir(id) {
+    setBusy(true); setError("");
+    const { error: err } = await supabase.from("kampus_duvari_susturmalar").delete().eq("id", id);
+    if (err) setError("Susturma kaldırılamadı: " + err.message);
+    else { setMessage("Susturma erken kaldırıldı."); setSusturulmuslar((prev) => prev.filter((s) => s.id !== id)); }
+    setBusy(false);
+  }
+
   async function handleSustur(kullaniciId) {
     const saat = susturSecim[kullaniciId] || SUSTURMA_SURELERI[0].saat;
     const sebep = window.prompt("Susturma sebebi (opsiyonel):") ?? "";
@@ -192,7 +224,7 @@ export default function AdminKampusDuvariPage() {
       olusturan_id: session?.user?.id || null,
     }]);
     if (err) setError("Susturulamadı: " + err.message);
-    else setMessage("Kullanıcı susturuldu.");
+    else { setMessage("Kullanıcı susturuldu."); await loadAll(); }
     setBusy(false);
   }
 
@@ -248,6 +280,45 @@ export default function AdminKampusDuvariPage() {
 
             {error ? <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "#fff4f0", border: "1px solid #f2c5ba", color: "#984333", fontSize: 13, fontWeight: 600 }}>{error}</div> : null}
             {message ? <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "#effbf6", border: "1px solid #bde5d5", color: "#0b5c42", fontSize: 13, fontWeight: 600 }}>{message}</div> : null}
+
+            <section style={{ background: "linear-gradient(135deg, #0e4bae, #175cd3)", borderRadius: 16, padding: 18, marginBottom: 24, color: "#fff" }}>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>📢 Resmi Duyuru Gönder</div>
+              <div style={{ fontSize: 11.5, opacity: 0.85, marginBottom: 12 }}>Duvara admin adına, öğrenci gönderilerinden görsel olarak ayrışan bir duyuru paylaşır ve otomatik olarak en üste sabitler.</div>
+              <form onSubmit={handleDuyuruGonder} style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <textarea
+                  value={duyuruMetni}
+                  onChange={(e) => setDuyuruMetni(e.target.value)}
+                  placeholder="Örn. Yarın kampüste elektrik kesintisi olacaktır…"
+                  maxLength={2000}
+                  rows={2}
+                  style={{ flex: 1, minWidth: 240, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 13, resize: "vertical", outline: "none" }}
+                />
+                <button type="submit" disabled={duyuruGonderiliyor || !duyuruMetni.trim()} style={{ minHeight: 40, padding: "0 18px", fontSize: 13, fontWeight: 800, borderRadius: 10, border: "none", background: "#fff", color: "#0e4bae", cursor: "pointer", opacity: duyuruGonderiliyor || !duyuruMetni.trim() ? 0.6 : 1 }}>
+                  {duyuruGonderiliyor ? "Gönderiliyor…" : "Duyuruyu Yayınla"}
+                </button>
+              </form>
+            </section>
+
+            {susturulmuslar.length > 0 && (
+              <section style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 16, padding: 18, marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>Susturulmuş Kullanıcılar ({susturulmuslar.length})</div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {susturulmuslar.map((s) => {
+                    const kullanici = profilMap[s.kullanici_id];
+                    return (
+                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "#f5f8fc", borderRadius: 10, padding: "10px 12px", flexWrap: "wrap" }}>
+                        <div style={{ fontSize: 12 }}>
+                          <b>{kullanici?.full_name || "Öğrenci"}</b>
+                          {s.sebep ? <span style={{ color: "#5b6b85" }}> · "{s.sebep}"</span> : null}
+                          <div style={{ color: "#8fa0bc", fontSize: 10.5, marginTop: 2 }}>Bitiş: {zamanFormat(s.bitis)}</div>
+                        </div>
+                        <button onClick={() => handleSusturmaKaldir(s.id)} disabled={busy} style={{ minHeight: 30, padding: "0 12px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #c7deff", background: "#eaf1ff", color: "#175cd3", cursor: "pointer" }}>Susturmayı Kaldır</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             {(onayBekleyenGonderiler.length > 0 || onayBekleyenYorumlar.length > 0) && (
               <section style={{ background: "#fff8ec", border: "1px solid #ffd58a", borderRadius: 16, padding: 18, marginBottom: 24 }}>
@@ -335,8 +406,12 @@ export default function AdminKampusDuvariPage() {
                   const yorumSayisi = yorumSayilari[g.id] || 0;
                   const yorumlar = yorumlarMap[g.id] || [];
                   return (
-                    <div key={g.id} style={{ background: "#fff", border: g.sabitlenmis ? "1px solid #ffd58a" : "1px solid #e3ebf6", borderRadius: 14, padding: 16 }}>
-                      {g.sabitlenmis && <div style={{ fontSize: 10.5, fontWeight: 800, color: "#c65d1f", marginBottom: 6 }}>📌 SABİTLENMİŞ</div>}
+                    <div key={g.id} style={{ background: "#fff", border: g.resmi_duyuru ? "1px solid #c7deff" : g.sabitlenmis ? "1px solid #ffd58a" : "1px solid #e3ebf6", borderRadius: 14, padding: 16 }}>
+                      {g.resmi_duyuru ? (
+                        <div style={{ fontSize: 10.5, fontWeight: 800, color: "#175cd3", marginBottom: 6 }}>📢 RESMİ DUYURU</div>
+                      ) : g.sabitlenmis ? (
+                        <div style={{ fontSize: 10.5, fontWeight: 800, color: "#c65d1f", marginBottom: 6 }}>📌 SABİTLENMİŞ</div>
+                      ) : null}
                       <div style={{ display: "flex", gap: 10 }}>
                         <Avatar profil={yazar} />
                         <div style={{ flex: 1, minWidth: 0 }}>

@@ -158,6 +158,8 @@ export default function KampusDuvariPage() {
   const [aktifEtiket, setAktifEtiket] = useState(null);
   const [sadeceBolumum, setSadeceBolumum] = useState(false);
   const [sadeceKaydedilenler, setSadeceKaydedilenler] = useState(false);
+  const [arama, setArama] = useState("");
+  const [yorumSayilari, setYorumSayilari] = useState({});
 
   const [bildirimler, setBildirimler] = useState([]);
   const [bildirimAcik, setBildirimAcik] = useState(false);
@@ -211,6 +213,14 @@ export default function KampusDuvariPage() {
     if (data) await profilleriYukle(Array.from(new Set(data.map((b) => b.olusturan_id).filter(Boolean))));
   }
 
+  async function yorumSayilariniYukle(gonderiIdler) {
+    if (gonderiIdler.length === 0) { setYorumSayilari({}); return; }
+    const { data } = await supabase.from("yorumlar").select("id, gonderi_id").in("gonderi_id", gonderiIdler);
+    const sayilar = {};
+    (data || []).forEach((row) => { sayilar[row.gonderi_id] = (sayilar[row.gonderi_id] || 0) + 1; });
+    setYorumSayilari(sayilar);
+  }
+
   async function loadGonderiler(uid) {
     const { data, error: err } = await supabase
       .from("gonderiler")
@@ -223,6 +233,7 @@ export default function KampusDuvariPage() {
     setGonderiler(rows);
     await profilleriYukle(Array.from(new Set(rows.map((g) => g.yazar_id))));
     await tepkileriYukle(rows.map((g) => g.id), uid);
+    await yorumSayilariniYukle(rows.map((g) => g.id));
     await kaydedilenleriYukle(uid);
   }
 
@@ -269,13 +280,40 @@ export default function KampusDuvariPage() {
   }, [profilMap]);
 
   const gorunenGonderiler = useMemo(() => {
+    const q = arama.trim().toLocaleLowerCase("tr-TR");
     return gonderiler.filter((g) => {
       if (aktifEtiket && !hashtagleriAyikla(g.icerik).includes(aktifEtiket)) return false;
       if (sadeceBolumum && kendiBolum && g.bolum !== kendiBolum) return false;
       if (sadeceKaydedilenler && !gonderiKaydedilenler.has(g.id)) return false;
+      if (q) {
+        const yazarAdi = (profilMap[g.yazar_id]?.full_name || "").toLocaleLowerCase("tr-TR");
+        const icerik = (g.icerik || "").toLocaleLowerCase("tr-TR");
+        if (!icerik.includes(q) && !yazarAdi.includes(q)) return false;
+      }
       return true;
     });
-  }, [gonderiler, aktifEtiket, sadeceBolumum, kendiBolum, sadeceKaydedilenler, gonderiKaydedilenler]);
+  }, [gonderiler, aktifEtiket, sadeceBolumum, kendiBolum, sadeceKaydedilenler, gonderiKaydedilenler, arama, profilMap]);
+
+  // "En çok etkileşim alanlar": son 7 gün içindeki gönderilerden, toplam
+  // reaksiyon + yorum sayısına göre en yüksek 3 tanesi.
+  const trendGonderiler = useMemo(() => {
+    const yediGunOnce = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return gonderiler
+      .filter((g) => new Date(g.created_at).getTime() >= yediGunOnce)
+      .map((g) => {
+        const tepkiToplam = Object.values(gonderiTepkiSayilari[g.id] || {}).reduce((a, b) => a + b, 0);
+        const yorumToplam = yorumSayilari[g.id] || 0;
+        return { gonderi: g, puan: tepkiToplam + yorumToplam };
+      })
+      .filter((x) => x.puan > 0)
+      .sort((a, b) => b.puan - a.puan)
+      .slice(0, 3);
+  }, [gonderiler, gonderiTepkiSayilari, yorumSayilari]);
+
+  function trendeGit(gonderiId) {
+    const el = document.getElementById(`post-${gonderiId}`);
+    if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("kd-highlight"); setTimeout(() => el.classList.remove("kd-highlight"), 1600); }
+  }
 
   const okunmamisSayisi = bildirimler.filter((b) => !b.okundu).length;
 
@@ -489,6 +527,7 @@ export default function KampusDuvariPage() {
       const { data } = await supabase.from("yorumlar").select("*").eq("gonderi_id", gonderiId).order("created_at", { ascending: true });
       setYorumlarMap((prev) => ({ ...prev, [gonderiId]: data || [] }));
       if (eklenen?.onay_bekliyor) setError("Yorumun incelemeye alındı, onaylanana kadar yalnız sen görebilirsin.");
+      else setYorumSayilari((prev) => ({ ...prev, [gonderiId]: (prev[gonderiId] || 0) + 1 }));
       if (eklenen?.id) await bildirimleriGonder(yorumMentions[gonderiId], metin, gonderiId, eklenen.id);
       setYorumMentions((prev) => ({ ...prev, [gonderiId]: [] }));
     }
@@ -499,7 +538,10 @@ export default function KampusDuvariPage() {
     setBusy(true); setError("");
     const { error: err } = await supabase.from("yorumlar").delete().eq("id", id);
     if (err) setError("Silinemedi: " + err.message);
-    else setYorumlarMap((prev) => ({ ...prev, [gonderiId]: (prev[gonderiId] || []).filter((y) => y.id !== id) }));
+    else {
+      setYorumlarMap((prev) => ({ ...prev, [gonderiId]: (prev[gonderiId] || []).filter((y) => y.id !== id) }));
+      setYorumSayilari((prev) => ({ ...prev, [gonderiId]: Math.max(0, (prev[gonderiId] || 1) - 1) }));
+    }
     setBusy(false);
   }
 
@@ -632,6 +674,37 @@ export default function KampusDuvariPage() {
             </form>
             )}
 
+            {trendGonderiler.length > 0 && (
+              <div className="kd-trend">
+                <div className="kd-trend-title">🔥 Gündemde</div>
+                <div className="kd-trend-row">
+                  {trendGonderiler.map(({ gonderi: g, puan }) => {
+                    const yazar = profilMap[g.yazar_id];
+                    return (
+                      <button key={g.id} type="button" className="kd-trend-item" onClick={() => trendeGit(g.id)}>
+                        <Avatar profil={yazar} size={24} />
+                        <span className="kd-trend-text">{(g.icerik || "").slice(0, 46)}{(g.icerik || "").length > 46 ? "…" : ""}</span>
+                        <span className="kd-trend-puan">🔥 {puan}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="kd-search-wrap">
+              <input
+                type="text"
+                className="kd-search"
+                placeholder="🔎 Gönderi veya kişi ara…"
+                value={arama}
+                onChange={(e) => setArama(e.target.value)}
+              />
+              {arama && (
+                <button type="button" className="kd-search-clear" onClick={() => setArama("")} aria-label="Aramayı temizle">✕</button>
+              )}
+            </div>
+
             <div className="kd-filters">
               {kendiBolum ? (
                 <button type="button" className={`kd-chip${sadeceBolumum ? " active" : ""}`} onClick={() => setSadeceBolumum((prev) => !prev)}>
@@ -663,8 +736,12 @@ export default function KampusDuvariPage() {
                   const gorseller = gonderiGorselleri(g);
                   const kayitliMi = gonderiKaydedilenler.has(g.id);
                   return (
-                    <div key={g.id} className={`kd-card${g.sabitlenmis ? " pinned" : ""}`}>
-                      {g.sabitlenmis && <div className="kd-pinned-badge">📌 SABİTLENMİŞ DUYURU</div>}
+                    <div key={g.id} id={`post-${g.id}`} className={`kd-card${g.resmi_duyuru ? " resmi" : g.sabitlenmis ? " pinned" : ""}`}>
+                      {g.resmi_duyuru ? (
+                        <div className="kd-pinned-badge kd-official-badge">📢 RESMİ DUYURU</div>
+                      ) : g.sabitlenmis ? (
+                        <div className="kd-pinned-badge">📌 SABİTLENMİŞ</div>
+                      ) : null}
                       {kendisiMi && g.onay_bekliyor && (
                         <div className="kd-pending-badge">⏳ İncelemede — onaylanana kadar yalnız sen görüyorsun.</div>
                       )}
@@ -704,7 +781,7 @@ export default function KampusDuvariPage() {
                               ) : null
                             )}
                             <button type="button" className="kd-link-btn comment" onClick={() => toggleYorumlar(g.id)}>
-                              💬 Yorumlar {yorumlar.length > 0 ? `(${yorumlar.length})` : ""}
+                              💬 Yorumlar {(genisletilmis[g.id] ? yorumlar.length : (yorumSayilari[g.id] || 0)) > 0 ? `(${genisletilmis[g.id] ? yorumlar.length : yorumSayilari[g.id]})` : ""}
                             </button>
                             {viewerRole === "student" && (
                             <button type="button" className={`kd-link-btn save${kayitliMi ? " active" : ""}`} onClick={() => handleKaydet(g.id)}>

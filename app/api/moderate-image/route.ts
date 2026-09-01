@@ -17,9 +17,11 @@ const ESIK = {
   nuditySert: 0.5, // sexual_activity / sexual_display / erotica
   nudityOrta: 0.6, // very_suggestive (iç çamaşırı, dekolte vb. net uygunsuz sayılan pozlar)
   offensive: 0.5,
-  gore: 0.55,
-  violence: 0.55,
-  weapon: 0.55,
+  goreSert: 0.5, // gore.prob veya very_bloody/serious_injury/corpse gibi ağır sınıflar
+  goreHafif: 0.6, // slightly_bloody/superficial_injury gibi daha hafif "açık yara/kan" sınıfları
+  violence: 0.5,
+  weapon: 0.5,
+  weaponOyuncak: 0.75, // firearm_toy — oyuncak silah, daha yüksek eşik
 };
 
 type Item = { url: string; path: string };
@@ -60,20 +62,41 @@ function checkSightengineResult(json: any): string[] {
     nedenler.push("saldırgan/nefret içerikli görsel");
   }
 
-  const goreProb = json?.gore?.prob ?? 0;
-  if (typeof goreProb === "number" && goreProb >= ESIK.gore) {
-    nedenler.push("şiddet/kan içeren görsel");
+  const gore = json?.gore ?? {};
+  const goreClasses = gore.classes ?? {};
+  const goreSertSkor = Math.max(
+    Number(gore.prob ?? 0),
+    Number(goreClasses.very_bloody ?? 0),
+    Number(goreClasses.serious_injury ?? 0),
+    Number(goreClasses.corpse ?? 0),
+    Number(goreClasses.body_organ ?? 0),
+  );
+  const goreHafifSkor = Math.max(
+    Number(goreClasses.slightly_bloody ?? 0),
+    Number(goreClasses.superficial_injury ?? 0),
+  );
+  if (goreSertSkor >= ESIK.goreSert) {
+    nedenler.push("kan/yaralanma içeren görsel");
+  } else if (goreHafifSkor >= ESIK.goreHafif) {
+    nedenler.push("açık yara/kan izi içeren görsel");
   }
 
   const violenceProb = json?.violence?.prob ?? 0;
   if (typeof violenceProb === "number" && violenceProb >= ESIK.violence) {
-    nedenler.push("şiddet içeren görsel");
+    nedenler.push("şiddet/kavga içeren görsel");
   }
 
-  const weaponProb =
-    json?.weapon?.classes?.firearm ?? json?.weapon?.classes?.knife ?? json?.weapon?.prob ?? 0;
-  if (typeof weaponProb === "number" && weaponProb >= ESIK.weapon) {
+  const weaponClasses = json?.weapon?.classes ?? {};
+  const weaponSkor = Math.max(
+    Number(weaponClasses.firearm ?? 0),
+    Number(weaponClasses.firearm_gesture ?? 0),
+    Number(weaponClasses.knife ?? 0),
+  );
+  const weaponOyuncakSkor = Number(weaponClasses.firearm_toy ?? 0);
+  if (weaponSkor >= ESIK.weapon) {
     nedenler.push("silah içeren görsel");
+  } else if (weaponOyuncakSkor >= ESIK.weaponOyuncak) {
+    nedenler.push("silah (oyuncak/replika) içeren görsel");
   }
 
   return nedenler;

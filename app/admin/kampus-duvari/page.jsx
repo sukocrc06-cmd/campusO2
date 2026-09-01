@@ -40,6 +40,9 @@ export default function AdminKampusDuvariPage() {
   const [onayBekleyenYorumlar, setOnayBekleyenYorumlar] = useState([]);
   const [yasakliKelimeler, setYasakliKelimeler] = useState([]);
   const [yeniKelime, setYeniKelime] = useState("");
+  const [kelimelerKilitli, setKelimelerKilitli] = useState(true);
+  const [kelimelerSifre, setKelimelerSifre] = useState("");
+  const [kelimelerSifreHata, setKelimelerSifreHata] = useState("");
   const [profilMap, setProfilMap] = useState({});
   const [genisletilmis, setGenisletilmis] = useState({});
   const [yorumlarMap, setYorumlarMap] = useState({});
@@ -186,6 +189,20 @@ export default function AdminKampusDuvariPage() {
     if (err) setError("Silinemedi: " + err.message);
     else setYasakliKelimeler((prev) => prev.filter((k) => k.id !== id));
     setBusy(false);
+  }
+
+  // Yasaklı kelimeler listesi, sunum/demo sırasında çıplak gözle görünmesin
+  // diye ayrı bir şifreyle kilitli. Bu bir güvenlik sınırı değil, sadece
+  // ekranı paylaşırken kazara küfür listesinin görünmesini önleyen bir perde.
+  function handleKelimelerKilitAc(e) {
+    e.preventDefault();
+    if (kelimelerSifre === "Sukocrc.38") {
+      setKelimelerKilitli(false);
+      setKelimelerSifreHata("");
+      setKelimelerSifre("");
+    } else {
+      setKelimelerSifreHata("Şifre yanlış.");
+    }
   }
 
   async function handleDuyuruGonder(e) {
@@ -379,21 +396,56 @@ export default function AdminKampusDuvariPage() {
             )}
 
             <section style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 16, padding: 18, marginBottom: 24 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>Yasaklı Kelimeler</div>
-              <form onSubmit={handleKelimeEkle} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <input value={yeniKelime} onChange={(e) => setYeniKelime(e.target.value)} placeholder="Örn. küfür1" style={{ flex: 1, height: 36, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 9, fontSize: 12.5, outline: "none" }} />
-                <button type="submit" disabled={busy} style={{ minHeight: 36, padding: "0 14px", fontSize: 12, fontWeight: 700, borderRadius: 9, border: "none", background: "#175cd3", color: "#fff", cursor: "pointer" }}>Ekle</button>
-              </form>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {yasakliKelimeler.length === 0 ? (
-                  <span style={{ fontSize: 12, color: "#8fa0bc" }}>Henüz yasaklı kelime eklenmedi. Eklenen kelimeyi içeren gönderi/yorumlar otomatik olarak "onay bekliyor" durumuna alınır.</span>
-                ) : yasakliKelimeler.map((k) => (
-                  <span key={k.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#f5f8fc", border: "1px solid #e3ebf6" }}>
-                    {k.kelime}
-                    <button onClick={() => handleKelimeSil(k.id)} disabled={busy} style={{ border: "none", background: "none", color: "#984333", cursor: "pointer", fontWeight: 800, padding: 0 }}>×</button>
-                  </span>
-                ))}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 800 }}>Yasaklı Kelimeler {kelimelerKilitli ? "🔒" : ""}</div>
+                {!kelimelerKilitli && (
+                  <button
+                    type="button"
+                    onClick={() => { setKelimelerKilitli(true); setKelimelerSifreHata(""); }}
+                    style={{ fontSize: 11, fontWeight: 700, border: "1px solid #e3ebf6", background: "#f5f8fc", color: "#5b6b85", borderRadius: 8, padding: "4px 10px", cursor: "pointer" }}
+                  >
+                    Kilitle
+                  </button>
+                )}
               </div>
+
+              {kelimelerKilitli ? (
+                <form onSubmit={handleKelimelerKilitAc} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 320 }}>
+                  <span style={{ fontSize: 12, color: "#8fa0bc" }}>
+                    Bu liste küfür/argo kelimeler içerdiği için ekranda gösterilmeden önce şifre istiyor (örn. sunum sırasında yanlışlıkla görünmesin diye).
+                  </span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      type="password"
+                      value={kelimelerSifre}
+                      onChange={(e) => setKelimelerSifre(e.target.value)}
+                      placeholder="Şifre"
+                      style={{ flex: 1, height: 36, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 9, fontSize: 12.5, outline: "none" }}
+                    />
+                    <button type="submit" style={{ minHeight: 36, padding: "0 14px", fontSize: 12, fontWeight: 700, borderRadius: 9, border: "none", background: "#175cd3", color: "#fff", cursor: "pointer" }}>
+                      Göster
+                    </button>
+                  </div>
+                  {kelimelerSifreHata && <span style={{ fontSize: 11.5, color: "#c0392b" }}>{kelimelerSifreHata}</span>}
+                </form>
+              ) : (
+                <>
+                  <form onSubmit={handleKelimeEkle} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                    <input value={yeniKelime} onChange={(e) => setYeniKelime(e.target.value)} placeholder="Örn. küfür1" style={{ flex: 1, height: 36, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 9, fontSize: 12.5, outline: "none" }} />
+                    <button type="submit" disabled={busy} style={{ minHeight: 36, padding: "0 14px", fontSize: 12, fontWeight: 700, borderRadius: 9, border: "none", background: "#175cd3", color: "#fff", cursor: "pointer" }}>Ekle</button>
+                  </form>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {yasakliKelimeler.length === 0 ? (
+                      <span style={{ fontSize: 12, color: "#8fa0bc" }}>Henüz yasaklı kelime eklenmedi. Eklenen kelimeyi içeren gönderi/yorumlar otomatik olarak "onay bekliyor" durumuna alınır.</span>
+                    ) : yasakliKelimeler.map((k) => (
+                      <span key={k.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#f5f8fc", border: "1px solid #e3ebf6" }}>
+                        {k.kelime}
+                        <button onClick={() => handleKelimeSil(k.id)} disabled={busy} style={{ border: "none", background: "none", color: "#984333", cursor: "pointer", fontWeight: 800, padding: 0 }}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
             </section>
 
             <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>Tüm Gönderiler</div>

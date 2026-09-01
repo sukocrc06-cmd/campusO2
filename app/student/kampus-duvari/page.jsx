@@ -22,7 +22,14 @@ function zamanFormat(iso) {
   return new Date(iso).toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
 }
 
-function Avatar({ profil, size = 36 }) {
+function Avatar({ profil, size = 36, resmi = false }) {
+  if (resmi) {
+    return (
+      <div style={{ width: size, height: size, borderRadius: "50%", flex: "none", background: "linear-gradient(135deg, #175cd3, #2f7bf5)", display: "grid", placeItems: "center", overflow: "hidden" }}>
+        <span style={{ fontSize: size * 0.5 }}>📢</span>
+      </div>
+    );
+  }
   return (
     <div style={{ width: size, height: size, borderRadius: "50%", flex: "none", background: heroGradient(profil?.hero_renk), display: "grid", placeItems: "center", overflow: "hidden" }}>
       {profil?.avatar_url ? (
@@ -34,6 +41,8 @@ function Avatar({ profil, size = 36 }) {
     </div>
   );
 }
+
+const RESMI_DUYURU_ADI = "CampusO Yönetimi";
 
 function gonderiGorselleri(g) {
   if (g.gorsel_urls && g.gorsel_urls.length > 0) return g.gorsel_urls;
@@ -770,10 +779,10 @@ export default function KampusDuvariPage() {
                         <div className="kd-pending-badge">⏳ İncelemede — onaylanana kadar yalnız sen görüyorsun.</div>
                       )}
                       <div className="kd-post-body">
-                        <Avatar profil={yazar} />
+                        <Avatar profil={yazar} resmi={g.resmi_duyuru} />
                         <div className="kd-post-main">
                           <div className="kd-post-head">
-                            <b className="kd-post-name">{yazar?.full_name || "Öğrenci"}</b>
+                            <b className="kd-post-name">{g.resmi_duyuru ? RESMİ_DUYURU_ADI : (yazar?.full_name || "Öğrenci")}</b>
                             <span className="kd-post-time">{zamanFormat(g.created_at)}{g.updated_at ? " · düzenlendi" : ""}</span>
                           </div>
                           {duzenlenenGonderi === g.id ? (

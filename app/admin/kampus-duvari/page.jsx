@@ -469,7 +469,7 @@ export default function AdminKampusDuvariPage() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                             <div>
-                              <b style={{ fontSize: 13 }}>{yazar?.full_name || "Öğrenci"}</b>
+                              <b style={{ fontSize: 13 }}>{g.resmi_duyuru ? "CampusO Yönetimi" : (yazar?.full_name || "Öğrenci")}</b>
                               <span style={{ fontSize: 11, color: "#8fa0bc", marginLeft: 8 }}>{zamanFormat(g.created_at)}</span>
                             </div>
                             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

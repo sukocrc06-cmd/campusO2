@@ -46,6 +46,40 @@ function kategoriMeta(kategori) {
   return KATEGORI_META[kategori] || VARSAYILAN_KATEGORI;
 }
 
+// Sayfa arkaplanı: düz beyazlık yerine çok soluk, gri tonda, hafif kabartma
+// hissi veren tekrarlayan çatal-bıçak / fincan / başak / tabak deseni.
+// Kabartma efekti: aynı ikon seti bir kez açık (beyaz, sola-yukarı kaydırılmış)
+// bir kez koyu (lacivert, sağa-aşağı kaydırılmış, çok düşük opaklık) çizilerek
+// elde ediliyor — göz yormaması için opaklıklar çok düşük tutuldu.
+const YEMEK_DESENI_SVG = `
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='200' height='200' viewBox='0 0 200 200'>
+  <defs>
+    <g id='y' fill='none' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'>
+      <g transform='translate(20,20) rotate(-12)'>
+        <path d='M4 0 L4 14 M8 0 L8 14 M12 0 L12 14 M4 14 Q4 20 8 20 Q12 20 12 14 M8 20 L8 40'/>
+        <path d='M28 0 Q34 4 34 14 Q34 20 28 22 L28 40'/>
+      </g>
+      <g transform='translate(150,18) rotate(8)'>
+        <rect x='0' y='6' width='26' height='20' rx='4'/>
+        <path d='M26 10 Q36 10 36 18 Q36 26 26 24'/>
+        <path d='M6 0 Q8 -4 6 -8 M14 0 Q16 -4 14 -8'/>
+      </g>
+      <g transform='translate(20,128) rotate(6)'>
+        <path d='M10 0 L10 60 M10 10 L2 4 M10 10 L18 4 M10 22 L2 16 M10 22 L18 16 M10 34 L2 28 M10 34 L18 28 M10 46 L2 40 M10 46 L18 40'/>
+      </g>
+      <g transform='translate(138,132) rotate(-6)'>
+        <ellipse cx='20' cy='30' rx='24' ry='9'/>
+        <ellipse cx='20' cy='30' rx='14' ry='5'/>
+        <path d='M10 14 Q6 8 10 2 M20 14 Q16 8 20 2 M30 14 Q26 8 30 2'/>
+      </g>
+    </g>
+  </defs>
+  <use href='#y' xlink:href='#y' transform='translate(0.6,0.6)' stroke='#0f1b33' stroke-opacity='0.055'/>
+  <use href='#y' xlink:href='#y' transform='translate(-0.5,-0.5)' stroke='#ffffff' stroke-opacity='0.55'/>
+</svg>`.replace(/\s+/g, " ").trim();
+
+const YEMEK_DESENI_URL = `url("data:image/svg+xml,${encodeURIComponent(YEMEK_DESENI_SVG)}")`;
+
 const GUN_KISA = { "Pazartesi": "Pzt", "Salı": "Sal", "Çarşamba": "Çar", "Perşembe": "Per", "Cuma": "Cum", "Cumartesi": "Cts", "Pazar": "Paz" };
 
 // "Bir öğün" için referans kalori değeri — dairesel göstergenin yüzdesini bulmak için.
@@ -127,7 +161,17 @@ export default function YemekMenusuPage() {
   const toplamKalori = useMemo(() => (aktifGun?.yemekler || []).reduce((s, y) => s + (y.kalori || 0), 0), [aktifGun]);
 
   return (
-    <div style={{ minHeight: "100dvh", background: "#f5f8fc", fontFamily: "system-ui, sans-serif", color: "#0f1b33" }}>
+    <div
+      style={{
+        minHeight: "100dvh",
+        backgroundColor: "#f5f8fc",
+        backgroundImage: YEMEK_DESENI_URL,
+        backgroundRepeat: "repeat",
+        backgroundSize: "200px 200px",
+        fontFamily: "system-ui, sans-serif",
+        color: "#0f1b33",
+      }}
+    >
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 22px", borderBottom: "1px solid #e3ebf6", background: "#fff" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Link href={roleHref} style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 11, border: "1px solid #e3ebf6", background: "#f5f8fc", color: "#175cd3", textDecoration: "none" }}>←</Link>

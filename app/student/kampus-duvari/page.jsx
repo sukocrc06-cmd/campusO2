@@ -782,7 +782,7 @@ export default function KampusDuvariPage() {
                         <Avatar profil={yazar} resmi={g.resmi_duyuru} />
                         <div className="kd-post-main">
                           <div className="kd-post-head">
-                            <b className="kd-post-name">{g.resmi_duyuru ? RESMİ_DUYURU_ADI : (yazar?.full_name || "Öğrenci")}</b>
+                            <b className="kd-post-name">{g.resmi_duyuru ? RESMI_DUYURU_ADI : (yazar?.full_name || "Öğrenci")}</b>
                             <span className="kd-post-time">{zamanFormat(g.created_at)}{g.updated_at ? " · düzenlendi" : ""}</span>
                           </div>
                           {duzenlenenGonderi === g.id ? (

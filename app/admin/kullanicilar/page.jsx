@@ -41,6 +41,11 @@ export default function AdminKullanicilarPage() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [busyEmail, setBusyEmail] = useState(null);
   const [sentEmails, setSentEmails] = useState({});
+  const [sifreAcikId, setSifreAcikId] = useState(null);
+  const [sifreTaslak, setSifreTaslak] = useState("");
+  const [sifreTaslak2, setSifreTaslak2] = useState("");
+  const [sifreBusyId, setSifreBusyId] = useState(null);
+  const [sifreBelirlenenler, setSifreBelirlenenler] = useState({});
 
   useEffect(() => {
     async function fetchUsers() {
@@ -80,6 +85,52 @@ export default function AdminKullanicilarPage() {
       setMessage(`${email} adresine şifre sıfırlama bağlantısı gönderildi.`);
     }
     setBusyEmail(null);
+  }
+
+  function sifreBelirlemeyeBasla(user) {
+    setSifreAcikId(user.id);
+    setSifreTaslak("");
+    setSifreTaslak2("");
+    setMessage("");
+  }
+
+  async function handleSifreBelirle(user) {
+    if (sifreTaslak.length < 8) {
+      setMessage("Hata: Yeni şifre en az 8 karakter olmalı.");
+      return;
+    }
+    if (sifreTaslak !== sifreTaslak2) {
+      setMessage("Hata: Girdiğin iki şifre birbiriyle eşleşmiyor.");
+      return;
+    }
+    setSifreBusyId(user.id);
+    setMessage("");
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setMessage("Hata: Oturum bulunamadı, yeniden giriş yap.");
+      setSifreBusyId(null);
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin-set-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ userId: user.id, newPassword: sifreTaslak }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage("Hata: " + (json?.error || "Şifre belirlenemedi."));
+      } else {
+        setMessage(`${user.email} için yeni şifre belirlendi. Şifreyi kullanıcıya güvenli bir kanaldan (yüz yüze, telefonla) ilet — burada bir daha görüntülenmeyecek.`);
+        setSifreBelirlenenler((prev) => ({ ...prev, [user.id]: Date.now() }));
+        setSifreAcikId(null);
+        setSifreTaslak("");
+        setSifreTaslak2("");
+      }
+    } catch (err) {
+      setMessage("Hata: " + (err instanceof Error ? err.message : String(err)));
+    }
+    setSifreBusyId(null);
   }
 
   const filteredUsers = useMemo(() => {
@@ -204,9 +255,11 @@ export default function AdminKullanicilarPage() {
             lineHeight: 1.55,
           }}
         >
-          <strong>Not:</strong> Güvenlik nedeniyle hiçbir sistem kullanıcı şifrelerini düz metin olarak saklamaz ya da gösteremez.
-          Bir kullanıcının şifresiyle ilgili sorun varsa ona şifre sıfırlama bağlantısı gönderebilirsin; kullanıcı yeni şifresini
-          kendisi belirler.
+          <strong>Not:</strong> Güvenlik nedeniyle hiçbir sistem kullanıcı şifrelerini düz metin olarak saklamaz ya da gösteremez —
+          mevcut bir şifreyi burada "görmek" mümkün değil. Bunun yerine iki seçenek var: kullanıcıya şifre sıfırlama bağlantısı
+          gönder (kendi yeni şifresini kendisi belirler), ya da yönetici olarak onun için doğrudan yeni bir şifre belirle (kullanıcının
+          eski şifresi hiçbir zaman görüntülenmez/öğrenilmez — sadece üzerine yenisi yazılır). Yeni şifreyi belirledikten sonra
+          kullanıcıya güvenli bir kanaldan (yüz yüze, telefonla) iletmen gerekir.
         </div>
 
         <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 18 }}>
@@ -335,18 +388,61 @@ export default function AdminKullanicilarPage() {
                           : "—"}
                       </td>
                       <td style={{ padding: "12px" }}>
-                        <button
-                          onClick={() => handleResetPassword(user.email)}
-                          disabled={busyEmail === user.email}
-                          className="button button-secondary"
-                          style={{ minHeight: 34, padding: "0 12px", fontSize: 12 }}
-                        >
-                          {busyEmail === user.email
-                            ? "Gönderiliyor…"
-                            : sentEmails[user.email]
-                              ? "Tekrar gönder"
-                              : "Şifre sıfırlama e-postası gönder"}
-                        </button>
+                        {sifreAcikId === user.id ? (
+                          <div style={{ display: "grid", gap: 6, minWidth: 220 }}>
+                            <input
+                              type="password"
+                              autoFocus
+                              value={sifreTaslak}
+                              onChange={(e) => setSifreTaslak(e.target.value)}
+                              placeholder="Yeni şifre (en az 8 karakter)"
+                              style={{ height: 32, padding: "0 10px", border: "1px solid #e3ebf6", borderRadius: 8, fontSize: 12, outline: "none" }}
+                            />
+                            <input
+                              type="password"
+                              value={sifreTaslak2}
+                              onChange={(e) => setSifreTaslak2(e.target.value)}
+                              placeholder="Yeni şifre (tekrar)"
+                              style={{ height: 32, padding: "0 10px", border: "1px solid #e3ebf6", borderRadius: 8, fontSize: 12, outline: "none" }}
+                            />
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <button
+                                onClick={() => handleSifreBelirle(user)}
+                                disabled={sifreBusyId === user.id}
+                                style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, border: "none", background: "#175cd3", color: "#fff", borderRadius: 7, cursor: "pointer" }}
+                              >
+                                {sifreBusyId === user.id ? "Kaydediliyor…" : "Kaydet"}
+                              </button>
+                              <button
+                                onClick={() => setSifreAcikId(null)}
+                                style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", borderRadius: 7, cursor: "pointer" }}
+                              >
+                                Vazgeç
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            <button
+                              onClick={() => handleResetPassword(user.email)}
+                              disabled={busyEmail === user.email}
+                              className="button button-secondary"
+                              style={{ minHeight: 34, padding: "0 12px", fontSize: 12 }}
+                            >
+                              {busyEmail === user.email
+                                ? "Gönderiliyor…"
+                                : sentEmails[user.email]
+                                  ? "Tekrar gönder"
+                                  : "Şifre sıfırlama e-postası gönder"}
+                            </button>
+                            <button
+                              onClick={() => sifreBelirlemeyeBasla(user)}
+                              style={{ minHeight: 34, padding: "0 12px", fontSize: 12, fontWeight: 700, borderRadius: 10, border: "1px solid #c7deff", background: "#fff", color: "#0e4bae", cursor: "pointer" }}
+                            >
+                              {sifreBelirlenenler[user.id] ? "Şifreyi tekrar belirle" : "Yeni şifre belirle"}
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

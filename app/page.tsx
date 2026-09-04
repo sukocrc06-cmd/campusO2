@@ -454,7 +454,7 @@ function StudentTakvimWidget({ userId, bolum, sinif }: { userId?: string | null;
   const bugunGunSayisi = bugun.getMonth() === ay && bugun.getFullYear() === yil ? bugun.getDate() : null;
 
   return (
-    <div className="dashboard-category">
+    <div className="dashboard-category" style={{ maxWidth: 380 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <p className="dashboard-category-title" style={{ margin: 0 }}>Takvimim</p>
         <a href="/ders-programi-sinav-takvimi" style={{ fontSize: 12, fontWeight: 700, color: "#175cd3", textDecoration: "none" }}>Tam takvimi aç →</a>
@@ -480,7 +480,7 @@ function StudentTakvimWidget({ userId, bolum, sinif }: { userId?: string | null;
                   const isaretler = gununIsaretleri(gunSayisi);
                   const bugunMu = gunSayisi === bugunGunSayisi;
                   return (
-                    <div key={gi} style={{ aspectRatio: "1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 8, background: bugunMu ? "#e6f0ff" : "transparent", fontWeight: bugunMu ? 800 : 500 }}>
+                    <div key={gi} style={{ height: 34, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 8, background: bugunMu ? "#e6f0ff" : "transparent", fontWeight: bugunMu ? 800 : 500 }}>
                       {gunSayisi ? (
                         <>
                           <span style={{ fontSize: 11, color: bugunMu ? "#175cd3" : "#334" }}>{gunSayisi}</span>

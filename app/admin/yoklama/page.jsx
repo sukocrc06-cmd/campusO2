@@ -51,6 +51,7 @@ export default function AdminYoklamaPage() {
   const [topluAramaMetni, setTopluAramaMetni] = useState({}); // grupAnahtari -> metin
   const [topluAramaSonuc, setTopluAramaSonuc] = useState({}); // grupAnahtari -> [profil]
   const [gizlenenGruplar, setGizlenenGruplar] = useState(new Set());
+  const [atanmisAcik, setAtanmisAcik] = useState(null); // akademisyen_id
 
   async function loadAll() {
     const [{ data: d, error: dErr }, { data: akademisyenListe }, { data: oturumlar }, { data: qrOturumlar }] = await Promise.all([
@@ -180,6 +181,24 @@ export default function AdminYoklamaPage() {
     setTopluAramaSonuc((prev) => ({ ...prev, [grup.anahtar]: (data || []).filter((p) => p.role === "academician") }));
   }
 
+  // "Ali İhsan hoca toplu atamada yok" gibi sorularda admin'in önce kontrol
+  // edebilmesi için: zaten bir hesaba bağlanmış dersleri, hoca bazında
+  // gruplayıp burada gösteriyoruz (toplu atama yalnızca akademisyen_id BOŞ
+  // olanları listeler, o yüzden zaten atanmışlar orada görünmez).
+  const atanmisGruplar = useMemo(() => {
+    const harita = new Map(); // akademisyen_id -> grup
+    dersler.forEach((d) => {
+      if (!d.akademisyen_id) return;
+      if (!harita.has(d.akademisyen_id)) harita.set(d.akademisyen_id, { akademisyenId: d.akademisyen_id, dersler: [] });
+      harita.get(d.akademisyen_id).dersler.push(d);
+    });
+    return Array.from(harita.values())
+      .map((grup) => ({ ...grup, akademisyen: akademisyenler.find((a) => a.id === grup.akademisyenId) || null }))
+      .sort((a, b) => (a.akademisyen?.full_name || "").localeCompare(b.akademisyen?.full_name || "", "tr"));
+  }, [dersler, akademisyenler]);
+
+  const kaynakEtiket = { email: "e-posta", katalog: "katalog", admin_onay: "admin onaylı", admin_manuel: "admin atadı" };
+
   async function handleOturumSil(id) {
     setBusy(true); setError("");
     const { error: err } = await supabase.from("yoklama_oturumlari").delete().eq("id", id);
@@ -278,6 +297,48 @@ export default function AdminYoklamaPage() {
                         >
                           Gizle
                         </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {atanmisGruplar.length > 0 && (
+              <section style={{ marginBottom: 20, background: "#fff", border: "1px solid #e3ebf6", borderRadius: 14, padding: 16 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800, marginBottom: 4 }}>✅ Zaten Atanmış Hocalar</div>
+                <div style={{ fontSize: 12, color: "#5b6b85", marginBottom: 14 }}>
+                  Bu hocaların hesabı zaten bir veya daha fazla derse bağlı (o yüzden toplu atama listesinde görünmüyorlar). Yanlış görünen varsa açıp dersten kaldırabilirsin.
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {atanmisGruplar.map((grup) => {
+                    const acik = atanmisAcik === grup.akademisyenId;
+                    return (
+                      <div key={grup.akademisyenId} style={{ border: "1px solid #e3ebf6", borderRadius: 10, overflow: "hidden" }}>
+                        <button
+                          type="button"
+                          onClick={() => setAtanmisAcik(acik ? null : grup.akademisyenId)}
+                          style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#f5f8fc", border: "none", cursor: "pointer", textAlign: "left" }}
+                        >
+                          <b style={{ fontSize: 12.5 }}>{grup.akademisyen?.full_name || "Bilinmeyen hesap"}</b>
+                          <span style={{ fontSize: 11.5, color: "#8fa0bc" }}>{grup.dersler.length} ders {acik ? "▲" : "▼"}</span>
+                        </button>
+                        {acik && (
+                          <div style={{ padding: "8px 12px", display: "grid", gap: 6 }}>
+                            {grup.dersler.map((d) => (
+                              <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 12 }}>
+                                <span>{d.ders_kodu ? `${d.ders_kodu} · ` : ""}{d.ders_adi} <small style={{ color: "#8fa0bc" }}>({kaynakEtiket[d.eslesme_kaynagi] || d.eslesme_kaynagi || "?"})</small></span>
+                                <button
+                                  onClick={() => handleAkademisyenAta(d.id, "")}
+                                  disabled={busy}
+                                  style={{ fontSize: 10.5, fontWeight: 700, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", borderRadius: 7, padding: "3px 8px", cursor: "pointer" }}
+                                >
+                                  Kaldır
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

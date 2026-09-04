@@ -111,9 +111,12 @@ export default function AdminDersIcerikleriPage() {
               <div style={{ padding: 28, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>Filtreyle eşleşen ders bulunamadı.</div>
             ) : (
               gruplu.map(([baslik, list]) => (
-                <section key={baslik} style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "#175cd3", marginBottom: 8 }}>{baslik} ({list.length} ders)</div>
-                  <div style={{ display: "grid", gap: 8 }}>
+                <details key={baslik} open={!!arama.trim()} style={{ marginBottom: 12, border: "1px solid #e3ebf6", borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+                  <summary style={{ cursor: "pointer", listStyle: "none", padding: "12px 14px", fontSize: 12.5, fontWeight: 800, color: "#175cd3", background: "#f5f8fc", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>{baslik}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#5b6b85" }}>{list.length} ders</span>
+                  </summary>
+                  <div style={{ display: "grid", gap: 8, padding: 10 }}>
                     {list.map((d) => {
                       const acik = acikId === d.id;
                       return (
@@ -157,7 +160,7 @@ export default function AdminDersIcerikleriPage() {
                       );
                     })}
                   </div>
-                </section>
+                </details>
               ))
             )}
           </>

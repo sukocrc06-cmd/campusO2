@@ -18,6 +18,25 @@ const labelStyle = { display: "flex", flexDirection: "column", gap: 5, fontSize:
 const DERS_BOS_FORM = { bolum: "", sinif: "", ders_kodu: "", ders_adi: "", gun: GUNLER[0], baslangic_saat: "", bitis_saat: "", derslik: "", hoca_adi: "", hoca_email: "" };
 const SINAV_BOS_FORM = { bolum: "", sinif: "", ders_kodu: "", ders_adi: "", sinav_turu: SINAV_TURLERI[0], tarih: "", saat: "", derslik: "", hoca_adi: "" };
 
+// Bölüm/Sınıf bazlı katlanabilir gruplar — uzun düz listeleri (163+ kayıt)
+// varsayılan kapalı, kısa başlıklara ayırarak admin panelindeki sonu gelmeyen
+// scroll sorununu çözer. Her grup { bolum, sinif, kayitlar } biçiminde döner.
+function gruplaBolumSinif(liste) {
+  const gruplar = new Map();
+  for (const kayit of liste) {
+    const bolum = kayit.bolum || "Bölüm belirtilmemiş";
+    const sinif = kayit.sinif || "?";
+    const anahtar = `${bolum}||${sinif}`;
+    if (!gruplar.has(anahtar)) gruplar.set(anahtar, { bolum, sinif, kayitlar: [] });
+    gruplar.get(anahtar).kayitlar.push(kayit);
+  }
+  return Array.from(gruplar.values()).sort((a, b) => {
+    const bolumFark = a.bolum.localeCompare(b.bolum, "tr-TR");
+    if (bolumFark !== 0) return bolumFark;
+    return a.sinif.localeCompare(b.sinif, "tr-TR", { numeric: true });
+  });
+}
+
 export default function AdminDersSinavPage() {
   const [tab, setTab] = useState("ders"); // ders | sinav
   const [loading, setLoading] = useState(true);
@@ -234,6 +253,11 @@ export default function AdminDersSinavPage() {
   const filtrelenmisDers = dersListe.filter((d) => (!filtreBolum || d.bolum === filtreBolum) && (!filtreSinif || d.sinif === filtreSinif));
   const filtrelenmisSinav = sinavListe.filter((s) => (!filtreBolum || s.bolum === filtreBolum) && (!filtreSinif || s.sinif === filtreSinif));
 
+  // Bölüm/Sınıf bazlı katlanabilir gruplar — 163+ kaydı tek düz liste yerine
+  // varsayılan kapalı başlıklara ayırarak scroll'u kısaltır.
+  const dersGruplari = useMemo(() => gruplaBolumSinif(filtrelenmisDers), [filtrelenmisDers]);
+  const sinavGruplari = useMemo(() => gruplaBolumSinif(filtrelenmisSinav), [filtrelenmisSinav]);
+
   return (
     <div style={{ minHeight: "100dvh", background: "var(--bg, #f5f8fc)", fontFamily: "var(--font-geist-sans), system-ui, sans-serif", color: "var(--ink, #0f1b33)" }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 22px", borderBottom: "1px solid var(--line, #e3ebf6)", background: "var(--white, #fff)" }}>
@@ -349,26 +373,36 @@ export default function AdminDersSinavPage() {
 
                 <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 20 }}>
                   <FiltreBar bolumSecenekleri={bolumSecenekleri} filtreBolum={filtreBolum} setFiltreBolum={setFiltreBolum} filtreSinif={filtreSinif} setFiltreSinif={setFiltreSinif} onToplu={() => handleFiltrelenenleriSil("ders_programi")} busy={busy} />
-                  <div style={{ fontSize: 12, color: "var(--muted)", margin: "10px 0" }}>{filtrelenmisDers.length} kayıt</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", margin: "10px 0" }}>{filtrelenmisDers.length} kayıt · {dersGruplari.length} bölüm/sınıf grubu</div>
                   <div style={{ display: "grid", gap: 8 }}>
-                    {filtrelenmisDers.map((d) => (
-                      <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #e3ebf6", borderRadius: 10, fontSize: 12.5, flexWrap: "wrap" }}>
-                        <div>
-                          <b>{d.ders_adi}</b> {d.ders_kodu ? `(${d.ders_kodu})` : ""} · {d.bolum} / {d.sinif}. sınıf
-                          <div style={{ color: "#5b6b85", marginTop: 2 }}>{d.gun}{d.baslangic_saat && d.bitis_saat ? ` ${d.baslangic_saat}–${d.bitis_saat}` : " · saat girilmedi"} {d.derslik ? `· ${d.derslik}` : ""} {d.hoca_adi ? `· ${d.hoca_adi}` : ""}</div>
-                          {d.hoca_adi && (
-                            <div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 700, color: d.akademisyen_id ? "#0b8f5c" : "#c65d1f" }}>
-                              {d.akademisyen_id
-                                ? `✓ Yoklama için hesap bağlı${d.eslesme_kaynagi === "email" ? " (e-posta ile otomatik)" : d.eslesme_kaynagi === "katalog" ? " (resmi ders kataloğuyla otomatik doğrulandı)" : d.eslesme_kaynagi === "admin_onay" ? " (admin onaylı)" : d.eslesme_kaynagi === "admin_manuel" ? " (admin atadı)" : ""}`
-                                : "⚠ Yoklama hesabı bağlanmadı — Yoklama Yönetimi'nden ata veya hoca e-postasını gir"}
+                    {dersGruplari.map((grup) => (
+                      <details key={`${grup.bolum}||${grup.sinif}`} style={{ border: "1px solid #e3ebf6", borderRadius: 12, overflow: "hidden" }}>
+                        <summary style={{ cursor: "pointer", listStyle: "none", padding: "12px 14px", fontSize: 12.5, fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f5f8fc" }}>
+                          <span>{grup.bolum} / {grup.sinif}. sınıf</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#5b6b85" }}>{grup.kayitlar.length} ders</span>
+                        </summary>
+                        <div style={{ display: "grid", gap: 8, padding: 10 }}>
+                          {grup.kayitlar.map((d) => (
+                            <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #e3ebf6", borderRadius: 10, fontSize: 12.5, flexWrap: "wrap" }}>
+                              <div>
+                                <b>{d.ders_adi}</b> {d.ders_kodu ? `(${d.ders_kodu})` : ""} · {d.bolum} / {d.sinif}. sınıf
+                                <div style={{ color: "#5b6b85", marginTop: 2 }}>{d.gun}{d.baslangic_saat && d.bitis_saat ? ` ${d.baslangic_saat}–${d.bitis_saat}` : " · saat girilmedi"} {d.derslik ? `· ${d.derslik}` : ""} {d.hoca_adi ? `· ${d.hoca_adi}` : ""}</div>
+                                {d.hoca_adi && (
+                                  <div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 700, color: d.akademisyen_id ? "#0b8f5c" : "#c65d1f" }}>
+                                    {d.akademisyen_id
+                                      ? `✓ Yoklama için hesap bağlı${d.eslesme_kaynagi === "email" ? " (e-posta ile otomatik)" : d.eslesme_kaynagi === "katalog" ? " (resmi ders kataloğuyla otomatik doğrulandı)" : d.eslesme_kaynagi === "admin_onay" ? " (admin onaylı)" : d.eslesme_kaynagi === "admin_manuel" ? " (admin atadı)" : ""}`
+                                      : "⚠ Yoklama hesabı bağlanmadı — Yoklama Yönetimi'nden ata veya hoca e-postasını gir"}
+                                  </div>
+                                )}
+                                <button type="button" onClick={() => handleHocaEmailDuzenle(d)} disabled={busy} style={{ marginTop: 3, fontSize: 10, fontWeight: 700, border: "none", background: "none", color: "#175cd3", cursor: "pointer", padding: 0 }}>
+                                  {d.hoca_email ? `✉ ${d.hoca_email} (düzenle)` : "✉ Hoca e-postasını gir (güvenli otomatik eşleşme için)"}
+                                </button>
+                              </div>
+                              <button onClick={() => handleSil("ders_programi", d.id)} disabled={busy} style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Sil</button>
                             </div>
-                          )}
-                          <button type="button" onClick={() => handleHocaEmailDuzenle(d)} disabled={busy} style={{ marginTop: 3, fontSize: 10, fontWeight: 700, border: "none", background: "none", color: "#175cd3", cursor: "pointer", padding: 0 }}>
-                            {d.hoca_email ? `✉ ${d.hoca_email} (düzenle)` : "✉ Hoca e-postasını gir (güvenli otomatik eşleşme için)"}
-                          </button>
+                          ))}
                         </div>
-                        <button onClick={() => handleSil("ders_programi", d.id)} disabled={busy} style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Sil</button>
-                      </div>
+                      </details>
                     ))}
                   </div>
                 </section>
@@ -432,16 +466,26 @@ export default function AdminDersSinavPage() {
 
                 <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 20 }}>
                   <FiltreBar bolumSecenekleri={bolumSecenekleri} filtreBolum={filtreBolum} setFiltreBolum={setFiltreBolum} filtreSinif={filtreSinif} setFiltreSinif={setFiltreSinif} onToplu={() => handleFiltrelenenleriSil("sinav_takvimi")} busy={busy} />
-                  <div style={{ fontSize: 12, color: "var(--muted)", margin: "10px 0" }}>{filtrelenmisSinav.length} kayıt</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", margin: "10px 0" }}>{filtrelenmisSinav.length} kayıt · {sinavGruplari.length} bölüm/sınıf grubu</div>
                   <div style={{ display: "grid", gap: 8 }}>
-                    {filtrelenmisSinav.map((s) => (
-                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #e3ebf6", borderRadius: 10, fontSize: 12.5, flexWrap: "wrap" }}>
-                        <div>
-                          <b>{s.ders_adi}</b> {s.ders_kodu ? `(${s.ders_kodu})` : ""} · {s.bolum} / {s.sinif}. sınıf
-                          <div style={{ color: "#5b6b85", marginTop: 2 }}>{s.sinav_turu} · {s.tarih} {s.saat} {s.derslik ? `· ${s.derslik}` : ""} {s.hoca_adi ? `· ${s.hoca_adi}` : ""}</div>
+                    {sinavGruplari.map((grup) => (
+                      <details key={`${grup.bolum}||${grup.sinif}`} style={{ border: "1px solid #e3ebf6", borderRadius: 12, overflow: "hidden" }}>
+                        <summary style={{ cursor: "pointer", listStyle: "none", padding: "12px 14px", fontSize: 12.5, fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f5f8fc" }}>
+                          <span>{grup.bolum} / {grup.sinif}. sınıf</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#5b6b85" }}>{grup.kayitlar.length} sınav</span>
+                        </summary>
+                        <div style={{ display: "grid", gap: 8, padding: 10 }}>
+                          {grup.kayitlar.map((s) => (
+                            <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #e3ebf6", borderRadius: 10, fontSize: 12.5, flexWrap: "wrap" }}>
+                              <div>
+                                <b>{s.ders_adi}</b> {s.ders_kodu ? `(${s.ders_kodu})` : ""} · {s.bolum} / {s.sinif}. sınıf
+                                <div style={{ color: "#5b6b85", marginTop: 2 }}>{s.sinav_turu} · {s.tarih} {s.saat} {s.derslik ? `· ${s.derslik}` : ""} {s.hoca_adi ? `· ${s.hoca_adi}` : ""}</div>
+                              </div>
+                              <button onClick={() => handleSil("sinav_takvimi", s.id)} disabled={busy} style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Sil</button>
+                            </div>
+                          ))}
                         </div>
-                        <button onClick={() => handleSil("sinav_takvimi", s.id)} disabled={busy} style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Sil</button>
-                      </div>
+                      </details>
                     ))}
                   </div>
                 </section>

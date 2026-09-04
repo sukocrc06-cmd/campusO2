@@ -17,19 +17,22 @@ export default function AdminYoklamaPage() {
   const [akademisyenler, setAkademisyenler] = useState([]);
   const [tumOturumlar, setTumOturumlar] = useState([]);
   const [tumKayitlar, setTumKayitlar] = useState([]);
+  const [qrOturumIdSeti, setQrOturumIdSeti] = useState(new Set());
   const [profilMap, setProfilMap] = useState({});
   const [acikDers, setAcikDers] = useState(null);
 
   async function loadAll() {
-    const [{ data: d, error: dErr }, { data: akademisyenListe }, { data: oturumlar }] = await Promise.all([
+    const [{ data: d, error: dErr }, { data: akademisyenListe }, { data: oturumlar }, { data: qrOturumlar }] = await Promise.all([
       supabase.from("ders_programi").select("*").order("bolum").order("sinif").order("ders_adi"),
       supabase.from("profiles").select("id, full_name, email").eq("role", "academician").order("full_name"),
       supabase.from("yoklama_oturumlari").select("*"),
+      supabase.from("yoklama_qr_oturumlari").select("oturum_id"),
     ]);
     if (dErr) setError("Dersler alınamadı: " + dErr.message);
     else setDersler(d || []);
     setAkademisyenler(akademisyenListe || []);
     setTumOturumlar(oturumlar || []);
+    setQrOturumIdSeti(new Set((qrOturumlar || []).map((q) => q.oturum_id)));
 
     const oturumIdler = (oturumlar || []).map((o) => o.id);
     if (oturumIdler.length > 0) {
@@ -178,7 +181,10 @@ export default function AdminYoklamaPage() {
                               const kayitlar = tumKayitlar.filter((k) => k.oturum_id === o.id);
                               return (
                                 <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: "#f5f8fc", borderRadius: 8, padding: "6px 10px", fontSize: 11.5 }}>
-                                  <span>{new Date(o.tarih).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })} · {kayitlar.length} kayıt</span>
+                                  <span>
+                                    {new Date(o.tarih).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })} · {kayitlar.length} kayıt
+                                    {qrOturumIdSeti.has(o.id) && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, color: "#1f8fc4", background: "#eaf7fd", borderRadius: 999, padding: "2px 8px" }}>📷 QR</span>}
+                                  </span>
                                   <button onClick={() => handleOturumSil(o.id)} disabled={busy} style={{ fontSize: 10.5, fontWeight: 700, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", borderRadius: 7, padding: "3px 8px", cursor: "pointer" }}>Sil</button>
                                 </div>
                               );

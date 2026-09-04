@@ -49,6 +49,7 @@ export default function AkademisyenYoklamaPage() {
 
   const [tumKayitlar, setTumKayitlar] = useState([]); // dersin tüm oturumlarına ait tüm kayıtlar (istatistik için)
   const [oturumGecmisi, setOturumGecmisi] = useState([]);
+  const [qrOturumIdSeti, setQrOturumIdSeti] = useState(new Set());
 
   const [aramaMetni, setAramaMetni] = useState("");
   const [aramaSonuc, setAramaSonuc] = useState([]);
@@ -101,10 +102,15 @@ export default function AkademisyenYoklamaPage() {
     setOturumGecmisi(tumOturumlar || []);
     const oturumIdler = (tumOturumlar || []).map((o) => o.id);
     if (oturumIdler.length > 0) {
-      const { data: kayitlar } = await supabase.from("yoklama_kayitlari").select("*").in("oturum_id", oturumIdler);
+      const [{ data: kayitlar }, { data: qrOturumlar }] = await Promise.all([
+        supabase.from("yoklama_kayitlari").select("*").in("oturum_id", oturumIdler),
+        supabase.from("yoklama_qr_oturumlari").select("oturum_id").in("oturum_id", oturumIdler),
+      ]);
       setTumKayitlar(kayitlar || []);
+      setQrOturumIdSeti(new Set((qrOturumlar || []).map((q) => q.oturum_id)));
     } else {
       setTumKayitlar([]);
+      setQrOturumIdSeti(new Set());
     }
   }
 
@@ -337,7 +343,7 @@ export default function AkademisyenYoklamaPage() {
                     return (
                       <button key={o.id} type="button" onClick={() => setTarih(o.tarih)} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", borderRadius: 8, border: "1px solid #e3ebf6", background: o.tarih === tarih ? "#eef5ff" : "#fff", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
                         <span>{new Date(o.tarih).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })}</span>
-                        <span style={{ color: "#8fa0bc" }}>{varSayisi}/{kayitlar.length} var</span>
+                        <span style={{ color: "#8fa0bc" }}>{varSayisi}/{kayitlar.length} var{qrOturumIdSeti.has(o.id) ? " · 📷 QR" : ""}</span>
                       </button>
                     );
                   })}

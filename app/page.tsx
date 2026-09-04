@@ -1,11 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import QRCode from "qrcode";
+import { useCallback, useEffect, useState } from "react";
 import { fetchWithAuth, getCampusSession, supabase } from "../lib/supabase";
 
 type Role = "student" | "faculty";
-type PanelView = "home" | "qr";
 type IconName =
   | "home"
   | "book"
@@ -43,134 +41,6 @@ const roleCopy: Record<Role, { title: string; panel: string; description: string
   },
 };
 
-type CourseGroup = {
-  id: string;
-  periodId: string;
-  name: string;
-  courseCode: string;
-  section: string;
-  joinCode: string;
-  createdAt: number;
-};
-
-type AcademicPeriod = {
-  id: string;
-  academicYear: string;
-  term: "guz" | "bahar" | "yaz";
-  label: string;
-  startDate: string;
-  endDate: string;
-  isActive: boolean;
-  isOpen: boolean;
-  createdAt: number;
-};
-
-type AttendanceSession = {
-  id: string;
-  courseId: string;
-  token: string;
-  createdAt: number;
-  expiresAt: number;
-  closedAt?: number;
-};
-
-type StudentProfile = { name: string; number: string };
-type Membership = {
-  courseId: string;
-  studentName: string;
-  studentNumber: string;
-  joinedAt: number;
-};
-type AttendanceRecord = {
-  id: string;
-  sessionId: string;
-  courseId: string;
-  studentName: string;
-  studentNumber: string;
-  checkedAt: number;
-};
-
-type QrStore = {
-  enabled: boolean;
-  activePeriodId: string;
-  periods: AcademicPeriod[];
-  courses: CourseGroup[];
-  sessions: AttendanceSession[];
-  profile: StudentProfile | null;
-  memberships: Membership[];
-  records: AttendanceRecord[];
-};
-
-const emptyQrStore: QrStore = {
-  enabled: true,
-  activePeriodId: "period-2026-2027-guz",
-  periods: [{
-    id: "period-2026-2027-guz",
-    academicYear: "2026-2027",
-    term: "guz",
-    label: "2026-2027 Güz",
-    startDate: "2026-09-01",
-    endDate: "2027-01-31",
-    isActive: true,
-    isOpen: true,
-    createdAt: 0,
-  }],
-  courses: [],
-  sessions: [],
-  profile: null,
-  memberships: [],
-  records: [],
-};
-
-const QR_STORAGE_KEY = "campuso:qr-attendance:v1";
-const QR_PROFILE_KEY = "campuso:qr-profile:v2";
-
-type QrActionName =
-  | "create-course"
-  | "start-session"
-  | "close-session"
-  | "join-course"
-  | "record-attendance"
-  | "create-period"
-  | "set-active-period"
-  | "toggle-period-open"
-  | "toggle-enabled";
-
-type QrActionResult = {
-  ok: boolean;
-  message: string;
-  store?: Omit<QrStore, "profile">;
-};
-
-type QrActionRunner = (
-  action: QrActionName,
-  payload?: Record<string, string | number | boolean>,
-) => Promise<QrActionResult>;
-
-function extractAttendanceToken(value: string) {
-  const normalized = value.trim();
-  if (!normalized) return "";
-
-  try {
-    const url = new URL(normalized, window.location.origin);
-    const token = url.searchParams.get("attendance");
-    if (token) return token.trim().toUpperCase();
-  } catch {
-    // Eski QR metinleri ve elle girilen kodlar aşağıda ele alınıyor.
-  }
-
-  const legacyParts = normalized.split("|");
-  if (legacyParts[0]?.toUpperCase() === "CAMPUSO" && legacyParts[2]) {
-    return legacyParts[2].trim().toUpperCase();
-  }
-
-  return /^[A-Z0-9]{8}$/i.test(normalized) ? normalized.toUpperCase() : "";
-}
-
-function formatTime(value: number) {
-  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "short", timeStyle: "short" }).format(value);
-}
-
 const GUN_ADLARI = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 function bugununGunAdi() {
   return GUN_ADLARI[new Date().getDay()];
@@ -181,12 +51,6 @@ function bugunIso() {
 }
 
 type ProfileInfo = { fullName: string; bolum: string; sinif: string; avatarUrl: string; heroRenk: string };
-
-function activePeriodOf(store: QrStore) {
-  return store.periods.find((period) => period.id === store.activePeriodId)
-    ?? store.periods.find((period) => period.isActive)
-    ?? null;
-}
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const common = {
@@ -469,22 +333,6 @@ function UserAvatar({ role, profileInfo, compact = false }: { role: Role; profil
   );
 }
 
-function QrVisual({ value }: { value: string }) {
-  const [source, setSource] = useState("");
-
-  useEffect(() => {
-    let active = true;
-    QRCode.toDataURL(value, { width: 260, margin: 2, color: { dark: "#08275f", light: "#ffffff" } })
-      .then((result) => active && setSource(result))
-      .catch(() => active && setSource(""));
-    return () => { active = false; };
-  }, [value]);
-
-  return source
-    ? <img className="qr-image" src={source} alt="Aktif yoklama QR kodu" /> // eslint-disable-line @next/next/no-img-element
-    : <span className="qr-loading"><Icon name="qr" size={44} /></span>;
-}
-
 const MODULE_ACCENTS: Record<string, { icon: string; bg: string; border: string }> = {
   blue: { icon: "#175cd3", bg: "linear-gradient(145deg, #ffffff, #e6f0ff)", border: "#c7deff" },
   teal: { icon: "#0f8a8a", bg: "linear-gradient(145deg, #ffffff, #e6fbf8)", border: "#bdeee8" },
@@ -524,13 +372,11 @@ async function goToAcadexTeacherPanel() {
 
 function ModuleHome({
   role,
-  onOpenQr,
   displayName,
   unreadCount,
   todaySummary,
 }: {
   role: Role;
-  onOpenQr: () => void;
   displayName?: string;
   unreadCount?: number;
   todaySummary?: string | null;
@@ -541,7 +387,7 @@ function ModuleHome({
         <div>
           <span className="banner-kicker">{unreadCount ? `${unreadCount} yeni bildirim` : "Kampüs güncel"}</span>
           <h2>{displayName ? `Merhaba, ${displayName}.` : `${roleCopy[role].panel} hazır.`}</h2>
-          <p>{todaySummary || "İlk CampusO modülü olan QR Kodla Ders Yoklaması kullanıma açıldı."}</p>
+          <p>{todaySummary || "QR Kodla Ders Yoklaması kullanıma açıldı."}</p>
         </div>
         <div className="banner-cta">
           <span className="banner-cta-icon"><Icon name="qr" size={22} /></span>
@@ -549,7 +395,10 @@ function ModuleHome({
             <small>VOL 1</small>
             <b>QR Kodla Ders Yoklaması</b>
           </div>
-          <button className="button button-primary banner-cta-button" onClick={onOpenQr}>
+          <button
+            className="button button-primary banner-cta-button"
+            onClick={() => { window.location.href = role === "student" ? "/student/qr-yoklama" : "/academician/qr-yoklama"; }}
+          >
             Modülü aç <Icon name="arrow" size={16} />
           </button>
         </div>
@@ -629,6 +478,11 @@ const MODULE_CATEGORIES: { title: string; items: ModuleGridItem[] }[] = [
         desc: (role) => role === "faculty" ? "Kendi derslerinde yoklama al, devam yüzdesi eşiğini takip et." : "Derslerindeki devam yüzdeni ve yoklama geçmişini takip et.",
       },
       {
+        title: "QR ile Yoklama", icon: "qr", accent: "sky",
+        hrefFor: (role) => role === "student" ? "/student/qr-yoklama" : "/academician/qr-yoklama",
+        desc: (role) => role === "faculty" ? "Dersini seç, QR kodu göster; katılan öğrencileri anlık gör." : "Kamerayı aç, akademisyeninin QR kodunu okut, yoklaman anında kaydedilsin.",
+      },
+      {
         title: "Acadex Eğitim Modülü", icon: "spark", accent: "coral", href: "https://acadex-1lku.vercel.app", external: true, ssoTarget: "acadex",
         desc: (role) => role === "faculty" ? "Hoca Paneline tek tıkla geç — ayrıca kayıt olmana gerek yok." : "Ders ağacı, eşleşme ve akademik fırsatlar için Acadex platformuna geç.",
       },
@@ -682,519 +536,7 @@ const MODULE_CATEGORIES: { title: string; items: ModuleGridItem[] }[] = [
   },
 ];
 
-function FacultyQr({ store, onAction }: { store: QrStore; onAction: QrActionRunner }) {
-  const [courseName, setCourseName] = useState("");
-  const [courseCode, setCourseCode] = useState("");
-  const [section, setSection] = useState("");
-  const [duration, setDuration] = useState(3);
-  const [selectedCourseId, setSelectedCourseId] = useState(store.courses[0]?.id ?? "");
-  const [selectedPeriodId, setSelectedPeriodId] = useState(store.activePeriodId || "");
-  const [now, setNow] = useState(0);
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-  const appOrigin = typeof window === "undefined" ? "https://campus-o2.vercel.app" : window.location.origin;
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const activePeriod = activePeriodOf(store);
-  const selectedPeriod = store.periods.find((period) => period.id === selectedPeriodId) ?? activePeriod;
-  const activePeriodCourses = store.courses.filter((course) => course.periodId === activePeriod?.id);
-  const periodCourses = store.courses.filter((course) => course.periodId === selectedPeriod?.id);
-  const selectedCourseIsActive = activePeriodCourses.some((course) => course.id === selectedCourseId);
-  const effectiveCourseId = selectedCourseIsActive ? selectedCourseId : activePeriodCourses[0]?.id || "";
-  const activeSession = store.sessions.find((session) => {
-    const course = store.courses.find((item) => item.id === session.courseId);
-    return course?.periodId === activePeriod?.id && !session.closedAt && session.expiresAt > now;
-  });
-  const activeCourse = store.courses.find((course) => course.id === activeSession?.courseId);
-  const activeRecords = store.records.filter((record) => record.sessionId === activeSession?.id);
-  const secondsLeft = activeSession ? Math.max(0, Math.ceil((activeSession.expiresAt - now) / 1000)) : 0;
-
-  async function createCourse(event: FormEvent) {
-    event.preventDefault();
-    if (!courseName.trim() || !courseCode.trim()) {
-      setMessage("Ders adı ve ders kodu zorunludur.");
-      return;
-    }
-    setBusy(true);
-    const result = await onAction("create-course", {
-      name: courseName.trim(),
-      courseCode: courseCode.trim().toUpperCase(),
-      section: section.trim() || "1",
-    });
-    setBusy(false);
-    setMessage(result.message);
-    if (result.ok) {
-      const createdCourse = result.store?.courses[0];
-      if (createdCourse) setSelectedCourseId(createdCourse.id);
-      setCourseName("");
-      setCourseCode("");
-      setSection("");
-    }
-  }
-
-  async function startAttendance() {
-    if (!effectiveCourseId) {
-      setMessage("Önce bir ders grubu oluşturmalısın.");
-      return;
-    }
-    setBusy(true);
-    const result = await onAction("start-session", { courseId: effectiveCourseId, duration });
-    setBusy(false);
-    setMessage(result.message);
-  }
-
-  async function closeAttendance() {
-    if (!activeSession) return;
-    setBusy(true);
-    const result = await onAction("close-session", { sessionId: activeSession.id });
-    setBusy(false);
-    setMessage(result.message);
-  }
-
-  return (
-    <div className="qr-workspace">
-      <section className="qr-page-heading">
-        <div><small>AKADEMİSYEN · VOL 1</small><h1>QR Yoklama Yönetimi</h1><p>Ders grubunu kur, katılım kodunu paylaş ve süreli QR yoklamasını başlat.</p></div>
-        <span className={`module-status ${store.enabled ? "online" : "offline"}`}><i /> {store.enabled ? "Modül aktif" : "Modül kapalı"}</span>
-      </section>
-
-      {!store.enabled && <div className="module-disabled"><Icon name="shield" /><span><b>QR modülü yönetici tarafından kapatıldı.</b><small>Yeni işlem yapılamaz.</small></span></div>}
-      {activePeriod && !activePeriod.isOpen && <div className="module-disabled"><Icon name="calendar" /><span><b>{activePeriod.label} dönemi kapalı.</b><small>Geçmiş kayıtlar görülebilir; yeni ders ve yoklama oluşturulamaz.</small></span></div>}
-      {message && <div className="qr-message" role="status">{message}</div>}
-
-      <section className="panel period-toolbar" aria-label="QR dönem seçimi">
-        <div>
-          <small>AKTİF DÖNEM</small>
-          <strong>{activePeriod?.label ?? "Yönetici dönem seçmedi"}</strong>
-          <span className={activePeriod?.isOpen ? "open" : "closed"}>{activePeriod?.isOpen ? "İşlemlere açık" : "Kapalı"}</span>
-        </div>
-        <label>Görüntülenen dönem
-          <select value={selectedPeriod?.id ?? ""} onChange={(event) => setSelectedPeriodId(event.target.value)}>
-            {store.periods.map((period) => <option key={period.id} value={period.id}>{period.label}{period.isActive ? " · Aktif" : ""}</option>)}
-          </select>
-        </label>
-      </section>
-
-      <div className="qr-grid">
-        <section className="panel qr-card">
-          <div className="qr-card-title"><span><Icon name="book" /></span><div><small>1. ADIM</small><h2>Ders grubu oluştur</h2></div></div>
-          <form className="qr-form" onSubmit={createCourse}>
-            <label>Ders adı<input value={courseName} onChange={(event) => setCourseName(event.target.value)} placeholder="Örn. Yönetim Bilişim Sistemleri" disabled={!store.enabled || !activePeriod?.isOpen} /></label>
-            <div className="qr-form-row">
-              <label>Ders kodu<input value={courseCode} onChange={(event) => setCourseCode(event.target.value)} placeholder="YBS-401" disabled={!store.enabled || !activePeriod?.isOpen} /></label>
-              <label>Şube<input value={section} onChange={(event) => setSection(event.target.value)} placeholder="1" disabled={!store.enabled || !activePeriod?.isOpen} /></label>
-            </div>
-            <button className="button button-primary" disabled={!store.enabled || !activePeriod?.isOpen || busy}>Grubu oluştur</button>
-          </form>
-        </section>
-
-        <section className="panel qr-card">
-          <div className="qr-card-title"><span><Icon name="qr" /></span><div><small>2. ADIM</small><h2>Yoklamayı başlat</h2></div></div>
-          {activePeriodCourses.length ? (
-            <div className="qr-form">
-              <label>Ders grubu
-                <select value={effectiveCourseId} onChange={(event) => setSelectedCourseId(event.target.value)} disabled={!store.enabled || !activePeriod?.isOpen || Boolean(activeSession)}>
-                  {activePeriodCourses.map((course) => <option key={course.id} value={course.id}>{course.courseCode} · {course.name}</option>)}
-                </select>
-              </label>
-              <label>Süre
-                <select value={duration} onChange={(event) => setDuration(Number(event.target.value))} disabled={!store.enabled || !activePeriod?.isOpen || Boolean(activeSession)}>
-                  {[1, 2, 3, 5, 10].map((minute) => <option key={minute} value={minute}>{minute} dakika</option>)}
-                </select>
-              </label>
-              <button className="button button-primary" onClick={startAttendance} disabled={!store.enabled || !activePeriod?.isOpen || Boolean(activeSession) || busy}>Yoklamayı başlat</button>
-            </div>
-          ) : <div className="qr-empty"><Icon name="book" /><p>Yoklama için önce ders grubu oluştur.</p></div>}
-        </section>
-      </div>
-
-      {activeSession && activeCourse && (
-        <section className="panel active-attendance">
-          <div className="attendance-qr">
-            <QrVisual value={`${appOrigin}/?attendance=${encodeURIComponent(activeSession.token)}`} />
-            <span>YOKLAMA KODU</span>
-            <strong>{activeSession.token}</strong>
-          </div>
-          <div className="attendance-detail">
-            <small>AKTİF YOKLAMA</small>
-            <h2>{activeCourse.courseCode} · {activeCourse.name}</h2>
-            <p>Öğrenci telefon kamerasıyla QR kodu okuttuğunda CampusO açılır; profilinden sonra derse ve yoklamaya otomatik katılır.</p>
-            <div className="attendance-metrics">
-              <div><span>Kalan süre</span><b>{Math.floor(secondsLeft / 60).toString().padStart(2, "0")}:{(secondsLeft % 60).toString().padStart(2, "0")}</b></div>
-              <div><span>Katılımcı</span><b>{activeRecords.length}</b></div>
-              <div><span>Ders katılım kodu</span><b>{activeCourse.joinCode}</b></div>
-            </div>
-            <button className="button button-secondary" onClick={closeAttendance} disabled={busy}>Yoklamayı kapat</button>
-          </div>
-          <div className="live-participants">
-            <div className="qr-card-title"><span><Icon name="users" /></span><div><small>CANLI</small><h2>Katılanlar</h2></div></div>
-            {activeRecords.length ? activeRecords.map((record) => (
-              <div className="participant-row" key={record.id}><span>{record.studentName.slice(0, 2).toUpperCase()}</span><div><b>{record.studentName}</b><small>{record.studentNumber} · {formatTime(record.checkedAt)}</small></div><Icon name="check" size={18} /></div>
-            )) : <div className="qr-empty compact"><p>Henüz katılım yok.</p></div>}
-          </div>
-        </section>
-      )}
-
-      <section className="panel course-list">
-        <div className="qr-card-title"><span><Icon name="users" /></span><div><small>{selectedPeriod?.label ?? "DÖNEM"}</small><h2>Oluşturulan gruplar</h2></div></div>
-        {periodCourses.length ? periodCourses.map((course) => (
-          <div className="course-row" key={course.id}><div><b>{course.courseCode} · {course.name}</b><small>Şube {course.section} · {store.memberships.filter((item) => item.courseId === course.id).length} öğrenci</small></div><span><small>{selectedPeriod?.isOpen ? "KATILIM KODU" : "ARŞİV"}</small><strong>{course.joinCode}</strong></span></div>
-        )) : <div className="qr-empty compact"><p>Henüz ders grubu oluşturulmadı.</p></div>}
-      </section>
-    </div>
-  );
-}
-
-function StudentQr({
-  store,
-  onAction,
-  onProfileChange,
-  pendingToken,
-  onPendingHandled,
-}: {
-  store: QrStore;
-  onAction: QrActionRunner;
-  onProfileChange: (profile: StudentProfile) => void;
-  pendingToken: string;
-  onPendingHandled: () => void;
-}) {
-  const [name, setName] = useState(store.profile?.name ?? "");
-  const [number, setNumber] = useState(store.profile?.number ?? "");
-  const [joinCode, setJoinCode] = useState("");
-  const [attendanceCode, setAttendanceCode] = useState("");
-  const [message, setMessage] = useState("");
-  const [now, setNow] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
-  const [selectedPeriodId, setSelectedPeriodId] = useState(store.activePeriodId || "");
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const scannerRef = useRef<{ stop: () => void; destroy: () => void } | null>(null);
-  const attemptedToken = useRef("");
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const activePeriod = activePeriodOf(store);
-  const selectedPeriod = store.periods.find((period) => period.id === selectedPeriodId) ?? activePeriod;
-  const studentMemberships = store.profile
-    ? store.memberships.filter((item) => item.studentNumber === store.profile?.number)
-    : [];
-  const joinedIds = new Set(studentMemberships.map((item) => item.courseId));
-  const joinedCourses = store.courses.filter((course) => joinedIds.has(course.id) && course.periodId === selectedPeriod?.id);
-  const activeSessions = store.sessions.filter((session) => {
-    const course = store.courses.find((item) => item.id === session.courseId);
-    return joinedIds.has(session.courseId)
-      && course?.periodId === activePeriod?.id
-      && activePeriod?.isOpen
-      && !session.closedAt
-      && session.expiresAt > now;
-  });
-  const selectedRecordIds = new Set(store.courses.filter((course) => course.periodId === selectedPeriod?.id).map((course) => course.id));
-  const selectedRecords = store.records.filter((record) => record.studentNumber === store.profile?.number && selectedRecordIds.has(record.courseId));
-
-  const attendWithToken = useCallback(async (token: string) => {
-    if (!store.profile) {
-      setMessage("QR tanındı. Profilini kaydettiğinde derse ve yoklamaya otomatik katılacaksın.");
-      return;
-    }
-    setBusy(true);
-    const result = await onAction("record-attendance", {
-      token,
-      studentName: store.profile.name,
-      studentNumber: store.profile.number,
-    });
-    setBusy(false);
-    setAttendanceCode("");
-    setMessage(result.message);
-  }, [onAction, store.profile]);
-
-  useEffect(() => {
-    if (!pendingToken) return;
-    if (!store.profile) return;
-    if (attemptedToken.current === pendingToken) return;
-    attemptedToken.current = pendingToken;
-    void attendWithToken(pendingToken).finally(onPendingHandled);
-  }, [attendWithToken, onPendingHandled, pendingToken, store.profile]);
-
-  const handleScannedValue = useCallback(async (value: string) => {
-    const token = extractAttendanceToken(value);
-    if (!token) {
-      setMessage("Bu QR kodu geçerli bir CampusO yoklama bağlantısı değil.");
-      return;
-    }
-    scannerRef.current?.stop();
-    setScannerOpen(false);
-    await attendWithToken(token);
-  }, [attendWithToken]);
-
-  useEffect(() => {
-    if (!scannerOpen || !videoRef.current) return;
-    let cancelled = false;
-    const video = videoRef.current;
-
-    void import("qr-scanner")
-      .then(async ({ default: QrScanner }) => {
-        if (cancelled) return;
-        const scanner = new QrScanner(
-          video,
-          (result) => void handleScannedValue(typeof result === "string" ? result : result.data),
-          { preferredCamera: "environment", highlightScanRegion: true, returnDetailedScanResult: true },
-        );
-        scannerRef.current = scanner;
-        await scanner.start();
-      })
-      .catch(() => {
-        setScannerOpen(false);
-        setMessage("Kamera açılamadı. Telefon kamerasını kullanabilir veya 8 haneli kodu yazabilirsin.");
-      });
-
-    return () => {
-      cancelled = true;
-      scannerRef.current?.stop();
-      scannerRef.current?.destroy();
-      scannerRef.current = null;
-    };
-  }, [handleScannedValue, scannerOpen]);
-
-  function saveProfile(event: FormEvent) {
-    event.preventDefault();
-    if (!name.trim() || !number.trim()) {
-      setMessage("Ad soyad ve öğrenci numarası zorunludur.");
-      return;
-    }
-    onProfileChange({ name: name.trim(), number: number.trim() });
-    setMessage(pendingToken
-      ? "Profil kaydedildi; QR yoklaman otomatik tamamlanıyor."
-      : "Öğrenci profili bu cihazda kaydedildi.");
-  }
-
-  async function joinCourse(event: FormEvent) {
-    event.preventDefault();
-    if (!store.profile) {
-      setMessage("Önce öğrenci profilini kaydetmelisin.");
-      return;
-    }
-    setBusy(true);
-    const result = await onAction("join-course", {
-      joinCode: joinCode.trim().toUpperCase(),
-      studentName: store.profile.name,
-      studentNumber: store.profile.number,
-    });
-    setBusy(false);
-    setMessage(result.message);
-    if (result.ok) setJoinCode("");
-  }
-
-  async function verifyCode(event: FormEvent) {
-    event.preventDefault();
-    const token = extractAttendanceToken(attendanceCode);
-    if (!token) {
-      setMessage("8 haneli yoklama kodunu kontrol et.");
-      return;
-    }
-    await attendWithToken(token);
-  }
-
-  return (
-    <div className="qr-workspace">
-      <section className="qr-page-heading">
-        <div><small>ÖĞRENCİ · VOL 1</small><h1>QR Yoklama</h1><p>QR kodu tara; aktif derse ve yoklamaya otomatik katıl.</p></div>
-        <span className={`module-status ${store.enabled ? "online" : "offline"}`}><i /> {store.enabled ? "Modül aktif" : "Modül kapalı"}</span>
-      </section>
-
-      {!store.enabled && <div className="module-disabled"><Icon name="shield" /><span><b>QR modülü yönetici tarafından kapatıldı.</b><small>Yeni işlem yapılamaz.</small></span></div>}
-      {activePeriod && !activePeriod.isOpen && <div className="module-disabled"><Icon name="calendar" /><span><b>{activePeriod.label} dönemi kapalı.</b><small>Yeni katılım alınmıyor; geçmiş yoklamalarını görüntüleyebilirsin.</small></span></div>}
-      {pendingToken && !store.profile && <div className="qr-scan-notice"><Icon name="qr" /><span><b>Yoklama QR kodu algılandı.</b><small>Profilini bir kez kaydet; CampusO kalan işlemleri otomatik tamamlasın.</small></span></div>}
-      {message && <div className="qr-message" role="status">{message}</div>}
-
-      <section className="panel period-toolbar" aria-label="Öğrenci QR dönem seçimi">
-        <div>
-          <small>AKTİF DÖNEM</small>
-          <strong>{activePeriod?.label ?? "Dönem seçilmedi"}</strong>
-          <span className={activePeriod?.isOpen ? "open" : "closed"}>{activePeriod?.isOpen ? "Yoklamaya açık" : "Kapalı"}</span>
-        </div>
-        <label>Geçmiş dönem
-          <select value={selectedPeriod?.id ?? ""} onChange={(event) => setSelectedPeriodId(event.target.value)}>
-            {store.periods.map((period) => <option key={period.id} value={period.id}>{period.label}{period.isActive ? " · Aktif" : ""}</option>)}
-          </select>
-        </label>
-      </section>
-
-      <section className="panel student-scan-card">
-        <span className="module-launch-icon"><Icon name="qr" size={34} /></span>
-        <div><small>HIZLI KATILIM</small><h2>QR kodu kamerayla tara</h2><p>Akademisyenin ekranındaki QR bağlantısını okut; ders üyeliğin ve yoklaman tek adımda kaydedilsin.</p></div>
-        <button className="button button-primary" onClick={() => setScannerOpen(true)} disabled={!store.enabled || !activePeriod?.isOpen || busy}>Kamerayı aç</button>
-      </section>
-
-      {scannerOpen && (
-        <div className="qr-scanner-layer" role="dialog" aria-modal="true" aria-label="QR kod tarayıcı">
-          <button className="qr-scanner-backdrop" onClick={() => setScannerOpen(false)} aria-label="Tarayıcıyı kapat" />
-          <section className="qr-scanner-card">
-            <header><div><b>QR kodu çerçeveye getir</b><small>Kamera yalnızca tarama sırasında kullanılır.</small></div><button onClick={() => setScannerOpen(false)} aria-label="Kapat"><Icon name="close" /></button></header>
-            <video ref={videoRef} muted playsInline />
-          </section>
-        </div>
-      )}
-
-      <div className="qr-grid">
-        <section className="panel qr-card">
-          <div className="qr-card-title"><span><Icon name="user" /></span><div><small>1. ADIM</small><h2>Öğrenci profili</h2></div></div>
-          <form className="qr-form" onSubmit={saveProfile}>
-            <label>Ad soyad<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Adın ve soyadın" disabled={!store.enabled} /></label>
-            <label>Öğrenci numarası<input value={number} onChange={(event) => setNumber(event.target.value)} placeholder="Öğrenci numaran" disabled={!store.enabled} /></label>
-            <button className="button button-primary" disabled={!store.enabled}>{store.profile ? "Profili güncelle" : "Profili kaydet"}</button>
-          </form>
-        </section>
-
-        <section className="panel qr-card">
-          <div className="qr-card-title"><span><Icon name="book" /></span><div><small>ALTERNATİF</small><h2>Ders grubuna kodla katıl</h2></div></div>
-          <form className="qr-form" onSubmit={joinCourse}>
-            <label>Akademisyen katılım kodu<input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="Örn. 7K9P2M" maxLength={6} disabled={!store.enabled || !activePeriod?.isOpen} /></label>
-            <button className="button button-primary" disabled={!store.enabled || !activePeriod?.isOpen || busy}>Derse katıl</button>
-          </form>
-        </section>
-      </div>
-
-      <section className="panel attendance-check">
-        <div className="qr-card-title"><span><Icon name="check" /></span><div><small>YEDEK YÖNTEM</small><h2>Yoklama kodunu doğrula</h2></div></div>
-        <form className="attendance-code-form" onSubmit={verifyCode}>
-          <label>QR ekranındaki yoklama kodu<input value={attendanceCode} onChange={(event) => setAttendanceCode(event.target.value.toUpperCase())} placeholder="8 haneli kod" maxLength={8} disabled={!store.enabled} /></label>
-          <button className="button button-primary" disabled={!store.enabled || !activePeriod?.isOpen || busy}>Yoklamayı doğrula</button>
-        </form>
-        <div className="active-session-list">
-          {activeSessions.length ? activeSessions.map((session) => {
-            const course = store.courses.find((item) => item.id === session.courseId);
-            const completed = store.records.some((record) => record.sessionId === session.id && record.studentNumber === store.profile?.number);
-            return <div className="student-session" key={session.id}><span><Icon name={completed ? "check" : "qr"} /></span><div><b>{course?.courseCode} · {course?.name}</b><small>{completed ? "Yoklaman kaydedildi" : `${formatTime(session.expiresAt)} tarihine kadar açık`}</small></div><button onClick={() => attendWithToken(session.token)} disabled={completed || !store.enabled || busy}>{completed ? "Tamamlandı" : "Katıl"}</button></div>;
-          }) : <div className="qr-empty compact"><p>Katıldığın derslerde açık yoklama bulunmuyor.</p></div>}
-        </div>
-      </section>
-
-      <div className="qr-grid">
-        <section className="panel course-list">
-          <div className="qr-card-title"><span><Icon name="book" /></span><div><small>{selectedPeriod?.label ?? "DERSLERİM"}</small><h2>Katıldığın gruplar</h2></div></div>
-          {joinedCourses.length ? joinedCourses.map((course) => <div className="course-row" key={course.id}><div><b>{course.courseCode} · {course.name}</b><small>Şube {course.section}</small></div><Icon name="check" size={20} /></div>) : <div className="qr-empty compact"><p>Henüz bir ders grubuna katılmadın.</p></div>}
-        </section>
-        <section className="panel course-list">
-          <div className="qr-card-title"><span><Icon name="calendar" /></span><div><small>{selectedPeriod?.label ?? "GEÇMİŞ"}</small><h2>Yoklamalarım</h2></div></div>
-          {selectedRecords.length
-            ? selectedRecords.map((record) => {
-              const course = store.courses.find((item) => item.id === record.courseId);
-              return <div className="history-row" key={record.id}><Icon name="check" size={18} /><div><b>{course?.courseCode} · {course?.name}</b><small>{formatTime(record.checkedAt)}</small></div></div>;
-            })
-            : <div className="qr-empty compact"><p>Henüz yoklama kaydın yok.</p></div>}
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function QrModule({
-  role,
-  store,
-  onAction,
-  onProfileChange,
-  pendingToken,
-  onPendingHandled,
-}: {
-  role: Role;
-  store: QrStore;
-  onAction: QrActionRunner;
-  onProfileChange: (profile: StudentProfile) => void;
-  pendingToken: string;
-  onPendingHandled: () => void;
-}) {
-  return role === "faculty"
-    ? <FacultyQr store={store} onAction={onAction} />
-    : <StudentQr store={store} onAction={onAction} onProfileChange={onProfileChange} pendingToken={pendingToken} onPendingHandled={onPendingHandled} />;
-}
-
-function PeriodManagement({ store, onAction }: { store: QrStore; onAction: QrActionRunner }) {
-  const [academicYear, setAcademicYear] = useState("2026-2027");
-  const [term, setTerm] = useState<AcademicPeriod["term"]>("guz");
-  const [startDate, setStartDate] = useState("2026-09-01");
-  const [endDate, setEndDate] = useState("2027-01-31");
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function createPeriod(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    const result = await onAction("create-period", { academicYear, term, startDate, endDate });
-    setBusy(false);
-    setMessage(result.message);
-  }
-
-  async function runPeriodAction(action: "set-active-period" | "toggle-period-open", payload: Record<string, string | boolean>) {
-    setBusy(true);
-    const result = await onAction(action, payload);
-    setBusy(false);
-    setMessage(result.message);
-  }
-
-  return (
-    <section className="admin-module panel period-management" aria-label="Akademik dönem yönetimi">
-      <div className="admin-module-heading">
-        <span><Icon name="calendar" size={26} /></span>
-        <div><small>ORTAK SİSTEM</small><h2>Akademik Dönem Yönetimi</h2><p>QR Yoklama ve Staj Takip kayıtlarını aynı dönem altında yönet.</p></div>
-      </div>
-
-      {message && <div className="qr-message" role="status">{message}</div>}
-
-      <form className="period-create-form" onSubmit={createPeriod}>
-        <label>Akademik yıl<input value={academicYear} onChange={(event) => setAcademicYear(event.target.value)} placeholder="2026-2027" maxLength={9} /></label>
-        <label>Dönem
-          <select value={term} onChange={(event) => setTerm(event.target.value as AcademicPeriod["term"])}>
-            <option value="guz">Güz</option>
-            <option value="bahar">Bahar</option>
-            <option value="yaz">Yaz</option>
-          </select>
-        </label>
-        <label>Başlangıç<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
-        <label>Bitiş<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
-        <button className="button button-primary" disabled={busy}>Dönem oluştur</button>
-      </form>
-
-      <div className="period-list">
-        {store.periods.map((period) => (
-          <article key={period.id} className={period.isActive ? "active" : ""}>
-            <div>
-              <span className={`period-state ${period.isOpen ? "open" : "closed"}`}>{period.isOpen ? "Açık" : "Kapalı"}</span>
-              <strong>{period.label}</strong>
-              <small>{period.startDate} → {period.endDate}{period.isActive ? " · Aktif dönem" : ""}</small>
-            </div>
-            <div>
-              {!period.isActive && period.isOpen && (
-                <button disabled={busy} onClick={() => void runPeriodAction("set-active-period", { periodId: period.id })}>Aktif yap</button>
-              )}
-              <button
-                disabled={busy}
-                onClick={() => void runPeriodAction("toggle-period-open", { periodId: period.id, open: !period.isOpen })}
-              >
-                {period.isOpen ? "Dönemi kapat" : "Dönemi aç"}
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: QrStore; onAction: QrActionRunner }) {
-  const activePeriod = activePeriodOf(store);
-  const activeCourses = store.courses.filter((course) => course.periodId === activePeriod?.id);
-  const activeCourseIds = new Set(activeCourses.map((course) => course.id));
-  const activeSessions = store.sessions.filter((session) => activeCourseIds.has(session.courseId));
-  const activeMemberships = store.memberships.filter((membership) => activeCourseIds.has(membership.courseId));
-  const activeRecords = store.records.filter((record) => activeCourseIds.has(record.courseId));
-
+function AdminPanel({ onExit }: { onExit: () => void }) {
   return (
     <main className="admin-shell">
       <aside className="admin-sidebar">
@@ -1207,7 +549,6 @@ function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: Qr
         <p className="nav-label">YÖNETİM</p>
         <nav className="side-nav" aria-label="Yönetici menüsü">
           <button className="active"><Icon name="home" size={19} /><span>Genel Bakış</span></button>
-          <button><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
                   <button onClick={() => { window.location.href = "/admin/staj"; }}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
           <button onClick={() => { window.location.href = "/admin/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>
           <button onClick={() => { window.location.href = "/admin/sosyal-sorumluluk"; }}><Icon name="check" size={19} /><span>Sosyal Sorumluluk</span></button>
@@ -1242,40 +583,17 @@ function AdminPanel({ onExit, store, onAction }: { onExit: () => void; store: Qr
           <section className="admin-welcome">
             <div>
               <span className="banner-kicker">YÖNETİM MERKEZİ</span>
-              <h1>Dönemsel yönetim hazır.</h1>
-              <p>Aktif dönemi belirle; QR Yoklama ve Staj Takip kayıtlarını dönem bazında yönet.</p>
+              <h1>CampusO yönetim paneline hoş geldin.</h1>
+              <p>Soldaki menüden bir modül seç. QR ile alınan yoklamalar da dahil tüm yoklama kayıtları Yoklama Takibi'nde.</p>
             </div>
             <span className="admin-shield"><Icon name="shield" size={38} /></span>
           </section>
 
-          <PeriodManagement store={store} onAction={onAction} />
-
-          <section className="admin-module panel" aria-label="QR yoklama yönetimi">
+          <section className="admin-module panel" aria-label="Yoklama Takibi'ne git">
             <div className="admin-module-heading">
               <span><Icon name="qr" size={26} /></span>
-              <div><small>VOL 1 · {activePeriod?.label ?? "DÖNEM YOK"}</small><h2>QR Kodla Ders Yoklaması</h2><p>Seçili döneme ait ders ve yoklama verileri.</p></div>
-              <label className="module-toggle">
-                <input
-                  type="checkbox"
-                  checked={store.enabled}
-                  onChange={(event) => void onAction("toggle-enabled", { enabled: event.target.checked })}
-                />
-                <span />
-                {store.enabled ? "Aktif" : "Kapalı"}
-              </label>
-            </div>
-            <div className="admin-stat-grid">
-              <div><span><Icon name="book" /></span><small>Ders grubu</small><b>{activeCourses.length}</b></div>
-              <div><span><Icon name="users" /></span><small>Öğrenci üyeliği</small><b>{activeMemberships.length}</b></div>
-              <div><span><Icon name="qr" /></span><small>Yoklama oturumu</small><b>{activeSessions.length}</b></div>
-              <div><span><Icon name="check" /></span><small>Katılım kaydı</small><b>{activeRecords.length}</b></div>
-            </div>
-            <div className="admin-recent">
-              <div className="qr-card-title"><span><Icon name="calendar" /></span><div><small>SON İŞLEMLER</small><h2>Yoklama kayıtları</h2></div></div>
-              {activeRecords.length ? activeRecords.slice(0, 6).map((record) => {
-                const course = store.courses.find((item) => item.id === record.courseId);
-                return <div className="participant-row" key={record.id}><span>{record.studentName.slice(0, 2).toUpperCase()}</span><div><b>{record.studentName}</b><small>{record.studentNumber} · {course?.courseCode} · {formatTime(record.checkedAt)}</small></div><Icon name="check" size={18} /></div>;
-              }) : <div className="qr-empty compact"><p>Henüz yoklama kaydı bulunmuyor.</p></div>}
+              <div><small>VOL 1</small><h2>QR Kodla Ders Yoklaması</h2><p>QR ile alınan yoklamalar, akademisyenlerin elle aldığı yoklamalarla aynı Yoklama Takibi panelinde toplanır.</p></div>
+              <button className="button button-primary" onClick={() => { window.location.href = "/admin/yoklama"; }}>Yoklama Takibi'ni aç</button>
             </div>
           </section>
         </div>
@@ -1330,9 +648,6 @@ export default function Home() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [panelView, setPanelView] = useState<PanelView>("home");
-  const [qrStore, setQrStore] = useState<QrStore>(emptyQrStore);
-  const [pendingAttendanceToken, setPendingAttendanceToken] = useState("");
   const [profileInfo, setProfileInfo] = useState<ProfileInfo | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [todaySummary, setTodaySummary] = useState<string | null>(null);
@@ -1372,38 +687,10 @@ export default function Home() {
     let cancelled = false;
 
     async function initializeSession() {
-      let profile: StudentProfile | null = null;
-      try {
-        profile = JSON.parse(window.localStorage.getItem(QR_PROFILE_KEY) ?? "null") as StudentProfile | null;
-        if (!profile) {
-          const legacy = JSON.parse(window.localStorage.getItem(QR_STORAGE_KEY) ?? "null") as Partial<QrStore> | null;
-          profile = legacy?.profile ?? null;
-        }
-      } catch {
-        profile = null;
-      }
-
-      const search = new URLSearchParams(window.location.search);
-      const token = search.get("attendance")?.trim().toUpperCase() ?? "";
       const session = await getCampusSession();
       if (cancelled) return;
 
       if (!session) {
-        if (token) {
-          const returnTo = `${window.location.pathname}${window.location.search}`;
-          window.location.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
-        }
-        return;
-      }
-
-      if (profile?.name && profile.number) {
-        setQrStore((current) => ({ ...current, profile }));
-        window.localStorage.setItem(QR_PROFILE_KEY, JSON.stringify(profile));
-      }
-      if (token && session.role === "student") {
-        setPendingAttendanceToken(token);
-        setRole("student");
-        setPanelView("qr");
         return;
       }
 
@@ -1466,73 +753,20 @@ export default function Home() {
     return () => { cancelled = true; };
   }, []);
 
-  const mergeRemoteStore = useCallback((remote: Omit<QrStore, "profile">) => {
-    setQrStore((current) => ({ ...remote, profile: current.profile }));
-  }, []);
-
-  const refreshQrStore = useCallback(async () => {
-    try {
-      const response = await fetchWithAuth("/api/qr", { cache: "no-store" });
-      if (!response.ok) return;
-      const remote = await response.json() as Omit<QrStore, "profile">;
-      mergeRemoteStore(remote);
-    } catch {
-      // Ağ kısa süreli kesilirse ekrandaki son doğrulanmış veri korunur.
-    }
-  }, [mergeRemoteStore]);
-
-  useEffect(() => {
-    const initial = window.setTimeout(() => void refreshQrStore(), 0);
-    const timer = window.setInterval(() => void refreshQrStore(), 2000);
-    return () => {
-      window.clearTimeout(initial);
-      window.clearInterval(timer);
-    };
-  }, [refreshQrStore]);
-
-  const runQrAction = useCallback<QrActionRunner>(async (action, payload = {}) => {
-    try {
-      const response = await fetchWithAuth("/api/qr", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, ...payload }),
-      });
-      const result = await response.json() as QrActionResult;
-      if (result.store) mergeRemoteStore(result.store);
-      return result;
-    } catch {
-      return { ok: false, message: "CampusO sunucusuna ulaşılamadı. Lütfen tekrar dene." };
-    }
-  }, [mergeRemoteStore]);
-
-  const updateStudentProfile = useCallback((profile: StudentProfile) => {
-    window.localStorage.setItem(QR_PROFILE_KEY, JSON.stringify(profile));
-    setQrStore((current) => ({ ...current, profile }));
-  }, []);
-
-  const clearPendingAttendance = useCallback(() => {
-    setPendingAttendanceToken("");
-    const url = new URL(window.location.href);
-    url.searchParams.delete("attendance");
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-  }, []);
-
   function returnToLanding() {
     setRole(null);
     setAdminOpen(false);
     setMobileOpen(false);
     setProfileOpen(false);
-    setPanelView("home");
   }
 
   async function signOut() {
     await supabase?.auth.signOut();
-    window.localStorage.removeItem(QR_PROFILE_KEY);
     window.location.href = "/";
   }
 
   if (adminOpen) {
-    return <AdminPanel onExit={returnToLanding} store={qrStore} onAction={runQrAction} />;
+    return <AdminPanel onExit={returnToLanding} />;
   }
 
   if (!role) {
@@ -1560,8 +794,8 @@ export default function Home() {
 
         <p className="nav-label">KAMPÜS</p>
         <nav className="side-nav" aria-label="Uygulama menüsü">
-          <button className={panelView === "home" ? "active" : ""} onClick={() => { setPanelView("home"); setMobileOpen(false); }}><Icon name="home" size={19} /><span>Ana Sayfa</span></button>
-          <button className={panelView === "qr" ? "active" : ""} onClick={() => { setPanelView("qr"); setMobileOpen(false); }}><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
+          <button className="active" onClick={() => setMobileOpen(false)}><Icon name="home" size={19} /><span>Ana Sayfa</span></button>
+          <button onClick={() => { window.location.href = role === "student" ? "/student/qr-yoklama" : "/academician/qr-yoklama"; }}><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
           <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
           {role === "faculty" && (
             <button onClick={() => { window.location.href = "/academician/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>
@@ -1592,7 +826,7 @@ export default function Home() {
             <span className="mobile-seal">CO</span>
             <span><b>{profileInfo?.fullName || copy.panel}</b><small>{profileLine}</small></span>
           </button>
-          <div className="breadcrumbs"><span>{copy.panel}</span><b>{panelView === "home" ? "Ana Sayfa" : "QR Yoklama"}</b></div>
+          <div className="breadcrumbs"><span>{copy.panel}</span><b>Ana Sayfa</b></div>
           <label className="global-search clean-search">
             <Icon name="search" size={18} />
             <input aria-label="CampusO'da ara" placeholder="CampusO'da ara" disabled />
@@ -1636,9 +870,7 @@ export default function Home() {
         </header>
 
         <div className="page-body">
-          {panelView === "home"
-            ? <ModuleHome role={role} onOpenQr={() => setPanelView("qr")} displayName={profileInfo?.fullName} unreadCount={unreadCount} todaySummary={todaySummary} />
-            : <QrModule role={role} store={qrStore} onAction={runQrAction} onProfileChange={updateStudentProfile} pendingToken={pendingAttendanceToken} onPendingHandled={clearPendingAttendance} />}
+          <ModuleHome role={role} displayName={profileInfo?.fullName} unreadCount={unreadCount} todaySummary={todaySummary} />
         </div>
       </section>
 
@@ -1652,8 +884,8 @@ export default function Home() {
       )}
 
       <nav className="mobile-bottom-nav clean-bottom-nav" aria-label="Mobil uygulama menüsü">
-        <button className={panelView === "home" ? "active" : ""} onClick={() => setPanelView("home")}><Icon name="home" size={20} /><span>Ana Sayfa</span></button>
-        <button className={panelView === "qr" ? "active" : ""} onClick={() => setPanelView("qr")}><Icon name="qr" size={20} /><span>QR Yoklama</span></button>
+        <button className="active"><Icon name="home" size={20} /><span>Ana Sayfa</span></button>
+        <button onClick={() => { window.location.href = role === "student" ? "/student/qr-yoklama" : "/academician/qr-yoklama"; }}><Icon name="qr" size={20} /><span>QR Yoklama</span></button>
         <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={20} /><span>Staj Takip</span></button>
         <button onClick={() => setMobileOpen(true)}><Icon name="menu" size={20} /><span>Menü</span></button>
       </nav>

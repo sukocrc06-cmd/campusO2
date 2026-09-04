@@ -46,8 +46,10 @@ export default function DersSinavTakvimiPage() {
   const [siniflar, setSiniflar] = useState([]);
   const [secilenBolum, setSecilenBolum] = useState("");
   const [secilenSinif, setSecilenSinif] = useState("");
-  const [sadeceDerslerim, setSadeceDerslerim] = useState(false);
   const [gizlenenleriGoster, setGizlenenleriGoster] = useState(false);
+  const [suruklenenDersId, setSuruklenenDersId] = useState(null);
+  const [saatDuzenlemeAcik, setSaatDuzenlemeAcik] = useState(null); // ders id
+  const [saatTaslak, setSaatTaslak] = useState({ baslangic: "", bitis: "" });
 
   const [notAcik, setNotAcik] = useState(null); // `${hedef_tip}:${hedef_id}`
   const [notTaslak, setNotTaslak] = useState("");
@@ -86,7 +88,6 @@ export default function DersSinavTakvimiPage() {
       setRoleHref(akademisyenMi ? "/?role=faculty" : "/?role=student");
       setUserId(session.user.id);
       setKendiAdi(profile?.full_name || "");
-      if (akademisyenMi) setSadeceDerslerim(true);
 
       const [{ data: d, error: dErr }, { data: s, error: sErr }] = await Promise.all([
         supabase.from("ders_programi").select("*"),
@@ -157,8 +158,8 @@ export default function DersSinavTakvimiPage() {
     liste.forEach((d) => {
       const anahtar = [d.ders_kodu || d.ders_adi, d.gun, d.baslangic_saat, d.bitis_saat, (d.hoca_adi || "").toLocaleLowerCase("tr-TR")].join("|");
       const mevcut = gruplar.get(anahtar);
-      if (!mevcut) gruplar.set(anahtar, { ...d, _bolumler: new Set([d.bolum].filter(Boolean)) });
-      else if (d.bolum) mevcut._bolumler.add(d.bolum);
+      if (!mevcut) gruplar.set(anahtar, { ...d, _bolumler: new Set([d.bolum].filter(Boolean)), _idler: [d.id] });
+      else { if (d.bolum) mevcut._bolumler.add(d.bolum); mevcut._idler.push(d.id); }
     });
     return Array.from(gruplar.values()).map((d) => ({ ...d, bolum: Array.from(d._bolumler).join(" + ") }));
   }
@@ -176,19 +177,19 @@ export default function DersSinavTakvimiPage() {
 
   const temelFiltrelenmisDers = useMemo(() => {
     if (isAcademician) {
-      const liste = sadeceDerslerim ? dersListe.filter((d) => hocaEslesiyorMu(d.hoca_adi)) : dersListe;
+      const liste = dersListe.filter((d) => hocaEslesiyorMu(d.hoca_adi));
       return dersleriBirlestir(liste);
     }
     return dersListe.filter((d) => d.bolum === secilenBolum && d.sinif === secilenSinif);
-  }, [dersListe, secilenBolum, secilenSinif, isAcademician, sadeceDerslerim, kendiAdi]);
+  }, [dersListe, secilenBolum, secilenSinif, isAcademician, kendiAdi]);
 
   const temelFiltrelenmisSinav = useMemo(() => {
     let liste = isAcademician
-      ? (sadeceDerslerim ? sinavListe.filter((s) => hocaEslesiyorMu(s.hoca_adi)) : sinavListe)
+      ? sinavListe.filter((s) => hocaEslesiyorMu(s.hoca_adi))
       : sinavListe.filter((s) => s.bolum === secilenBolum && s.sinif === secilenSinif);
     if (isAcademician) liste = sinavlariBirlestir(liste);
     return [...liste].sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat));
-  }, [sinavListe, secilenBolum, secilenSinif, isAcademician, sadeceDerslerim, kendiAdi]);
+  }, [sinavListe, secilenBolum, secilenSinif, isAcademician, kendiAdi]);
 
   const filtrelenmisDers = useMemo(() => {
     if (gizlenenleriGoster) return temelFiltrelenmisDers;
@@ -224,6 +225,39 @@ export default function DersSinavTakvimiPage() {
     } else {
       const { data, error: err } = await supabase.from("ders_sinav_kisisel").insert([{ kullanici_id: userId, hedef_tip: hedefTip, hedef_id: hedefId, gizli: true }]).select().maybeSingle();
       if (!err && data) setKisiselMap((prev) => ({ ...prev, [anahtar]: data }));
+    }
+    setBusy(false);
+  }
+
+  async function handleDersGunDegistir(ders, yeniGun) {
+    if (!isAcademician || busy) return;
+    const idler = ders._idler && ders._idler.length ? ders._idler : [ders.id];
+    if (ders.gun === yeniGun) return;
+    setBusy(true); setError("");
+    const { error: err } = await supabase.from("ders_programi").update({ gun: yeniGun }).in("id", idler);
+    if (err) {
+      setError("Ders günü değiştirilemedi: " + err.message);
+    } else {
+      setDersListe((prev) => prev.map((d) => (idler.includes(d.id) ? { ...d, gun: yeniGun } : d)));
+    }
+    setBusy(false);
+  }
+
+  function saatDuzenlemeyeBasla(ders) {
+    setSaatDuzenlemeAcik(ders.id);
+    setSaatTaslak({ baslangic: ders.baslangic_saat || "", bitis: ders.bitis_saat || "" });
+  }
+
+  async function handleSaatKaydet(ders) {
+    if (!saatTaslak.baslangic || !saatTaslak.bitis) { setError("Başlangıç ve bitiş saati gerekli."); return; }
+    const idler = ders._idler && ders._idler.length ? ders._idler : [ders.id];
+    setBusy(true); setError("");
+    const { error: err } = await supabase.from("ders_programi").update({ baslangic_saat: saatTaslak.baslangic, bitis_saat: saatTaslak.bitis }).in("id", idler);
+    if (err) {
+      setError("Saat güncellenemedi: " + err.message);
+    } else {
+      setDersListe((prev) => prev.map((d) => (idler.includes(d.id) ? { ...d, baslangic_saat: saatTaslak.baslangic, bitis_saat: saatTaslak.bitis } : d)));
+      setSaatDuzenlemeAcik(null);
     }
     setBusy(false);
   }
@@ -343,10 +377,7 @@ export default function DersSinavTakvimiPage() {
 
         {isAcademician && (
           <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: "14px 18px", marginBottom: 20, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <button type="button" onClick={() => setSadeceDerslerim((p) => !p)} style={{ minHeight: 34, padding: "0 14px", fontSize: 12, fontWeight: 700, borderRadius: 999, border: sadeceDerslerim ? "1px solid #175cd3" : "1px solid #e3ebf6", background: sadeceDerslerim ? "#175cd3" : "#fff", color: sadeceDerslerim ? "#fff" : "#5b6b85", cursor: "pointer" }}>
-              {sadeceDerslerim ? "✓ Sadece Derslerim" : "Sadece Derslerim"}
-            </button>
-            <span style={{ fontSize: 11.5, color: "#8fa0bc" }}>Öğretim üyesi adınla eşleşen ders/sınavlar otomatik filtrelenir.</span>
+            <span style={{ fontSize: 11.5, color: "#8fa0bc" }}>Öğretim üyesi adınla eşleşen ders/sınavlar otomatik listelenir. Ders kartını gün sütunları arasında sürükleyip bırakarak günü değiştirebilir, saatine tıklayarak saatini düzenleyebilirsiniz.</span>
           </section>
         )}
 
@@ -477,7 +508,17 @@ export default function DersSinavTakvimiPage() {
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
                   {GUNLER.map((gun) => (
-                    <div key={gun} style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 14, padding: 12, minHeight: 80 }}>
+                    <div
+                      key={gun}
+                      onDragOver={isAcademician ? (e) => { e.preventDefault(); } : undefined}
+                      onDrop={isAcademician ? (e) => {
+                        e.preventDefault();
+                        const surukleneD = filtrelenmisDers.find((d) => d.id === suruklenenDersId);
+                        if (surukleneD) handleDersGunDegistir(surukleneD, gun);
+                        setSuruklenenDersId(null);
+                      } : undefined}
+                      style={{ background: "#fff", border: suruklenenDersId ? "1px dashed #175cd3" : "1px solid #e3ebf6", borderRadius: 14, padding: 12, minHeight: 80 }}
+                    >
                       <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", color: "#175cd3", marginBottom: 8 }}>{gun.toUpperCase()}</div>
                       {gunlukProgram.get(gun).length === 0 ? (
                         <div style={{ fontSize: 11, color: "#c3cee0" }}>—</div>
@@ -487,8 +528,33 @@ export default function DersSinavTakvimiPage() {
                             const anahtar = `ders:${d.id}`;
                             const kisisel = kisiselMap[anahtar];
                             return (
-                              <div key={d.id} style={{ padding: "8px 10px", borderRadius: 10, background: kisisel?.gizli ? "#f5f8fc" : "#f5f8fc", border: "1px solid #e3ebf6", opacity: kisisel?.gizli ? 0.5 : 1 }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: d.baslangic_saat && d.bitis_saat ? "#0e4bae" : "#8fa0bc" }}>{d.baslangic_saat && d.bitis_saat ? `${d.baslangic_saat}–${d.bitis_saat}` : "Saat girilmedi"}</div>
+                              <div
+                                key={d.id}
+                                draggable={isAcademician}
+                                onDragStart={isAcademician ? () => setSuruklenenDersId(d.id) : undefined}
+                                onDragEnd={isAcademician ? () => setSuruklenenDersId(null) : undefined}
+                                style={{ padding: "8px 10px", borderRadius: 10, background: kisisel?.gizli ? "#f5f8fc" : "#f5f8fc", border: "1px solid #e3ebf6", opacity: kisisel?.gizli ? 0.5 : suruklenenDersId === d.id ? 0.4 : 1, cursor: isAcademician ? "grab" : "default" }}
+                              >
+                                {saatDuzenlemeAcik === d.id ? (
+                                  <div style={{ display: "grid", gap: 5 }}>
+                                    <div style={{ display: "flex", gap: 5 }}>
+                                      <input type="time" style={{ ...inputStyle, height: 28, fontSize: 10.5, padding: "0 6px" }} value={saatTaslak.baslangic} onChange={(e) => setSaatTaslak((p) => ({ ...p, baslangic: e.target.value }))} />
+                                      <input type="time" style={{ ...inputStyle, height: 28, fontSize: 10.5, padding: "0 6px" }} value={saatTaslak.bitis} onChange={(e) => setSaatTaslak((p) => ({ ...p, bitis: e.target.value }))} />
+                                    </div>
+                                    <div style={{ display: "flex", gap: 6 }}>
+                                      <button onClick={() => handleSaatKaydet(d)} disabled={busy} style={{ fontSize: 9.5, fontWeight: 700, border: "none", background: "#175cd3", color: "#fff", borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>Kaydet</button>
+                                      <button onClick={() => setSaatDuzenlemeAcik(null)} style={{ fontSize: 9.5, fontWeight: 700, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>Vazgeç</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div
+                                    style={{ fontSize: 11, fontWeight: 700, color: d.baslangic_saat && d.bitis_saat ? "#0e4bae" : "#8fa0bc", cursor: isAcademician ? "pointer" : "default" }}
+                                    onClick={isAcademician ? () => saatDuzenlemeyeBasla(d) : undefined}
+                                    title={isAcademician ? "Saati düzenlemek için tıklayın" : undefined}
+                                  >
+                                    {d.baslangic_saat && d.bitis_saat ? `${d.baslangic_saat}–${d.bitis_saat}` : "Saat girilmedi"}{isAcademician ? " ✎" : ""}
+                                  </div>
+                                )}
                                 <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2 }}>{d.ders_adi}</div>
                                 {(d.derslik || d.hoca_adi) && (
                                   <div style={{ fontSize: 10, color: "#5b6b85", marginTop: 2 }}>{[d.derslik, d.hoca_adi].filter(Boolean).join(" · ")}</div>

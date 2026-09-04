@@ -84,7 +84,7 @@ export default function AkademisyenYoklamaPage() {
     setEsikTaslak(ders.asgari_devam_yuzdesi ?? 70);
 
     const [{ data: varsayilan }, { data: over }] = await Promise.all([
-      supabase.rpc("campuso_ogrenci_listesi", { p_bolum: ders.bolum, p_sinif: ders.sinif }),
+      supabase.rpc("campuso_ders_kayitli_ogrenciler", { p_ders_id: ders.id }),
       supabase.from("yoklama_ogrenci_override").select("*").eq("ders_programi_id", ders.id),
     ]);
     setVarsayilanRoster(varsayilan || []);
@@ -296,7 +296,7 @@ export default function AkademisyenYoklamaPage() {
               </div>
 
               {roster.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: "#8fa0bc" }}>Bu bölüm/sınıfta kayıtlı öğrenci bulunamadı. Aşağıdan öğrenci arayıp elle ekleyebilirsin.</div>
+                <div style={{ fontSize: 12.5, color: "#8fa0bc" }}>Bu derse henüz kayıt yaptıran öğrenci yok. Öğrenciler Ders Kayıt sayfasından bu dersi seçtiğinde burada otomatik görünür — ya da aşağıdan öğrenci arayıp elle ekleyebilirsin.</div>
               ) : (
                 <div style={{ display: "grid", gap: 8 }}>
                   {roster.map((ogrenci) => {
@@ -318,7 +318,7 @@ export default function AkademisyenYoklamaPage() {
               )}
 
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #e3ebf6" }}>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: "#5b6b85" }}>Farklı bölüm/sınıftan öğrenci ekle (isimle ara)
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: "#5b6b85" }}>Derse kayıtlı olmayan bir öğrenciyi elle ekle (isimle ara)
                   <input style={{ ...inputStyle, marginTop: 6 }} value={aramaMetni} onChange={(e) => handleAra(e.target.value)} placeholder="İsim yaz…" />
                 </label>
                 {aramaSonuc.length > 0 && (

@@ -16,7 +16,6 @@ import {
 import { TAKVIM_TURLERI, AY_ADLARI, GUN_KISALTMALARI, tarihIso, bugunIso, ayIzgarasiUret } from "../../lib/kisisel-takvim";
 
 const inputStyle = { height: 42, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 11, fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" };
-const labelStyle = { display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 700, color: "#5b6b85" };
 
 const SINAV_RENK = {
   "Vize": { color: "#175cd3", bg: "#e6f0ff" },
@@ -47,10 +46,7 @@ export default function DersSinavTakvimiPage() {
   const [sinavListe, setSinavListe] = useState([]);
   const [kisiselMap, setKisiselMap] = useState({}); // `${hedef_tip}:${hedef_id}` -> {gizli, not_metni}
 
-  const [bolumler, setBolumler] = useState([]);
-  const [siniflar, setSiniflar] = useState([]);
-  const [secilenBolum, setSecilenBolum] = useState("");
-  const [secilenSinif, setSecilenSinif] = useState("");
+  const [kayitliIdSet, setKayitliIdSet] = useState(new Set());
   const [gizlenenleriGoster, setGizlenenleriGoster] = useState(false);
   const [suruklenenDersId, setSuruklenenDersId] = useState(null);
   const [saatDuzenlemeAcik, setSaatDuzenlemeAcik] = useState(null); // ders id
@@ -105,22 +101,17 @@ export default function DersSinavTakvimiPage() {
       const guncelDonem = donemSatiri?.donem || "bahar";
       setAktifDonem(guncelDonem);
 
-      const [{ data: d, error: dErr }, { data: s, error: sErr }] = await Promise.all([
+      const [{ data: d, error: dErr }, { data: s, error: sErr }, { data: k, error: kErr }] = await Promise.all([
         supabase.from("ders_programi").select("*").eq("donem", guncelDonem).order("ders_kodu").order("bolum").order("id"),
         supabase.from("sinav_takvimi").select("*").eq("donem", guncelDonem).order("ders_kodu").order("bolum").order("id"),
+        akademisyenMi ? Promise.resolve({ data: [] }) : supabase.from("ders_kayitlari").select("ders_programi_id").eq("ogrenci_id", session.user.id),
       ]);
       if (dErr) setError("Ders programı alınamadı: " + dErr.message);
       else setDersListe(d || []);
       if (sErr) setError((prev) => prev || "Sınav takvimi alınamadı: " + sErr.message);
       else setSinavListe(s || []);
-
-      const bolumSet = new Set([...(d || []).map((r) => r.bolum), ...(s || []).map((r) => r.bolum)]);
-      const bolumDizi = Array.from(bolumSet).filter(Boolean).sort();
-      setBolumler(bolumDizi);
-      if (!akademisyenMi) {
-        if (profile?.bolum && bolumDizi.includes(profile.bolum)) setSecilenBolum(profile.bolum);
-        else if (bolumDizi.length === 1) setSecilenBolum(bolumDizi[0]);
-      }
+      if (kErr) setError((prev) => prev || "Kayıtlı derslerin alınamadı: " + kErr.message);
+      else setKayitliIdSet(new Set((k || []).map((row) => row.ders_programi_id)));
 
       await kisiselleriYukle(session.user.id);
       await takvimEtkinlikleriYukle(session.user.id);
@@ -128,34 +119,6 @@ export default function DersSinavTakvimiPage() {
     }
     init();
   }, []);
-
-  useEffect(() => {
-    if (isAcademician || !secilenBolum) { if (!isAcademician) { setSiniflar([]); setSecilenSinif(""); } return; }
-    const sinifSet = new Set([
-      ...dersListe.filter((r) => r.bolum === secilenBolum).map((r) => r.sinif),
-      ...sinavListe.filter((r) => r.bolum === secilenBolum).map((r) => r.sinif),
-    ]);
-    const sinifDizi = Array.from(sinifSet).filter(Boolean).sort();
-    setSiniflar(sinifDizi);
-    if (sinifDizi.length === 1) setSecilenSinif(sinifDizi[0]);
-  }, [secilenBolum, dersListe, sinavListe, isAcademician]);
-
-  // Profilden geldiğinde sınıf seçimini de dene
-  useEffect(() => {
-    async function secilenSinifiProfildenAyarla() {
-      if (isAcademician || !userId || !secilenBolum) return;
-      const { data: profile } = await supabase.from("profiles").select("sinif").eq("id", userId).maybeSingle();
-      if (profile?.sinif) {
-        const sinifSet = new Set([
-          ...dersListe.filter((r) => r.bolum === secilenBolum).map((r) => r.sinif),
-          ...sinavListe.filter((r) => r.bolum === secilenBolum).map((r) => r.sinif),
-        ]);
-        if (sinifSet.has(profile.sinif)) setSecilenSinif(profile.sinif);
-      }
-    }
-    secilenSinifiProfildenAyarla();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secilenBolum]);
 
   function hocaEslesiyorMu(hocaAdi) {
     if (!kendiAdi || !hocaAdi) return false;
@@ -196,16 +159,26 @@ export default function DersSinavTakvimiPage() {
       const liste = dersListe.filter((d) => hocaEslesiyorMu(d.hoca_adi));
       return dersleriBirlestir(liste);
     }
-    return dersListe.filter((d) => d.bolum === secilenBolum && d.sinif === secilenSinif);
-  }, [dersListe, secilenBolum, secilenSinif, isAcademician, kendiAdi]);
+    return dersListe.filter((d) => kayitliIdSet.has(d.id));
+  }, [dersListe, kayitliIdSet, isAcademician, kendiAdi]);
+
+  // Öğrenci için sınav takvimi, kayıtlı olduğu derslerin ders kodu + bölüm
+  // eşleşmesine göre gösterilir (sinav_takvimi satırları doğrudan bir
+  // ders_programi id'sine bağlı değil, yalnızca ders_kodu/bolum taşıyor).
+  const kayitliDersKoduBolum = useMemo(() => {
+    if (isAcademician) return new Set();
+    return new Set(
+      dersListe.filter((d) => kayitliIdSet.has(d.id) && d.ders_kodu).map((d) => `${d.ders_kodu}||${d.bolum}`)
+    );
+  }, [dersListe, kayitliIdSet, isAcademician]);
 
   const temelFiltrelenmisSinav = useMemo(() => {
     let liste = isAcademician
       ? sinavListe.filter((s) => hocaEslesiyorMu(s.hoca_adi))
-      : sinavListe.filter((s) => s.bolum === secilenBolum && s.sinif === secilenSinif);
+      : sinavListe.filter((s) => kayitliDersKoduBolum.has(`${s.ders_kodu}||${s.bolum}`));
     if (isAcademician) liste = sinavlariBirlestir(liste);
     return [...liste].sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat));
-  }, [sinavListe, secilenBolum, secilenSinif, isAcademician, kendiAdi]);
+  }, [sinavListe, kayitliDersKoduBolum, isAcademician, kendiAdi]);
 
   const filtrelenmisDers = useMemo(() => {
     if (gizlenenleriGoster) return temelFiltrelenmisDers;
@@ -229,7 +202,7 @@ export default function DersSinavTakvimiPage() {
   }, [filtrelenmisDers]);
 
   const bugun = todayIso();
-  const secimTamam = isAcademician || (secilenBolum && secilenSinif);
+  const secimTamam = true;
 
   async function handleGizleAc(hedefTip, hedefId) {
     const anahtar = `${hedefTip}:${hedefId}`;
@@ -378,19 +351,15 @@ export default function DersSinavTakvimiPage() {
         )}
 
         {!isAcademician && (
-          <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 18, marginBottom: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-            <label style={labelStyle}>Bölüm
-              <select style={inputStyle} value={secilenBolum} onChange={(e) => setSecilenBolum(e.target.value)}>
-                <option value="">Seçiniz…</option>
-                {bolumler.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>
-            </label>
-            <label style={labelStyle}>Sınıf
-              <select style={inputStyle} value={secilenSinif} onChange={(e) => setSecilenSinif(e.target.value)} disabled={!secilenBolum}>
-                <option value="">Seçiniz…</option>
-                {siniflar.map((s) => <option key={s} value={s}>{s}. sınıf</option>)}
-              </select>
-            </label>
+          <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: "14px 18px", marginBottom: 20, display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12.5, color: "#5b6b85" }}>
+              {kayitliIdSet.size > 0
+                ? `${kayitliIdSet.size} derse kayıtlısın. Ders programın ve sınav takvimin bunlara göre gösteriliyor.`
+                : "Henüz hiç ders eklemedin — ders programın ve sınav takvimin şu an boş görünüyor."}
+            </span>
+            <Link href="/student/ders-kayit" style={{ minHeight: 36, padding: "0 14px", fontSize: 12.5, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 10, background: "#175cd3", color: "#fff" }}>
+              {kayitliIdSet.size > 0 ? "Ders Ekle/Çıkar" : "Ders Seç →"}
+            </Link>
           </section>
         )}
 
@@ -520,15 +489,13 @@ export default function DersSinavTakvimiPage() {
               </section>
             )}
 
-            {tab !== "takvim" && !secimTamam && (
-              <div style={{ padding: 32, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>
-                {bolumler.length === 0 ? "Henüz ders programı veya sınav takvimi verisi yok." : "Programı görmek için bölüm ve sınıf seç."}
-              </div>
-            )}
-
             {tab === "ders" && secimTamam && (
               filtrelenmisDers.length === 0 ? (
-                <div style={{ padding: 28, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>Bu bölüm/sınıf için ders programı girilmemiş.</div>
+                <div style={{ padding: 28, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>
+                  {isAcademician ? "Sana atanmış bir ders bulunamadı." : (
+                    <>Henüz kayıtlı dersin yok. <Link href="/student/ders-kayit" style={{ color: "#175cd3", fontWeight: 700 }}>Ders Kayıt'tan seç →</Link></>
+                  )}
+                </div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
                   {GUNLER.map((gun) => (
@@ -615,7 +582,11 @@ export default function DersSinavTakvimiPage() {
 
             {tab === "sinav" && secimTamam && (
               filtrelenmisSinav.length === 0 ? (
-                <div style={{ padding: 28, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>Bu bölüm/sınıf için sınav takvimi girilmemiş.</div>
+                <div style={{ padding: 28, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>
+                  {isAcademician ? "Sana atanmış bir sınav bulunamadı." : (
+                    <>Kayıtlı derslerin için henüz sınav girilmemiş. <Link href="/student/ders-kayit" style={{ color: "#175cd3", fontWeight: 700 }}>Ders Kayıt'tan seç →</Link></>
+                  )}
+                </div>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
                   {filtrelenmisSinav.map((s) => {

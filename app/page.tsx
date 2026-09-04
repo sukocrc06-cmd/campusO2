@@ -565,6 +565,7 @@ function StudentTakvimWidget({ userId }: { userId?: string | null; bolum?: strin
 
 type HizliIslem = { title: string; icon: IconName; accent: keyof typeof MODULE_ACCENTS; href: string };
 const OGRENCI_HIZLI_ISLEMLER: HizliIslem[] = [
+  { title: "Ders Kayıt", icon: "graduation", accent: "coral", href: "/student/ders-kayit" },
   { title: "Ders Programı", icon: "book", accent: "blue", href: "/ders-programi-sinav-takvimi" },
   { title: "Yoklama Takibi", icon: "check", accent: "green", href: "/student/yoklamalarim" },
   { title: "QR ile Yoklama", icon: "qr", accent: "sky", href: "/student/qr-yoklama" },
@@ -885,7 +886,7 @@ export default function Home() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [todaySummary, setTodaySummary] = useState<string | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifItems, setNotifItems] = useState<Array<{ id: string; tip: string; created_at: string; okundu: boolean }>>([]);
+  const [notifItems, setNotifItems] = useState<Array<{ id: string; tip: string; created_at: string; okundu: boolean; ogrenciAdi?: string; dersAdi?: string }>>([]);
 
   const refreshNotifCount = useCallback(async (userId: string) => {
     if (!supabase) return;
@@ -904,11 +905,33 @@ export default function Home() {
     if (!user) return;
     const { data } = await supabase
       .from("kampus_duvari_bildirimleri")
-      .select("id, tip, created_at, okundu")
+      .select("id, tip, created_at, okundu, olusturan_id, ders_programi_id")
       .eq("kullanici_id", user.id)
       .order("created_at", { ascending: false })
       .limit(10);
-    setNotifItems(data || []);
+
+    // "ders_kaydi" bildirimleri için hangi öğrencinin hangi derse kayıt
+    // olduğunu göstermek üzere ek bilgi çek (isim + ders adı).
+    const dersKayitBildirimleri = (data || []).filter((n) => n.tip === "ders_kaydi");
+    let ogrenciMap: Record<string, string> = {};
+    let dersMap: Record<string, string> = {};
+    if (dersKayitBildirimleri.length > 0) {
+      const ogrenciIdler = Array.from(new Set(dersKayitBildirimleri.map((n) => n.olusturan_id).filter(Boolean)));
+      const dersIdler = Array.from(new Set(dersKayitBildirimleri.map((n) => n.ders_programi_id).filter(Boolean)));
+      const [{ data: ogrenciler }, { data: dersler }] = await Promise.all([
+        ogrenciIdler.length ? supabase.from("profiles").select("id, full_name").in("id", ogrenciIdler) : Promise.resolve({ data: [] as any[] }),
+        dersIdler.length ? supabase.from("ders_programi").select("id, ders_adi").in("id", dersIdler) : Promise.resolve({ data: [] as any[] }),
+      ]);
+      (ogrenciler || []).forEach((o: any) => { ogrenciMap[o.id] = o.full_name; });
+      (dersler || []).forEach((d: any) => { dersMap[d.id] = d.ders_adi; });
+    }
+
+    const zenginlestirilmis = (data || []).map((n) => ({
+      ...n,
+      ogrenciAdi: n.olusturan_id ? ogrenciMap[n.olusturan_id] : undefined,
+      dersAdi: n.ders_programi_id ? dersMap[n.ders_programi_id] : undefined,
+    }));
+    setNotifItems(zenginlestirilmis);
     const unreadIds = (data || []).filter((n) => !n.okundu).map((n) => n.id);
     if (unreadIds.length) {
       await supabase.from("kampus_duvari_bildirimleri").update({ okundu: true }).in("id", unreadIds);
@@ -970,18 +993,33 @@ export default function Home() {
         if (!cancelled) {
           setTodaySummary(dersSayisi ? `Bugün ${dersSayisi} dersin var.` : "Bugün programında ders görünmüyor.");
         }
-      } else if (profileRow?.bolum && profileRow?.sinif) {
-        const [{ count: dersSayisi }, { count: sinavSayisi }] = await Promise.all([
-          supabase.from("ders_programi").select("id", { count: "exact", head: true })
-            .eq("bolum", profileRow.bolum).eq("sinif", profileRow.sinif).eq("donem", guncelDonem).eq("gun", gunAdi),
-          supabase.from("sinav_takvimi").select("id", { count: "exact", head: true })
-            .eq("bolum", profileRow.bolum).eq("sinif", profileRow.sinif).eq("donem", guncelDonem).eq("tarih", bugunIso()),
-        ]);
-        if (!cancelled) {
-          const parcalar: string[] = [];
-          if (dersSayisi) parcalar.push(`${dersSayisi} dersin`);
-          if (sinavSayisi) parcalar.push(`${sinavSayisi} sınavın`);
-          setTodaySummary(parcalar.length ? `Bugün ${parcalar.join(" ve ")} var.` : "Bugün programında ders/sınav görünmüyor.");
+      } else {
+        // Öğrenci özeti artık bölüm/sınıf eşleşmesine değil, öğrencinin
+        // kendi seçtiği (ders_kayitlari) derslere göre hesaplanır.
+        const { data: kayitliDersler } = await supabase
+          .from("ders_kayitlari")
+          .select("ders_programi:ders_programi_id(id, ders_kodu, bolum, gun)")
+          .eq("ogrenci_id", userId)
+          .eq("donem", guncelDonem);
+        const dersRows: Array<{ id: string; ders_kodu: string | null; bolum: string | null; gun: string | null }> =
+          (kayitliDersler || []).map((r: any) => r.ders_programi).filter(Boolean);
+        if (dersRows.length === 0) {
+          if (!cancelled) setTodaySummary("Henüz ders seçmedin — ders programını oluşturmak için Ders Kayıt'tan derslerini seç.");
+        } else {
+          const dersKoduBolumSeti = new Set(dersRows.filter((d) => d.ders_kodu).map((d) => `${d.ders_kodu}||${d.bolum}`));
+          const dersSayisi = dersRows.filter((d) => d.gun === gunAdi).length;
+          const { data: sinavRows } = await supabase
+            .from("sinav_takvimi")
+            .select("ders_kodu, bolum")
+            .eq("donem", guncelDonem)
+            .eq("tarih", bugunIso());
+          const sinavSayisi = (sinavRows || []).filter((s) => dersKoduBolumSeti.has(`${s.ders_kodu}||${s.bolum}`)).length;
+          if (!cancelled) {
+            const parcalar: string[] = [];
+            if (dersSayisi) parcalar.push(`${dersSayisi} dersin`);
+            if (sinavSayisi) parcalar.push(`${sinavSayisi} sınavın`);
+            setTodaySummary(parcalar.length ? `Bugün ${parcalar.join(" ve ")} var.` : "Bugün programında ders/sınav görünmüyor.");
+          }
         }
       }
     }
@@ -1040,6 +1078,9 @@ export default function Home() {
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/sosyal-sorumluluk" : "/academician/sosyal-sorumluluk"; }}><Icon name="users" size={19} /><span>Sosyal Sorumluluk</span></button>
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/kulupler" : "/academician/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
           <button onClick={() => { window.location.href = "/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
+          {role === "student" && (
+            <button onClick={() => { window.location.href = "/student/ders-kayit"; }}><Icon name="graduation" size={19} /><span>Ders Kayıt</span></button>
+          )}
           <button onClick={() => { window.location.href = "/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/yoklamalarim" : "/academician/yoklama"; }}><Icon name="check" size={19} /><span>Yoklama Takibi</span></button>
           <button onClick={() => { window.location.href = "/student/kampus-duvari"; }}><Icon name="message" size={19} /><span>Kampüs Duvarı</span></button>
@@ -1087,9 +1128,13 @@ export default function Home() {
                 ) : (
                   notifItems.map((n) => (
                     <div key={n.id} style={{ padding: "9px 10px", borderRadius: 9, fontSize: 12, display: "flex", gap: 8, alignItems: "flex-start" }}>
-                      <span style={{ marginTop: 2 }}><Icon name={n.tip === "duyuru" ? "spark" : "message"} size={15} /></span>
+                      <span style={{ marginTop: 2 }}><Icon name={n.tip === "duyuru" ? "spark" : n.tip === "ders_kaydi" ? "book" : "message"} size={15} /></span>
                       <span>
-                        {n.tip === "duyuru" ? "Yeni bir duyuru paylaşıldı." : "Gönderine yeni bir yorum geldi."}
+                        {n.tip === "duyuru"
+                          ? "Yeni bir duyuru paylaşıldı."
+                          : n.tip === "ders_kaydi"
+                            ? `${n.ogrenciAdi || "Bir öğrenci"}, ${n.dersAdi || "dersinize"} dersine kayıt oldu.`
+                            : "Gönderine yeni bir yorum geldi."}
                         <br />
                         <small style={{ color: "var(--muted)" }}>{new Date(n.created_at).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}</small>
                       </span>

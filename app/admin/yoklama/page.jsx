@@ -7,6 +7,32 @@ import { YOKLAMA_DURUMLARI, devamYuzdesiHesapla } from "../../../lib/yoklama";
 
 const inputStyle = { height: 36, padding: "0 10px", border: "1px solid #e3ebf6", borderRadius: 9, fontSize: 12.5, outline: "none" };
 
+// campuso_normalize_ad / campuso_ad_eslesiyor_mu (SQL) ile aynı mantığın
+// istemci tarafı karşılığı — toplu isim bazlı öneri ekranı için, ekstra
+// sunucu gidiş-gelişi olmadan hızlı eşleşme önerisi üretir.
+function normalizeAd(s) {
+  if (!s) return "";
+  let base = s.replace(/\b(Prof|Doç|Dr|Öğr|Gör|Üyesi|Arş|Yrd)\b\.?/gi, " ");
+  base = base
+    .replace(/İ/g, "i").replace(/I/g, "i").replace(/ı/g, "i")
+    .replace(/Ş/g, "s").replace(/ş/g, "s")
+    .replace(/Ğ/g, "g").replace(/ğ/g, "g")
+    .replace(/Ü/g, "u").replace(/ü/g, "u")
+    .replace(/Ö/g, "o").replace(/ö/g, "o")
+    .replace(/Ç/g, "c").replace(/ç/g, "c")
+    .replace(/[^a-z\s]/gi, " ")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  return base;
+}
+function adlarEslesiyorMu(a, b) {
+  const na = normalizeAd(a);
+  const nb = normalizeAd(b);
+  if (na.length < 6 || nb.length < 6) return false;
+  return na.includes(nb) || nb.includes(na);
+}
+
 export default function AdminYoklamaPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -20,6 +46,11 @@ export default function AdminYoklamaPage() {
   const [qrOturumIdSeti, setQrOturumIdSeti] = useState(new Set());
   const [profilMap, setProfilMap] = useState({});
   const [acikDers, setAcikDers] = useState(null);
+
+  const [topluSecim, setTopluSecim] = useState({}); // grupAnahtari -> akademisyenId
+  const [topluAramaMetni, setTopluAramaMetni] = useState({}); // grupAnahtari -> metin
+  const [topluAramaSonuc, setTopluAramaSonuc] = useState({}); // grupAnahtari -> [profil]
+  const [gizlenenGruplar, setGizlenenGruplar] = useState(new Set());
 
   async function loadAll() {
     const [{ data: d, error: dErr }, { data: akademisyenListe }, { data: oturumlar }, { data: qrOturumlar }] = await Promise.all([
@@ -97,6 +128,58 @@ export default function AdminYoklamaPage() {
     setBusy(false);
   }
 
+  // Toplu isim bazlı atama: akademisyen_id boş olan tüm dersleri hoca_adi'ye
+  // göre grupla (unvan/nokta farklarını normalize ederek), her grup için en
+  // iyi isim eşleşmesini öner. Admin tek grup için tek tıkla o hocanın
+  // TÜM derslerini birden atayabilir — 163 tekil karar yerine ~30-40 isim
+  // bazlı karar.
+  const topluGruplar = useMemo(() => {
+    const haritasi = new Map(); // normalizeAd(hoca_adi) -> grup
+    dersler.forEach((d) => {
+      if (d.akademisyen_id || !d.hoca_adi || !d.hoca_adi.trim()) return;
+      const anahtar = normalizeAd(d.hoca_adi);
+      if (!anahtar) return;
+      if (!haritasi.has(anahtar)) {
+        haritasi.set(anahtar, { anahtar, gosterimAdi: d.hoca_adi, hocaAdiVaryantlari: new Set(), dersIdler: [], dersOzet: [] });
+      }
+      const grup = haritasi.get(anahtar);
+      // En uzun (genelde unvanlı) varyantı gösterim adı olarak tut.
+      if (d.hoca_adi.length > grup.gosterimAdi.length) grup.gosterimAdi = d.hoca_adi;
+      grup.hocaAdiVaryantlari.add(d.hoca_adi);
+      grup.dersIdler.push(d.id);
+      grup.dersOzet.push(`${d.ders_kodu || ""} ${d.ders_adi || ""}`.trim());
+    });
+    return Array.from(haritasi.values())
+      .map((grup) => {
+        const oneri = akademisyenler.find((a) => adlarEslesiyorMu(a.full_name, grup.gosterimAdi));
+        return { ...grup, hocaAdiVaryantlari: Array.from(grup.hocaAdiVaryantlari), onerilenId: oneri?.id || "" };
+      })
+      .sort((a, b) => b.dersIdler.length - a.dersIdler.length);
+  }, [dersler, akademisyenler]);
+
+  async function handleTopluAta(grup) {
+    const akademisyenId = topluSecim[grup.anahtar] ?? grup.onerilenId;
+    if (!akademisyenId) return;
+    setBusy(true); setError(""); setMessage("");
+    const { error: err } = await supabase.from("ders_programi")
+      .update({ akademisyen_id: akademisyenId, akademisyen_id_manuel: true, eslesme_kaynagi: "admin_manuel" })
+      .in("id", grup.dersIdler);
+    if (err) setError("Toplu atama başarısız: " + err.message);
+    else { setMessage(`${grup.gosterimAdi}: ${grup.dersIdler.length} ders atandı.`); await loadAll(); }
+    setBusy(false);
+  }
+
+  function handleTopluGizle(grup) {
+    setGizlenenGruplar((prev) => new Set(prev).add(grup.anahtar));
+  }
+
+  async function handleTopluArama(grup, metin) {
+    setTopluAramaMetni((prev) => ({ ...prev, [grup.anahtar]: metin }));
+    if (!metin.trim()) { setTopluAramaSonuc((prev) => ({ ...prev, [grup.anahtar]: [] })); return; }
+    const { data } = await supabase.rpc("campuso_profil_ara", { p_arama: metin.trim() });
+    setTopluAramaSonuc((prev) => ({ ...prev, [grup.anahtar]: (data || []).filter((p) => p.role === "academician") }));
+  }
+
   async function handleOturumSil(id) {
     setBusy(true); setError("");
     const { error: err } = await supabase.from("yoklama_oturumlari").delete().eq("id", id);
@@ -131,6 +214,76 @@ export default function AdminYoklamaPage() {
             <div style={{ fontSize: 12.5, color: "#5b6b85", marginBottom: 16 }}>
               Bir akademisyenin bir derse yoklama girebilmesi için buradan o dersin gerçek öğretim üyesi hesabıyla eşleştirilmesi gerekir. Excel/elle giriş sırasında yalnız isim (metin) girilir, hesap ataması burada yapılır.
             </div>
+
+            {topluGruplar.filter((g) => !gizlenenGruplar.has(g.anahtar)).length > 0 && (
+              <section style={{ marginBottom: 20, background: "#fff", border: "1px solid #c7deff", borderRadius: 14, padding: 16 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800, marginBottom: 4 }}>⚡ Toplu Hoca Atama</div>
+                <div style={{ fontSize: 12, color: "#5b6b85", marginBottom: 14 }}>
+                  Ders programındaki isim (metin) ile bir akademisyen hesabı arasında eşleşme bulundu. Tek tıkla o hocanın TÜM derslerini birden ata — dersi tek tek dropdown'dan seçmene gerek yok.
+                </div>
+                <div style={{ display: "grid", gap: 10 }}>
+                  {topluGruplar.filter((g) => !gizlenenGruplar.has(g.anahtar)).map((grup) => {
+                    const secili = topluSecim[grup.anahtar] ?? grup.onerilenId;
+                    const aramaSonuc = topluAramaSonuc[grup.anahtar] || [];
+                    return (
+                      <div key={grup.anahtar} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: "#f5f8fc" }}>
+                        <div style={{ flex: "1 1 220px", minWidth: 180 }}>
+                          <b style={{ fontSize: 12.5 }}>{grup.gosterimAdi}</b>
+                          <div style={{ fontSize: 11, color: "#8fa0bc" }}>{grup.dersIdler.length} ders · {grup.dersOzet.slice(0, 3).join(", ")}{grup.dersOzet.length > 3 ? "…" : ""}</div>
+                        </div>
+                        {grup.onerilenId ? (
+                          <select
+                            style={inputStyle}
+                            value={secili}
+                            onChange={(e) => setTopluSecim((prev) => ({ ...prev, [grup.anahtar]: e.target.value }))}
+                          >
+                            {akademisyenler.map((a) => <option key={a.id} value={a.id}>{a.full_name || a.email}</option>)}
+                          </select>
+                        ) : (
+                          <div style={{ position: "relative", flex: "1 1 200px", minWidth: 160 }}>
+                            <input
+                              style={inputStyle}
+                              placeholder="Hesap bulunamadı — isimle ara…"
+                              value={topluAramaMetni[grup.anahtar] || ""}
+                              onChange={(e) => handleTopluArama(grup, e.target.value)}
+                            />
+                            {aramaSonuc.length > 0 && (
+                              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 5, background: "#fff", border: "1px solid #e3ebf6", borderRadius: 8, marginTop: 4, boxShadow: "0 8px 20px rgba(15,27,51,0.1)" }}>
+                                {aramaSonuc.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => { setTopluSecim((prev) => ({ ...prev, [grup.anahtar]: p.id })); setTopluAramaMetni((prev) => ({ ...prev, [grup.anahtar]: p.full_name })); setTopluAramaSonuc((prev) => ({ ...prev, [grup.anahtar]: [] })); }}
+                                    style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", fontSize: 12, border: "none", background: "none", cursor: "pointer" }}
+                                  >
+                                    {p.full_name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          onClick={() => handleTopluAta(grup)}
+                          disabled={busy || !secili}
+                          className="button button-primary"
+                          style={{ minHeight: 34, padding: "0 14px", fontSize: 12 }}
+                        >
+                          Onayla ({grup.dersIdler.length})
+                        </button>
+                        <button
+                          onClick={() => handleTopluGizle(grup)}
+                          disabled={busy}
+                          style={{ minHeight: 34, padding: "0 10px", fontSize: 11, border: "1px solid #e3ebf6", background: "#fff", color: "#8fa0bc", borderRadius: 8, cursor: "pointer" }}
+                        >
+                          Gizle
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             {dersler.length === 0 ? (
               <div style={{ display: "grid", placeItems: "center", minHeight: 100, border: "1px dashed var(--line)", borderRadius: 14, background: "var(--bg)", color: "var(--muted)", fontSize: 13 }}>Henüz ders programı girilmemiş.</div>

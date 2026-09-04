@@ -15,7 +15,7 @@ import {
 const inputStyle = { height: 42, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 11, fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" };
 const labelStyle = { display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 700, color: "#5b6b85" };
 
-const DERS_BOS_FORM = { bolum: "", sinif: "", ders_kodu: "", ders_adi: "", gun: GUNLER[0], baslangic_saat: "", bitis_saat: "", derslik: "", hoca_adi: "" };
+const DERS_BOS_FORM = { bolum: "", sinif: "", ders_kodu: "", ders_adi: "", gun: GUNLER[0], baslangic_saat: "", bitis_saat: "", derslik: "", hoca_adi: "", hoca_email: "" };
 const SINAV_BOS_FORM = { bolum: "", sinif: "", ders_kodu: "", ders_adi: "", sinav_turu: SINAV_TURLERI[0], tarih: "", saat: "", derslik: "", hoca_adi: "" };
 
 export default function AdminDersSinavPage() {
@@ -37,6 +37,8 @@ export default function AdminDersSinavPage() {
   const [filtreBolum, setFiltreBolum] = useState("");
   const [filtreSinif, setFiltreSinif] = useState("");
   const [akademisyenler, setAkademisyenler] = useState([]);
+  const [onayBekleyenler, setOnayBekleyenler] = useState([]);
+  const [adminId, setAdminId] = useState(null);
 
   function hocaAdinaGoreAkademisyenBul(hocaAdi) {
     if (!hocaAdi) return null;
@@ -46,16 +48,21 @@ export default function AdminDersSinavPage() {
   }
 
   async function loadAll() {
-    const [{ data: d, error: dErr }, { data: s, error: sErr }, { data: akademisyenListe }] = await Promise.all([
+    const [{ data: d, error: dErr }, { data: s, error: sErr }, { data: akademisyenListe }, { data: oneriListe, error: oErr }] = await Promise.all([
       supabase.from("ders_programi").select("*").order("bolum").order("sinif").order("gun").order("baslangic_saat"),
       supabase.from("sinav_takvimi").select("*").order("bolum").order("sinif").order("tarih").order("saat"),
       supabase.from("profiles").select("id, full_name").eq("role", "academician"),
+      supabase.from("akademisyen_eslesme_onerileri")
+        .select("*, ders_programi(id, ders_adi, ders_kodu, bolum, sinif, hoca_adi), akademisyen:profiles!onerilen_akademisyen_id(id, full_name, email)")
+        .eq("durum", "bekliyor")
+        .order("olusturulma_zamani"),
     ]);
     if (dErr) setError("Ders programı alınamadı: " + dErr.message);
     else setDersListe(d || []);
     if (sErr) setError((prev) => prev || "Sınav takvimi alınamadı: " + sErr.message);
     else setSinavListe(s || []);
     setAkademisyenler(akademisyenListe || []);
+    if (!oErr) setOnayBekleyenler(oneriListe || []);
   }
 
   useEffect(() => {
@@ -67,6 +74,7 @@ export default function AdminDersSinavPage() {
         setLoading(false);
         return;
       }
+      setAdminId(session.user.id);
       await loadAll();
       setLoading(false);
     }
@@ -95,7 +103,10 @@ export default function AdminDersSinavPage() {
   async function handleDersIceAktar() {
     if (!dersOnizleme?.gecerli?.length) return;
     setBusy(true); setError(""); setMessage("");
-    const satirlar = dersOnizleme.gecerli.map((satir) => ({ ...satir, akademisyen_id: hocaAdinaGoreAkademisyenBul(satir.hoca_adi) }));
+    const satirlar = dersOnizleme.gecerli.map((satir) => {
+      const eslesenId = hocaAdinaGoreAkademisyenBul(satir.hoca_adi);
+      return { ...satir, akademisyen_id: eslesenId, akademisyen_id_manuel: !!eslesenId };
+    });
     const eslesenSayisi = satirlar.filter((s) => s.akademisyen_id).length;
     const { error: err } = await supabase.from("ders_programi").insert(satirlar);
     if (err) setError("İçe aktarılamadı: " + err.message);
@@ -137,7 +148,9 @@ export default function AdminDersSinavPage() {
       bolum: dersForm.bolum.trim(), sinif: dersForm.sinif.trim(), ders_kodu: dersForm.ders_kodu.trim() || null,
       ders_adi: dersForm.ders_adi.trim(), gun: dersForm.gun, baslangic_saat: dersForm.baslangic_saat || null, bitis_saat: dersForm.bitis_saat || null,
       derslik: dersForm.derslik.trim() || null, hoca_adi: dersForm.hoca_adi.trim() || null,
+      hoca_email: dersForm.hoca_email.trim() || null,
       akademisyen_id: hocaAdinaGoreAkademisyenBul(dersForm.hoca_adi.trim()),
+      akademisyen_id_manuel: !!hocaAdinaGoreAkademisyenBul(dersForm.hoca_adi.trim()),
     }]);
     if (err) setError("Eklenemedi: " + err.message);
     else { setMessage("Ders eklendi."); setDersForm(DERS_BOS_FORM); await loadAll(); }
@@ -158,6 +171,42 @@ export default function AdminDersSinavPage() {
     }]);
     if (err) setError("Eklenemedi: " + err.message);
     else { setMessage("Sınav eklendi."); setSinavForm(SINAV_BOS_FORM); await loadAll(); }
+    setBusy(false);
+  }
+
+  async function handleOneriOnayla(oneri) {
+    setBusy(true); setError(""); setMessage("");
+    const { error: err1 } = await supabase.from("ders_programi").update({
+      akademisyen_id: oneri.onerilen_akademisyen_id, akademisyen_id_manuel: true, eslesme_kaynagi: "admin_onay",
+    }).eq("id", oneri.ders_id);
+    if (err1) { setError("Onaylanamadı: " + err1.message); setBusy(false); return; }
+    const { error: err2 } = await supabase.from("akademisyen_eslesme_onerileri").update({
+      durum: "onaylandi", karar_zamani: new Date().toISOString(), karar_veren_id: adminId,
+    }).eq("id", oneri.id);
+    if (err2) setError("Öneri güncellenemedi: " + err2.message);
+    else setMessage("Eşleşme onaylandı.");
+    await loadAll();
+    setBusy(false);
+  }
+
+  async function handleOneriReddet(oneri) {
+    setBusy(true); setError(""); setMessage("");
+    const { error: err } = await supabase.from("akademisyen_eslesme_onerileri").update({
+      durum: "reddedildi", karar_zamani: new Date().toISOString(), karar_veren_id: adminId,
+    }).eq("id", oneri.id);
+    if (err) setError("Reddedilemedi: " + err.message);
+    else setMessage("Eşleşme önerisi reddedildi.");
+    await loadAll();
+    setBusy(false);
+  }
+
+  async function handleHocaEmailDuzenle(ders) {
+    const yeni = window.prompt("Bu dersi veren hocanın e-postası (Supabase Auth ile giriş yaptığı e-posta):", ders.hoca_email || "");
+    if (yeni === null) return;
+    setBusy(true); setError(""); setMessage("");
+    const { error: err } = await supabase.from("ders_programi").update({ hoca_email: yeni.trim() || null }).eq("id", ders.id);
+    if (err) setError("E-posta kaydedilemedi: " + err.message);
+    else { setMessage("E-posta kaydedildi. Hoca bu e-posta ile giriş yaptığında ders otomatik ve güvenli şekilde bağlanacak."); await loadAll(); }
     setBusy(false);
   }
 
@@ -265,11 +314,38 @@ export default function AdminDersSinavPage() {
                     <label style={labelStyle}>Bitiş Saati (varsa)<input style={inputStyle} type="time" value={dersForm.bitis_saat} onChange={(e) => setDersForm((f) => ({ ...f, bitis_saat: e.target.value }))} /></label>
                     <label style={labelStyle}>Derslik<input style={inputStyle} value={dersForm.derslik} onChange={(e) => setDersForm((f) => ({ ...f, derslik: e.target.value }))} /></label>
                     <label style={labelStyle}>Öğretim Üyesi<input style={inputStyle} value={dersForm.hoca_adi} onChange={(e) => setDersForm((f) => ({ ...f, hoca_adi: e.target.value }))} /></label>
+                    <label style={labelStyle}>Hoca E-postası (varsa)<input style={inputStyle} type="email" placeholder="hoca@aybu.edu.tr" value={dersForm.hoca_email} onChange={(e) => setDersForm((f) => ({ ...f, hoca_email: e.target.value }))} /></label>
                     <div style={{ alignSelf: "end" }}>
                       <button type="submit" disabled={busy} className="button button-primary" style={{ minHeight: 42, padding: "0 16px", fontSize: 12, width: "100%" }}>Ekle</button>
                     </div>
                   </form>
                 </details>
+
+                {onayBekleyenler.length > 0 && (
+                  <section style={{ background: "#fffaf0", border: "1px solid #f4d9a8", borderRadius: 16, padding: 20, marginBottom: 20 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "#8a5a12", marginBottom: 4 }}>⚠ Onay bekleyen akademisyen eşleşmeleri ({onayBekleyenler.length})</div>
+                    <div style={{ fontSize: 12, color: "#8a5a12", marginBottom: 12 }}>
+                      Bir akademisyen hesabının adı, bir ders satırındaki öğretim üyesi adıyla eşleşti. Güvenlik nedeniyle bu eşleşme sadece SEN onaylarsan hesaba bağlanır — aksi halde hesap o dersi/yoklamayı göremez.
+                    </div>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {onayBekleyenler.map((o) => (
+                        <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #f4d9a8", borderRadius: 10, fontSize: 12.5, flexWrap: "wrap", background: "#fff" }}>
+                          <div>
+                            <b>{o.akademisyen?.full_name || "(isim yok)"}</b> ({o.akademisyen?.email || "e-posta yok"})
+                            <div style={{ color: "#5b6b85", marginTop: 2 }}>
+                              → {o.ders_programi?.ders_adi} {o.ders_programi?.ders_kodu ? `(${o.ders_programi.ders_kodu})` : ""} · {o.ders_programi?.bolum} / {o.ders_programi?.sinif}. sınıf
+                              <br />Ders satırındaki hoca adı: <i>{o.ders_programi?.hoca_adi}</i>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button onClick={() => handleOneriOnayla(o)} disabled={busy} style={{ minHeight: 32, padding: "0 12px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "none", background: "#22b879", color: "#fff", cursor: "pointer" }}>✓ Onayla</button>
+                            <button onClick={() => handleOneriReddet(o)} disabled={busy} style={{ minHeight: 32, padding: "0 12px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>✕ Reddet</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
                 <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 20 }}>
                   <FiltreBar bolumSecenekleri={bolumSecenekleri} filtreBolum={filtreBolum} setFiltreBolum={setFiltreBolum} filtreSinif={filtreSinif} setFiltreSinif={setFiltreSinif} onToplu={() => handleFiltrelenenleriSil("ders_programi")} busy={busy} />
@@ -282,9 +358,14 @@ export default function AdminDersSinavPage() {
                           <div style={{ color: "#5b6b85", marginTop: 2 }}>{d.gun}{d.baslangic_saat && d.bitis_saat ? ` ${d.baslangic_saat}–${d.bitis_saat}` : " · saat girilmedi"} {d.derslik ? `· ${d.derslik}` : ""} {d.hoca_adi ? `· ${d.hoca_adi}` : ""}</div>
                           {d.hoca_adi && (
                             <div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 700, color: d.akademisyen_id ? "#0b8f5c" : "#c65d1f" }}>
-                              {d.akademisyen_id ? "✓ Yoklama için hesap bağlı" : "⚠ Yoklama hesabı bağlanmadı — Yoklama Yönetimi'nden ata"}
+                              {d.akademisyen_id
+                                ? `✓ Yoklama için hesap bağlı${d.eslesme_kaynagi === "email" ? " (e-posta ile otomatik)" : d.eslesme_kaynagi === "admin_onay" ? " (admin onaylı)" : d.eslesme_kaynagi === "admin_manuel" ? " (admin atadı)" : ""}`
+                                : "⚠ Yoklama hesabı bağlanmadı — Yoklama Yönetimi'nden ata veya hoca e-postasını gir"}
                             </div>
                           )}
+                          <button type="button" onClick={() => handleHocaEmailDuzenle(d)} disabled={busy} style={{ marginTop: 3, fontSize: 10, fontWeight: 700, border: "none", background: "none", color: "#175cd3", cursor: "pointer", padding: 0 }}>
+                            {d.hoca_email ? `✉ ${d.hoca_email} (düzenle)` : "✉ Hoca e-postasını gir (güvenli otomatik eşleşme için)"}
+                          </button>
                         </div>
                         <button onClick={() => handleSil("ders_programi", d.id)} disabled={busy} style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, borderRadius: 8, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Sil</button>
                       </div>

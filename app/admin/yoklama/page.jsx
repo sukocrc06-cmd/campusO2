@@ -88,7 +88,7 @@ export default function AdminYoklamaPage() {
     // Elle yapılan bu seçim (boşa alma dahil) artık "manuel" işaretleniyor ki
     // sistemin arka planda çalışan otomatik hoca-eşleme mekanizması bu kararı
     // sonradan ezip tekrar otomatik bir hesaba bağlamasın.
-    const { error: err } = await supabase.from("ders_programi").update({ akademisyen_id: akademisyenId || null, akademisyen_id_manuel: true }).eq("id", dersId);
+    const { error: err } = await supabase.from("ders_programi").update({ akademisyen_id: akademisyenId || null, akademisyen_id_manuel: true, eslesme_kaynagi: akademisyenId ? "admin_manuel" : "yok" }).eq("id", dersId);
     if (err) setError("Atanamadı: " + err.message);
     else { setMessage("Akademisyen ataması güncellendi."); await loadAll(); }
     setBusy(false);

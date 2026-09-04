@@ -52,10 +52,14 @@ export default function AdminYoklamaPage() {
   const [topluAramaSonuc, setTopluAramaSonuc] = useState({}); // grupAnahtari -> [profil]
   const [gizlenenGruplar, setGizlenenGruplar] = useState(new Set());
   const [atanmisAcik, setAtanmisAcik] = useState(null); // akademisyen_id
+  const [aktifDonem, setAktifDonem] = useState("bahar");
 
   async function loadAll() {
+    const { data: donemSatiri } = await supabase.from("aktif_donem").select("donem").eq("id", true).maybeSingle();
+    const guncelDonem = donemSatiri?.donem || "bahar";
+    setAktifDonem(guncelDonem);
     const [{ data: d, error: dErr }, { data: akademisyenListe }, { data: oturumlar }, { data: qrOturumlar }] = await Promise.all([
-      supabase.from("ders_programi").select("*").order("bolum").order("sinif").order("ders_adi"),
+      supabase.from("ders_programi").select("*").eq("donem", guncelDonem).order("bolum").order("sinif").order("ders_adi"),
       supabase.from("profiles").select("id, full_name, email").eq("role", "academician").order("full_name"),
       supabase.from("yoklama_oturumlari").select("*"),
       supabase.from("yoklama_qr_oturumlari").select("oturum_id"),
@@ -214,7 +218,10 @@ export default function AdminYoklamaPage() {
           <Link href="/" style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 11, border: "1px solid var(--line, #e3ebf6)", background: "var(--bg, #f5f8fc)", color: "var(--blue-700, #175cd3)", textDecoration: "none" }}>←</Link>
           <div>
             <div style={{ fontSize: 11, fontWeight: 820, letterSpacing: ".12em", color: "var(--blue-700, #175cd3)" }}>VOL 1-12 · YOKLAMA TAKİBİ</div>
-            <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.02em" }}>Yoklama Yönetimi</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.02em" }}>Yoklama Yönetimi</span>
+              <span style={{ fontSize: 10.5, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#e3faf0", color: "#0b8f5c" }}>{aktifDonem === "guz" ? "Güz Dönemi" : "Bahar Dönemi"}</span>
+            </div>
           </div>
         </div>
         <Link href="/" className="button button-secondary" style={{ minHeight: 40, padding: "0 16px", fontSize: 13 }}>Panele dön</Link>

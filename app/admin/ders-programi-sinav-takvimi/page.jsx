@@ -18,6 +18,8 @@ const labelStyle = { display: "flex", flexDirection: "column", gap: 5, fontSize:
 const DERS_BOS_FORM = { bolum: "", sinif: "", ders_kodu: "", ders_adi: "", gun: GUNLER[0], baslangic_saat: "", bitis_saat: "", derslik: "", hoca_adi: "", hoca_email: "" };
 const SINAV_BOS_FORM = { bolum: "", sinif: "", ders_kodu: "", ders_adi: "", sinav_turu: SINAV_TURLERI[0], tarih: "", saat: "", derslik: "", hoca_adi: "" };
 
+const DONEM_ETIKET = { guz: "Güz", bahar: "Bahar" };
+
 // Bölüm/Sınıf bazlı katlanabilir gruplar — uzun düz listeleri (163+ kayıt)
 // varsayılan kapalı, kısa başlıklara ayırarak admin panelindeki sonu gelmeyen
 // scroll sorununu çözer. Her grup { bolum, sinif, kayitlar } biçiminde döner.
@@ -59,6 +61,16 @@ export default function AdminDersSinavPage() {
   const [onayBekleyenler, setOnayBekleyenler] = useState([]);
   const [adminId, setAdminId] = useState(null);
 
+  // Güz/Bahar dönem ayrımı: "aktifDonem" tüm sistemde (öğrenci/akademisyen
+  // ders programı, yoklama, QR yoklama) canlı olarak gösterilen dönemdir —
+  // admin panelinden değiştirilince her yere otomatik yansır. "donemGoruntule"
+  // ise SADECE bu admin ekranında hangi dönemin görüntülendiğini/düzenlendiğini
+  // belirler (varsayılan olarak aktif dönemle aynı başlar, admin isterse diğer
+  // dönemi görüntüleyip düzenleyebilir — aktif dönemi değiştirmeden).
+  const [aktifDonem, setAktifDonem] = useState("bahar");
+  const [donemGoruntule, setDonemGoruntule] = useState("bahar");
+  const [donemKaydediliyor, setDonemKaydediliyor] = useState(false);
+
   function hocaAdinaGoreAkademisyenBul(hocaAdi) {
     if (!hocaAdi) return null;
     const temiz = hocaAdi.trim().toLocaleLowerCase("tr-TR");
@@ -67,7 +79,7 @@ export default function AdminDersSinavPage() {
   }
 
   async function loadAll() {
-    const [{ data: d, error: dErr }, { data: s, error: sErr }, { data: akademisyenListe }, { data: oneriListe, error: oErr }] = await Promise.all([
+    const [{ data: d, error: dErr }, { data: s, error: sErr }, { data: akademisyenListe }, { data: oneriListe, error: oErr }, { data: donemSatiri }] = await Promise.all([
       supabase.from("ders_programi").select("*").order("bolum").order("sinif").order("gun").order("baslangic_saat"),
       supabase.from("sinav_takvimi").select("*").order("bolum").order("sinif").order("tarih").order("saat"),
       supabase.from("profiles").select("id, full_name").eq("role", "academician"),
@@ -75,6 +87,7 @@ export default function AdminDersSinavPage() {
         .select("*, ders_programi(id, ders_adi, ders_kodu, bolum, sinif, hoca_adi), akademisyen:profiles!onerilen_akademisyen_id(id, full_name, email)")
         .eq("durum", "bekliyor")
         .order("olusturulma_zamani"),
+      supabase.from("aktif_donem").select("donem").eq("id", true).maybeSingle(),
     ]);
     if (dErr) setError("Ders programı alınamadı: " + dErr.message);
     else setDersListe(d || []);
@@ -82,6 +95,23 @@ export default function AdminDersSinavPage() {
     else setSinavListe(s || []);
     setAkademisyenler(akademisyenListe || []);
     if (!oErr) setOnayBekleyenler(oneriListe || []);
+    if (donemSatiri?.donem) {
+      setAktifDonem(donemSatiri.donem);
+      setDonemGoruntule((prev) => prev || donemSatiri.donem);
+    }
+  }
+
+  async function handleAktifDonemDegistir(yeniDonem) {
+    if (yeniDonem === aktifDonem || donemKaydediliyor) return;
+    const onay = window.confirm(
+      `Aktif dönemi "${DONEM_ETIKET[yeniDonem]}" yapmak istediğine emin misin? Bu değişiklik ANINDA tüm öğrenci/akademisyen ders programı, yoklama ve QR yoklama ekranlarına yansır.`,
+    );
+    if (!onay) return;
+    setDonemKaydediliyor(true); setError(""); setMessage("");
+    const { error: err } = await supabase.from("aktif_donem").update({ donem: yeniDonem }).eq("id", true);
+    if (err) setError("Aktif dönem değiştirilemedi: " + err.message);
+    else { setAktifDonem(yeniDonem); setMessage(`Aktif dönem "${DONEM_ETIKET[yeniDonem]}" olarak ayarlandı — tüm ekranlara yansıdı.`); }
+    setDonemKaydediliyor(false);
   }
 
   useEffect(() => {
@@ -101,9 +131,12 @@ export default function AdminDersSinavPage() {
   }, []);
 
   const bolumSecenekleri = useMemo(() => {
-    const set = new Set([...dersListe.map((d) => d.bolum), ...sinavListe.map((s) => s.bolum)]);
+    const set = new Set([
+      ...dersListe.filter((d) => (d.donem || "bahar") === donemGoruntule).map((d) => d.bolum),
+      ...sinavListe.filter((s) => (s.donem || "bahar") === donemGoruntule).map((s) => s.bolum),
+    ]);
     return Array.from(set).filter(Boolean).sort();
-  }, [dersListe, sinavListe]);
+  }, [dersListe, sinavListe, donemGoruntule]);
 
   async function handleDersDosya(e) {
     const file = e.target.files?.[0];
@@ -124,7 +157,7 @@ export default function AdminDersSinavPage() {
     setBusy(true); setError(""); setMessage("");
     const satirlar = dersOnizleme.gecerli.map((satir) => {
       const eslesenId = hocaAdinaGoreAkademisyenBul(satir.hoca_adi);
-      return { ...satir, akademisyen_id: eslesenId, akademisyen_id_manuel: !!eslesenId };
+      return { ...satir, akademisyen_id: eslesenId, akademisyen_id_manuel: !!eslesenId, donem: donemGoruntule };
     });
     const eslesenSayisi = satirlar.filter((s) => s.akademisyen_id).length;
     const { error: err } = await supabase.from("ders_programi").insert(satirlar);
@@ -150,7 +183,8 @@ export default function AdminDersSinavPage() {
   async function handleSinavIceAktar() {
     if (!sinavOnizleme?.gecerli?.length) return;
     setBusy(true); setError(""); setMessage("");
-    const { error: err } = await supabase.from("sinav_takvimi").insert(sinavOnizleme.gecerli);
+    const satirlar = sinavOnizleme.gecerli.map((satir) => ({ ...satir, donem: donemGoruntule }));
+    const { error: err } = await supabase.from("sinav_takvimi").insert(satirlar);
     if (err) setError("İçe aktarılamadı: " + err.message);
     else { setMessage(`${sinavOnizleme.gecerli.length} sınav takvimi satırı eklendi.`); setSinavOnizleme(null); await loadAll(); }
     setBusy(false);
@@ -170,6 +204,7 @@ export default function AdminDersSinavPage() {
       hoca_email: dersForm.hoca_email.trim() || null,
       akademisyen_id: hocaAdinaGoreAkademisyenBul(dersForm.hoca_adi.trim()),
       akademisyen_id_manuel: !!hocaAdinaGoreAkademisyenBul(dersForm.hoca_adi.trim()),
+      donem: donemGoruntule,
     }]);
     if (err) setError("Eklenemedi: " + err.message);
     else { setMessage("Ders eklendi."); setDersForm(DERS_BOS_FORM); await loadAll(); }
@@ -187,6 +222,7 @@ export default function AdminDersSinavPage() {
       bolum: sinavForm.bolum.trim(), sinif: sinavForm.sinif.trim(), ders_kodu: sinavForm.ders_kodu.trim() || null,
       ders_adi: sinavForm.ders_adi.trim(), sinav_turu: sinavForm.sinav_turu, tarih: sinavForm.tarih, saat: sinavForm.saat,
       derslik: sinavForm.derslik.trim() || null, hoca_adi: sinavForm.hoca_adi.trim() || null,
+      donem: donemGoruntule,
     }]);
     if (err) setError("Eklenemedi: " + err.message);
     else { setMessage("Sınav eklendi."); setSinavForm(SINAV_BOS_FORM); await loadAll(); }
@@ -242,7 +278,7 @@ export default function AdminDersSinavPage() {
     const onay = window.confirm(`${filtreBolum}${filtreSinif ? " / " + filtreSinif + ". sınıf" : ""} için tüm kayıtları silmek istediğine emin misin?`);
     if (!onay) return;
     setBusy(true); setError("");
-    let query = supabase.from(tablo).delete().eq("bolum", filtreBolum);
+    let query = supabase.from(tablo).delete().eq("bolum", filtreBolum).eq("donem", donemGoruntule);
     if (filtreSinif) query = query.eq("sinif", filtreSinif);
     const { error: err } = await query;
     if (err) setError("Silinemedi: " + err.message);
@@ -250,8 +286,8 @@ export default function AdminDersSinavPage() {
     setBusy(false);
   }
 
-  const filtrelenmisDers = dersListe.filter((d) => (!filtreBolum || d.bolum === filtreBolum) && (!filtreSinif || d.sinif === filtreSinif));
-  const filtrelenmisSinav = sinavListe.filter((s) => (!filtreBolum || s.bolum === filtreBolum) && (!filtreSinif || s.sinif === filtreSinif));
+  const filtrelenmisDers = dersListe.filter((d) => (d.donem || "bahar") === donemGoruntule && (!filtreBolum || d.bolum === filtreBolum) && (!filtreSinif || d.sinif === filtreSinif));
+  const filtrelenmisSinav = sinavListe.filter((s) => (s.donem || "bahar") === donemGoruntule && (!filtreBolum || s.bolum === filtreBolum) && (!filtreSinif || s.sinif === filtreSinif));
 
   // Bölüm/Sınıf bazlı katlanabilir gruplar — 163+ kaydı tek düz liste yerine
   // varsayılan kapalı başlıklara ayırarak scroll'u kısaltır.
@@ -281,6 +317,45 @@ export default function AdminDersSinavPage() {
           <div style={{ padding: 20, borderRadius: 14, background: "#fff4f0", border: "1px solid #f2c5ba", color: "#984333", fontSize: 13 }}>{error}</div>
         ) : (
           <>
+            <section style={{ background: "#fffaf0", border: "1px solid #f4d9a8", borderRadius: 16, padding: "14px 18px", marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#8a5a12" }}>🔄 Şu an sistemde AKTİF dönem: {DONEM_ETIKET[aktifDonem]}</div>
+                <div style={{ fontSize: 11.5, color: "#8a5a12", marginTop: 2 }}>Öğrenci/akademisyen ders programı, yoklama ve QR yoklama ekranlarında görünen dönem budur.</div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {["guz", "bahar"].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    disabled={donemKaydediliyor || d === aktifDonem}
+                    onClick={() => handleAktifDonemDegistir(d)}
+                    style={{
+                      padding: "9px 16px", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: d === aktifDonem ? "default" : "pointer",
+                      border: d === aktifDonem ? "1px solid #22b879" : "1px solid #f4d9a8",
+                      background: d === aktifDonem ? "#e3faf0" : "#fff",
+                      color: d === aktifDonem ? "#0b8f5c" : "#8a5a12",
+                    }}
+                  >
+                    {d === aktifDonem ? `✓ ${DONEM_ETIKET[d]} (aktif)` : `${DONEM_ETIKET[d]}'ı aktif yap`}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: "#5b6b85" }}>Görüntülenen/düzenlenen dönem:</span>
+              {["guz", "bahar"].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDonemGoruntule(d)}
+                  style={{ padding: "7px 14px", borderRadius: 999, border: donemGoruntule === d ? "1px solid #175cd3" : "1px solid #e3ebf6", background: donemGoruntule === d ? "#175cd3" : "#fff", color: donemGoruntule === d ? "#fff" : "#5b6b85", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                >
+                  {DONEM_ETIKET[d]}
+                </button>
+              ))}
+            </div>
+
             <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
               <button type="button" onClick={() => setTab("ders")} style={{ padding: "10px 18px", borderRadius: 999, border: tab === "ders" ? "1px solid #175cd3" : "1px solid #e3ebf6", background: tab === "ders" ? "#175cd3" : "#fff", color: tab === "ders" ? "#fff" : "#5b6b85", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Ders Programı</button>
               <button type="button" onClick={() => setTab("sinav")} style={{ padding: "10px 18px", borderRadius: 999, border: tab === "sinav" ? "1px solid #175cd3" : "1px solid #e3ebf6", background: tab === "sinav" ? "#175cd3" : "#fff", color: tab === "sinav" ? "#fff" : "#5b6b85", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Sınav Takvimi</button>

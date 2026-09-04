@@ -37,6 +37,7 @@ export default function DersSinavTakvimiPage() {
   const [userId, setUserId] = useState(null);
   const [isAcademician, setIsAcademician] = useState(false);
   const [kendiAdi, setKendiAdi] = useState("");
+  const [aktifDonem, setAktifDonem] = useState("bahar");
 
   const [dersListe, setDersListe] = useState([]);
   const [sinavListe, setSinavListe] = useState([]);
@@ -96,9 +97,13 @@ export default function DersSinavTakvimiPage() {
       // sayfa yüklemesinde değişebilir ve bu da kişisel gizleme/sürükleme
       // tercihlerinin (ders_sinav_kisisel, akademisyen_id_manuel) tutarsız
       // görünmesine yol açabilirdi.
+      const { data: donemSatiri } = await supabase.from("aktif_donem").select("donem").eq("id", true).maybeSingle();
+      const guncelDonem = donemSatiri?.donem || "bahar";
+      setAktifDonem(guncelDonem);
+
       const [{ data: d, error: dErr }, { data: s, error: sErr }] = await Promise.all([
-        supabase.from("ders_programi").select("*").order("ders_kodu").order("bolum").order("id"),
-        supabase.from("sinav_takvimi").select("*").order("ders_kodu").order("bolum").order("id"),
+        supabase.from("ders_programi").select("*").eq("donem", guncelDonem).order("ders_kodu").order("bolum").order("id"),
+        supabase.from("sinav_takvimi").select("*").eq("donem", guncelDonem).order("ders_kodu").order("bolum").order("id"),
       ]);
       if (dErr) setError("Ders programı alınamadı: " + dErr.message);
       else setDersListe(d || []);
@@ -343,7 +348,10 @@ export default function DersSinavTakvimiPage() {
           <Link href={roleHref} style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 11, border: "1px solid #e3ebf6", background: "#f5f8fc", color: "#175cd3", textDecoration: "none" }}>←</Link>
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", color: "#175cd3" }}>VOL 1-8 · DERS VE SINAV TAKVİMİ</div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>Ders Programı & Sınav Takvimi</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 700 }}>Ders Programı & Sınav Takvimi</span>
+              <span style={{ fontSize: 10.5, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#e3faf0", color: "#0b8f5c" }}>{aktifDonem === "guz" ? "Güz Dönemi" : "Bahar Dönemi"}</span>
+            </div>
           </div>
         </div>
         <Link href={roleHref} style={{ minHeight: 40, padding: "0 16px", fontSize: 13, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 12, border: "1px solid #c7deff", color: "#0e4bae" }}>Panele dön</Link>

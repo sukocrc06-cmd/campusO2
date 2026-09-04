@@ -41,7 +41,9 @@ export default function AkademisyenQrYoklamaPage() {
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
       if (profile?.role !== "academician") { setError("Bu sayfa yalnız akademisyenler içindir."); setLoading(false); return; }
       setUserId(session.user.id);
-      const { data, error: err } = await supabase.from("ders_programi").select("*").eq("akademisyen_id", session.user.id).order("ders_adi");
+      const { data: donemSatiri } = await supabase.from("aktif_donem").select("donem").eq("id", true).maybeSingle();
+      const guncelDonem = donemSatiri?.donem || "bahar";
+      const { data, error: err } = await supabase.from("ders_programi").select("*").eq("akademisyen_id", session.user.id).eq("donem", guncelDonem).order("ders_adi");
       if (err) { setError("Derslerin alınamadı: " + err.message); setLoading(false); return; }
       setDersler(data || []);
       if (data && data.length > 0) setSecilenDersId(data[0].id);

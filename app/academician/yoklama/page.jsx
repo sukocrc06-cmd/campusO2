@@ -57,7 +57,9 @@ export default function AkademisyenYoklamaPage() {
   const secilenDers = dersler.find((d) => d.id === secilenDersId) || null;
 
   async function derslerYukle(uid) {
-    const { data, error: err } = await supabase.from("ders_programi").select("*").eq("akademisyen_id", uid).order("ders_adi");
+    const { data: donemSatiri } = await supabase.from("aktif_donem").select("donem").eq("id", true).maybeSingle();
+    const guncelDonem = donemSatiri?.donem || "bahar";
+    const { data, error: err } = await supabase.from("ders_programi").select("*").eq("akademisyen_id", uid).eq("donem", guncelDonem).order("ders_adi");
     if (err) { setError("Derslerin alınamadı: " + err.message); return; }
     setDersler(data || []);
     if (data && data.length > 0 && !secilenDersId) setSecilenDersId(data[0].id);

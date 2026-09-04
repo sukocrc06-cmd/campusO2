@@ -145,15 +145,48 @@ export default function DersSinavTakvimiPage() {
     return hocaAdi.toLocaleLowerCase("tr-TR").includes(kendiAdi.toLocaleLowerCase("tr-TR")) || kendiAdi.toLocaleLowerCase("tr-TR").includes(hocaAdi.toLocaleLowerCase("tr-TR"));
   }
 
+  // Aynı ders bazen birden fazla bölüme birlikte veriliyor (örn. "İşletme +
+  // Uluslararası Ticaret" ortak oturumu) — bu durumda ders_programi'nde aynı
+  // gün/saat/hoca için birden fazla satır bulunur (her bölüm için bir satır),
+  // çünkü öğrenci tarafı bölüm/sınıfa göre filtreleniyor. Akademisyenin kendi
+  // takviminde bu aynı dersin iki kez görünmesini istemiyoruz; bu yüzden
+  // akademisyen görünümünde gün+saat+ders kodu+hoca aynı olan satırları tek
+  // karta indirip bölüm adlarını birleştiriyoruz.
+  function dersleriBirlestir(liste) {
+    const gruplar = new Map();
+    liste.forEach((d) => {
+      const anahtar = [d.ders_kodu || d.ders_adi, d.gun, d.baslangic_saat, d.bitis_saat, (d.hoca_adi || "").toLocaleLowerCase("tr-TR")].join("|");
+      const mevcut = gruplar.get(anahtar);
+      if (!mevcut) gruplar.set(anahtar, { ...d, _bolumler: new Set([d.bolum].filter(Boolean)) });
+      else if (d.bolum) mevcut._bolumler.add(d.bolum);
+    });
+    return Array.from(gruplar.values()).map((d) => ({ ...d, bolum: Array.from(d._bolumler).join(" + ") }));
+  }
+
+  function sinavlariBirlestir(liste) {
+    const gruplar = new Map();
+    liste.forEach((s) => {
+      const anahtar = [s.ders_kodu || s.ders_adi, s.tarih, s.saat, (s.hoca_adi || "").toLocaleLowerCase("tr-TR")].join("|");
+      const mevcut = gruplar.get(anahtar);
+      if (!mevcut) gruplar.set(anahtar, { ...s, _bolumler: new Set([s.bolum].filter(Boolean)) });
+      else if (s.bolum) mevcut._bolumler.add(s.bolum);
+    });
+    return Array.from(gruplar.values()).map((s) => ({ ...s, bolum: Array.from(s._bolumler).join(" + ") }));
+  }
+
   const temelFiltrelenmisDers = useMemo(() => {
-    if (isAcademician) return sadeceDerslerim ? dersListe.filter((d) => hocaEslesiyorMu(d.hoca_adi)) : dersListe;
+    if (isAcademician) {
+      const liste = sadeceDerslerim ? dersListe.filter((d) => hocaEslesiyorMu(d.hoca_adi)) : dersListe;
+      return dersleriBirlestir(liste);
+    }
     return dersListe.filter((d) => d.bolum === secilenBolum && d.sinif === secilenSinif);
   }, [dersListe, secilenBolum, secilenSinif, isAcademician, sadeceDerslerim, kendiAdi]);
 
   const temelFiltrelenmisSinav = useMemo(() => {
-    const liste = isAcademician
+    let liste = isAcademician
       ? (sadeceDerslerim ? sinavListe.filter((s) => hocaEslesiyorMu(s.hoca_adi)) : sinavListe)
       : sinavListe.filter((s) => s.bolum === secilenBolum && s.sinif === secilenSinif);
+    if (isAcademician) liste = sinavlariBirlestir(liste);
     return [...liste].sort((a, b) => (a.tarih + a.saat).localeCompare(b.tarih + b.saat));
   }, [sinavListe, secilenBolum, secilenSinif, isAcademician, sadeceDerslerim, kendiAdi]);
 

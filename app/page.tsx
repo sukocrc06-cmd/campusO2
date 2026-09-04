@@ -5,6 +5,9 @@ import { fetchWithAuth, getCampusSession, supabase } from "../lib/supabase";
 import { TAKVIM_TURLERI, AY_ADLARI, GUN_KISALTMALARI, tarihIso, ayIzgarasiUret } from "../lib/kisisel-takvim";
 
 const takvimInputStyle = { height: 42, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 11, fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" as const };
+// Bir günde birden fazla etkinlik türü varsa hücrenin tamamını dolduracak
+// "baskın" türü belirlemek için öncelik sırası (en dikkat gerektirenden aza).
+const TUR_ONCELIK = ["sinav", "proje", "sunum", "ders", "diger"];
 
 type Role = "student" | "faculty";
 type IconName =
@@ -492,6 +495,8 @@ function StudentTakvimWidget({ userId }: { userId?: string | null; bolum?: strin
                 const etkinlikler = takvimGunEtkinlikleri.get(iso) || [];
                 const buGunMu = iso === bugunIso();
                 const seciliMi = iso === secilenGun;
+                const baskinTur = etkinlikler.length ? (TUR_ONCELIK.find((t) => etkinlikler.some((e) => e.tur === t)) || etkinlikler[0].tur) as keyof typeof TAKVIM_TURLERI : null;
+                const digerTurler = baskinTur ? Array.from(new Set(etkinlikler.map((e) => e.tur))).filter((t) => t !== baskinTur) : [];
                 return (
                   <button
                     key={idx}
@@ -499,17 +504,20 @@ function StudentTakvimWidget({ userId }: { userId?: string | null; bolum?: strin
                     onClick={() => setSecilenGun(iso)}
                     style={{
                       minHeight: 56, borderRadius: 10, padding: "6px 4px", textAlign: "left", cursor: "pointer",
-                      border: seciliMi ? "2px solid #175cd3" : buGunMu ? "1px solid #175cd3" : "1px solid #e3ebf6",
-                      background: seciliMi ? "#eef5ff" : "#fff", display: "flex", flexDirection: "column", gap: 3,
+                      border: seciliMi ? "2px solid #175cd3" : baskinTur ? "1px solid transparent" : buGunMu ? "1px solid #175cd3" : "1px solid #e3ebf6",
+                      outline: buGunMu ? "2px solid #175cd3" : "none", outlineOffset: -2,
+                      background: baskinTur ? TAKVIM_TURLERI[baskinTur].color : seciliMi ? "#eef5ff" : "#fff",
+                      display: "flex", flexDirection: "column", gap: 3,
                     }}
                   >
-                    <span style={{ fontSize: 11, fontWeight: buGunMu ? 800 : 600, color: buGunMu ? "#175cd3" : "#0f1b33" }}>{gun}</span>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
-                      {etkinlikler.slice(0, 3).map((e) => (
-                        <span key={e.id} style={{ width: 6, height: 6, borderRadius: "50%", background: TAKVIM_TURLERI[e.tur as keyof typeof TAKVIM_TURLERI]?.color || "#8fa0bc", display: "inline-block" }} />
-                      ))}
-                      {etkinlikler.length > 3 && <span style={{ fontSize: 8, color: "#8fa0bc" }}>+{etkinlikler.length - 3}</span>}
-                    </div>
+                    <span style={{ fontSize: 11, fontWeight: buGunMu || baskinTur ? 800 : 600, color: baskinTur ? "#fff" : buGunMu ? "#175cd3" : "#0f1b33" }}>{gun}</span>
+                    {digerTurler.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
+                        {digerTurler.slice(0, 3).map((t) => (
+                          <span key={t} style={{ width: 6, height: 6, borderRadius: "50%", background: TAKVIM_TURLERI[t as keyof typeof TAKVIM_TURLERI]?.color || "#8fa0bc", border: "1px solid #fff", display: "inline-block" }} />
+                        ))}
+                      </div>
+                    )}
                   </button>
                 );
               })}

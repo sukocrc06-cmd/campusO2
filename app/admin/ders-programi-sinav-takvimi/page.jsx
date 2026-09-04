@@ -359,7 +359,7 @@ export default function AdminDersSinavPage() {
                           {d.hoca_adi && (
                             <div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 700, color: d.akademisyen_id ? "#0b8f5c" : "#c65d1f" }}>
                               {d.akademisyen_id
-                                ? `✓ Yoklama için hesap bağlı${d.eslesme_kaynagi === "email" ? " (e-posta ile otomatik)" : d.eslesme_kaynagi === "admin_onay" ? " (admin onaylı)" : d.eslesme_kaynagi === "admin_manuel" ? " (admin atadı)" : ""}`
+                                ? `✓ Yoklama için hesap bağlı${d.eslesme_kaynagi === "email" ? " (e-posta ile otomatik)" : d.eslesme_kaynagi === "katalog" ? " (resmi ders kataloğuyla otomatik doğrulandı)" : d.eslesme_kaynagi === "admin_onay" ? " (admin onaylı)" : d.eslesme_kaynagi === "admin_manuel" ? " (admin atadı)" : ""}`
                                 : "⚠ Yoklama hesabı bağlanmadı — Yoklama Yönetimi'nden ata veya hoca e-postasını gir"}
                             </div>
                           )}

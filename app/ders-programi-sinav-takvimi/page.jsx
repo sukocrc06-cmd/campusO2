@@ -89,9 +89,16 @@ export default function DersSinavTakvimiPage() {
       setUserId(session.user.id);
       setKendiAdi(profile?.full_name || "");
 
+      // Sabit bir sıralama şart: akademisyen görünümünde ortak (çoklu bölüm)
+      // dersler ders koduna göre gruplanıp tek karta indirgeniyor
+      // (dersleriBirlestir/sinavlariBirlestir) — sıralama olmadan Postgres
+      // satır sırası garanti edilmediği için, grubun "temsilci" satırı her
+      // sayfa yüklemesinde değişebilir ve bu da kişisel gizleme/sürükleme
+      // tercihlerinin (ders_sinav_kisisel, akademisyen_id_manuel) tutarsız
+      // görünmesine yol açabilirdi.
       const [{ data: d, error: dErr }, { data: s, error: sErr }] = await Promise.all([
-        supabase.from("ders_programi").select("*"),
-        supabase.from("sinav_takvimi").select("*"),
+        supabase.from("ders_programi").select("*").order("ders_kodu").order("bolum").order("id"),
+        supabase.from("sinav_takvimi").select("*").order("ders_kodu").order("bolum").order("id"),
       ]);
       if (dErr) setError("Ders programı alınamadı: " + dErr.message);
       else setDersListe(d || []);
@@ -573,7 +580,9 @@ export default function DersSinavTakvimiPage() {
                                 ) : (
                                   <div style={{ display: "flex", gap: 8, marginTop: 5 }}>
                                     <button onClick={() => notDuzenlemeyeBasla("ders", d.id)} style={{ fontSize: 9.5, fontWeight: 700, border: "none", background: "none", color: "#175cd3", cursor: "pointer", padding: 0 }}>{kisisel?.not_metni ? "Notu Düzenle" : "Not Ekle"}</button>
-                                    <button onClick={() => handleGizleAc("ders", d.id)} disabled={busy} style={{ fontSize: 9.5, fontWeight: 700, border: "none", background: "none", color: "#8fa0bc", cursor: "pointer", padding: 0 }}>{kisisel?.gizli ? "Göster" : "Gizle"}</button>
+                                    <button onClick={() => handleGizleAc("ders", d.id)} disabled={busy} title={isAcademician ? "Bu ders adınla otomatik eşleşti ama size ait değilse listeden çıkarabilirsiniz" : undefined} style={{ fontSize: 9.5, fontWeight: 700, border: "none", background: "none", color: "#8fa0bc", cursor: "pointer", padding: 0 }}>
+                                      {kisisel?.gizli ? "Tekrar Göster" : isAcademician ? "Bu ders bana ait değil, çıkar" : "Gizle"}
+                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -624,7 +633,9 @@ export default function DersSinavTakvimiPage() {
                         ) : (
                           <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                             <button onClick={() => notDuzenlemeyeBasla("sinav", s.id)} style={{ fontSize: 11, fontWeight: 700, border: "none", background: "none", color: "#175cd3", cursor: "pointer", padding: 0 }}>{kisisel?.not_metni ? "Notu Düzenle" : "Not Ekle"}</button>
-                            <button onClick={() => handleGizleAc("sinav", s.id)} disabled={busy} style={{ fontSize: 11, fontWeight: 700, border: "none", background: "none", color: "#8fa0bc", cursor: "pointer", padding: 0 }}>{kisisel?.gizli ? "Göster" : "Gizle"}</button>
+                            <button onClick={() => handleGizleAc("sinav", s.id)} disabled={busy} style={{ fontSize: 11, fontWeight: 700, border: "none", background: "none", color: "#8fa0bc", cursor: "pointer", padding: 0 }}>
+                              {kisisel?.gizli ? "Tekrar Göster" : isAcademician ? "Bu sınav bana ait değil, çıkar" : "Gizle"}
+                            </button>
                           </div>
                         )}
                       </div>

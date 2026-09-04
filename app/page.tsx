@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchWithAuth, getCampusSession, supabase } from "../lib/supabase";
+import { TAKVIM_TURLERI, AY_ADLARI, GUN_KISALTMALARI, tarihIso, ayIzgarasiUret } from "../lib/kisisel-takvim";
 
 type Role = "student" | "faculty";
 type IconName =
@@ -370,16 +371,200 @@ async function goToAcadexTeacherPanel() {
   }
 }
 
+// Öğrenci ana sayfasındaki mini takvim: ay ızgarası (ders/sınav/kişisel
+// etkinlik noktalarıyla) + önümüzdeki 7 gün için birleşik bir ajanda
+// listesi. Tam özellikli takvim/ders programı zaten /ders-programi-sinav-takvimi
+// sayfasında var — burası sadece hızlı bir önizleme, "Tam takvimi aç" ile
+// oraya yönlendirir.
+function StudentTakvimWidget({ userId, bolum, sinif }: { userId?: string | null; bolum?: string; sinif?: string }) {
+  const bugun = new Date();
+  const [yil, setYil] = useState(bugun.getFullYear());
+  const [ay, setAy] = useState(bugun.getMonth());
+  const [dersListe, setDersListe] = useState<any[]>([]);
+  const [sinavListe, setSinavListe] = useState<any[]>([]);
+  const [kisiselEtkinlikler, setKisiselEtkinlikler] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function yukle() {
+      if (!supabase || !userId) { setLoading(false); return; }
+      const { data: donemSatiri } = await supabase.from("aktif_donem").select("donem").eq("id", true).maybeSingle();
+      const guncelDonem = donemSatiri?.donem || "bahar";
+      const [dersRes, sinavRes, kisiselRes] = await Promise.all([
+        bolum && sinif
+          ? supabase.from("ders_programi").select("id, ders_adi, ders_kodu, gun, baslangic_saat, derslik").eq("bolum", bolum).eq("sinif", sinif).eq("donem", guncelDonem)
+          : Promise.resolve({ data: [] as any[] }),
+        bolum && sinif
+          ? supabase.from("sinav_takvimi").select("id, ders_adi, ders_kodu, tarih, saat, sinav_turu").eq("bolum", bolum).eq("sinif", sinif).eq("donem", guncelDonem)
+          : Promise.resolve({ data: [] as any[] }),
+        supabase.from("kisisel_takvim_etkinlikleri").select("id, tarih, tur, baslik, saat").eq("kullanici_id", userId),
+      ]);
+      if (cancelled) return;
+      setDersListe(dersRes.data || []);
+      setSinavListe(sinavRes.data || []);
+      setKisiselEtkinlikler(kisiselRes.data || []);
+      setLoading(false);
+    }
+    yukle();
+    return () => { cancelled = true; };
+  }, [userId, bolum, sinif]);
+
+  const izgara = useMemo(() => ayIzgarasiUret(yil, ay), [yil, ay]);
+
+  function gununIsaretleri(gunSayisi: number | null) {
+    if (!gunSayisi) return { ders: false, sinav: false, kisisel: false };
+    const iso = tarihIso(yil, ay, gunSayisi);
+    const gunAdi = GUN_ADLARI[new Date(yil, ay, gunSayisi).getDay()];
+    return {
+      ders: dersListe.some((d) => d.gun === gunAdi),
+      sinav: sinavListe.some((s) => s.tarih === iso),
+      kisisel: kisiselEtkinlikler.some((k) => k.tarih === iso),
+    };
+  }
+
+  const gunlukAjanda = useMemo(() => {
+    const satirlar: Array<{ tarih: Date; iso: string; tur: keyof typeof TAKVIM_TURLERI; baslik: string; saat: string; alt?: string }> = [];
+    for (let i = 0; i < 7; i++) {
+      const gunTarihi = new Date(bugun.getFullYear(), bugun.getMonth(), bugun.getDate() + i);
+      const iso = `${gunTarihi.getFullYear()}-${String(gunTarihi.getMonth() + 1).padStart(2, "0")}-${String(gunTarihi.getDate()).padStart(2, "0")}`;
+      const gunAdi = GUN_ADLARI[gunTarihi.getDay()];
+      dersListe.filter((d) => d.gun === gunAdi).forEach((d) => {
+        satirlar.push({ tarih: gunTarihi, iso, tur: "ders", baslik: d.ders_adi, saat: d.baslangic_saat || "", alt: d.derslik || "" });
+      });
+      sinavListe.filter((s) => s.tarih === iso).forEach((s) => {
+        satirlar.push({ tarih: gunTarihi, iso, tur: "sinav", baslik: `${s.sinav_turu}: ${s.ders_adi}`, saat: s.saat || "" });
+      });
+      kisiselEtkinlikler.filter((k) => k.tarih === iso).forEach((k) => {
+        satirlar.push({ tarih: gunTarihi, iso, tur: (k.tur as keyof typeof TAKVIM_TURLERI) || "diger", baslik: k.baslik, saat: k.saat || "" });
+      });
+    }
+    satirlar.sort((a, b) => (a.iso + a.saat).localeCompare(b.iso + b.saat));
+    return satirlar.slice(0, 6);
+  }, [dersListe, sinavListe, kisiselEtkinlikler]);
+
+  function gunEtiketi(iso: string) {
+    const bugunStr = `${bugun.getFullYear()}-${String(bugun.getMonth() + 1).padStart(2, "0")}-${String(bugun.getDate()).padStart(2, "0")}`;
+    if (iso === bugunStr) return "bugün";
+    const fark = Math.round((new Date(iso).getTime() - new Date(bugunStr).getTime()) / 86400000);
+    if (fark === 1) return "yarın";
+    return `${fark} gün sonra`;
+  }
+
+  const bugunGunSayisi = bugun.getMonth() === ay && bugun.getFullYear() === yil ? bugun.getDate() : null;
+
+  return (
+    <div className="dashboard-category">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <p className="dashboard-category-title" style={{ margin: 0 }}>Takvimim</p>
+        <a href="/ders-programi-sinav-takvimi" style={{ fontSize: 12, fontWeight: 700, color: "#175cd3", textDecoration: "none" }}>Tam takvimi aç →</a>
+      </div>
+      <div style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 16 }}>
+        {loading ? (
+          <p style={{ fontSize: 13, color: "#8fa0bc", margin: 0 }}>Yükleniyor…</p>
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <button type="button" onClick={() => setAy((a) => { if (a === 0) { setYil((y) => y - 1); return 11; } return a - 1; })} style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid #e3ebf6", background: "#f5f8fc", cursor: "pointer", fontSize: 13 }}>‹</button>
+              <b style={{ fontSize: 13 }}>{AY_ADLARI[ay]} {yil}</b>
+              <button type="button" onClick={() => setAy((a) => { if (a === 11) { setYil((y) => y + 1); return 0; } return a + 1; })} style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid #e3ebf6", background: "#f5f8fc", cursor: "pointer", fontSize: 13 }}>›</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+              {GUN_KISALTMALARI.map((g) => (
+                <div key={g} style={{ textAlign: "center", fontSize: 9.5, fontWeight: 700, color: "#8fa0bc", padding: "2px 0" }}>{g}</div>
+              ))}
+            </div>
+            {izgara.map((hafta, hi) => (
+              <div key={hi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>
+                {hafta.map((gunSayisi, gi) => {
+                  const isaretler = gununIsaretleri(gunSayisi);
+                  const bugunMu = gunSayisi === bugunGunSayisi;
+                  return (
+                    <div key={gi} style={{ aspectRatio: "1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 8, background: bugunMu ? "#e6f0ff" : "transparent", fontWeight: bugunMu ? 800 : 500 }}>
+                      {gunSayisi ? (
+                        <>
+                          <span style={{ fontSize: 11, color: bugunMu ? "#175cd3" : "#334" }}>{gunSayisi}</span>
+                          <span style={{ display: "flex", gap: 2, marginTop: 1, height: 4 }}>
+                            {isaretler.ders && <span style={{ width: 4, height: 4, borderRadius: "50%", background: TAKVIM_TURLERI.ders.color }} />}
+                            {isaretler.sinav && <span style={{ width: 4, height: 4, borderRadius: "50%", background: TAKVIM_TURLERI.sinav.color }} />}
+                            {isaretler.kisisel && <span style={{ width: 4, height: 4, borderRadius: "50%", background: TAKVIM_TURLERI.diger.color }} />}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #eef2f8" }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: "#5b6b85", marginBottom: 8 }}>Bugün ve yaklaşanlar</div>
+              {gunlukAjanda.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: "#8fa0bc", margin: 0 }}>Önümüzdeki 7 günde ders/sınav/etkinlik görünmüyor.</p>
+              ) : (
+                <div style={{ display: "grid", gap: 6 }}>
+                  {gunlukAjanda.map((satir, i) => {
+                    const renk = TAKVIM_TURLERI[satir.tur] || TAKVIM_TURLERI.diger;
+                    return (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: renk.color, flex: "none" }} />
+                        <span style={{ color: "#8fa0bc", minWidth: 62 }}>{gunEtiketi(satir.iso)}{satir.saat ? ` · ${satir.saat}` : ""}</span>
+                        <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{satir.baslik}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type HizliIslem = { title: string; icon: IconName; accent: keyof typeof MODULE_ACCENTS; href: string };
+const OGRENCI_HIZLI_ISLEMLER: HizliIslem[] = [
+  { title: "Ders Programı", icon: "book", accent: "blue", href: "/ders-programi-sinav-takvimi" },
+  { title: "Yoklama Takibi", icon: "check", accent: "green", href: "/student/yoklamalarim" },
+  { title: "QR ile Yoklama", icon: "qr", accent: "sky", href: "/student/qr-yoklama" },
+  { title: "Staj Takip", icon: "briefcase", accent: "amber", href: "/student/staj" },
+  { title: "Kulüpler", icon: "users", accent: "teal", href: "/student/kulupler" },
+  { title: "Kampüs Duvarı", icon: "message", accent: "coral", href: "/student/kampus-duvari" },
+];
+
+function HizliIslemler({ items }: { items: HizliIslem[] }) {
+  return (
+    <div className="dashboard-category">
+      <p className="dashboard-category-title">Hızlı İşlemler</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: 10 }}>
+        {items.map((item) => (
+          <a key={item.title} href={item.href} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 8px", borderRadius: 14, border: "1px solid #e3ebf6", background: "#fff", textDecoration: "none", color: "#0f1b33" }}>
+            <span className="module-grid-icon" style={{ ...moduleIconStyle(item.accent), width: 38, height: 38, display: "grid", placeItems: "center", borderRadius: 12, border: "1px solid" }}><Icon name={item.icon} size={18} /></span>
+            <span style={{ fontSize: 11, fontWeight: 700, textAlign: "center" }}>{item.title}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ModuleHome({
   role,
   displayName,
   unreadCount,
   todaySummary,
+  userId,
+  bolum,
+  sinif,
 }: {
   role: Role;
   displayName?: string;
   unreadCount?: number;
   todaySummary?: string | null;
+  userId?: string | null;
+  bolum?: string;
+  sinif?: string;
 }) {
   return (
     <div className="clean-dashboard">
@@ -404,49 +589,56 @@ function ModuleHome({
         </div>
       </section>
 
-      {MODULE_CATEGORIES.map((category) => {
-        const items = category.items.filter((item) => !item.role || item.role === role);
-        if (items.length === 0) return null;
-        return (
-          <div className="dashboard-category" key={category.title}>
-            <p className="dashboard-category-title">{category.title}</p>
-            <div className="module-grid">
-              {items.map((item) => {
-                const badge = item.badgeKey === "unread" ? unreadCount : undefined;
-                const href = item.hrefFor ? item.hrefFor(role) : (item.href || "#");
-                // The Acadex card SSOs faculty straight into the teacher
-                // panel instead of just linking out — see
-                // goToAcadexTeacherPanel() above. Students/admins keep the
-                // plain external link (they don't get an Acadex teacher
-                // account this way).
-                const isAcadexSso = item.ssoTarget === "acadex" && role === "faculty";
-                return (
-                  <a
-                    key={item.title}
-                    className="module-grid-card"
-                    href={isAcadexSso ? "#" : href}
-                    target={!isAcadexSso && item.external ? "_blank" : undefined}
-                    rel={!isAcadexSso && item.external ? "noopener noreferrer" : undefined}
-                    onClick={isAcadexSso ? (e) => { e.preventDefault(); goToAcadexTeacherPanel(); } : undefined}
-                  >
-                    <span className="module-grid-icon" style={moduleIconStyle(item.accent)}><Icon name={item.icon} size={22} /></span>
-                    <h3>
-                      {item.title}
-                      {!!badge && (
-                        <span style={{ marginLeft: 7, fontSize: 10, fontWeight: 800, color: "#fff", background: "#ef5c63", borderRadius: 999, padding: "1.5px 7px", verticalAlign: "middle" }}>
-                          {badge}
-                        </span>
-                      )}
-                    </h3>
-                    <p>{typeof item.desc === "function" ? item.desc(role) : item.desc}</p>
-                    <span className="grid-cta">{item.external ? "Aç" : "Modülü aç"} <Icon name="arrow" size={13} /></span>
-                  </a>
-                );
-              })}
+      {role === "student" ? (
+        <>
+          <StudentTakvimWidget userId={userId} bolum={bolum} sinif={sinif} />
+          <HizliIslemler items={OGRENCI_HIZLI_ISLEMLER} />
+        </>
+      ) : (
+        MODULE_CATEGORIES.map((category) => {
+          const items = category.items.filter((item) => !item.role || item.role === role);
+          if (items.length === 0) return null;
+          return (
+            <div className="dashboard-category" key={category.title}>
+              <p className="dashboard-category-title">{category.title}</p>
+              <div className="module-grid">
+                {items.map((item) => {
+                  const badge = item.badgeKey === "unread" ? unreadCount : undefined;
+                  const href = item.hrefFor ? item.hrefFor(role) : (item.href || "#");
+                  // The Acadex card SSOs faculty straight into the teacher
+                  // panel instead of just linking out — see
+                  // goToAcadexTeacherPanel() above. Students/admins keep the
+                  // plain external link (they don't get an Acadex teacher
+                  // account this way).
+                  const isAcadexSso = item.ssoTarget === "acadex" && role === "faculty";
+                  return (
+                    <a
+                      key={item.title}
+                      className="module-grid-card"
+                      href={isAcadexSso ? "#" : href}
+                      target={!isAcadexSso && item.external ? "_blank" : undefined}
+                      rel={!isAcadexSso && item.external ? "noopener noreferrer" : undefined}
+                      onClick={isAcadexSso ? (e) => { e.preventDefault(); goToAcadexTeacherPanel(); } : undefined}
+                    >
+                      <span className="module-grid-icon" style={moduleIconStyle(item.accent)}><Icon name={item.icon} size={22} /></span>
+                      <h3>
+                        {item.title}
+                        {!!badge && (
+                          <span style={{ marginLeft: 7, fontSize: 10, fontWeight: 800, color: "#fff", background: "#ef5c63", borderRadius: 999, padding: "1.5px 7px", verticalAlign: "middle" }}>
+                            {badge}
+                          </span>
+                        )}
+                      </h3>
+                      <p>{typeof item.desc === "function" ? item.desc(role) : item.desc}</p>
+                      <span className="grid-cta">{item.external ? "Aç" : "Modülü aç"} <Icon name="arrow" size={13} /></span>
+                    </a>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })
+      )}
     </div>
   );
 }
@@ -645,6 +837,7 @@ function ProfileMenu({
 
 export default function Home() {
   const [role, setRole] = useState<Role | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [adminOpen, setAdminOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -699,6 +892,7 @@ export default function Home() {
       } else {
         const resolvedRole: Role = session.role === "academician" ? "faculty" : "student";
         setRole(resolvedRole);
+        setUserId(session.user.id);
         void loadDashboardExtras(session.user.id, resolvedRole);
       }
     }
@@ -724,11 +918,14 @@ export default function Home() {
       void refreshNotifCount(userId);
 
       const gunAdi = bugununGunAdi();
+      const { data: donemSatiri } = await supabase.from("aktif_donem").select("donem").eq("id", true).maybeSingle();
+      const guncelDonem = donemSatiri?.donem || "bahar";
       if (resolvedRole === "faculty") {
         const { count: dersSayisi } = await supabase
           .from("ders_programi")
           .select("id", { count: "exact", head: true })
           .eq("akademisyen_id", userId)
+          .eq("donem", guncelDonem)
           .eq("gun", gunAdi);
         if (!cancelled) {
           setTodaySummary(dersSayisi ? `Bugün ${dersSayisi} dersin var.` : "Bugün programında ders görünmüyor.");
@@ -736,9 +933,9 @@ export default function Home() {
       } else if (profileRow?.bolum && profileRow?.sinif) {
         const [{ count: dersSayisi }, { count: sinavSayisi }] = await Promise.all([
           supabase.from("ders_programi").select("id", { count: "exact", head: true })
-            .eq("bolum", profileRow.bolum).eq("sinif", profileRow.sinif).eq("gun", gunAdi),
+            .eq("bolum", profileRow.bolum).eq("sinif", profileRow.sinif).eq("donem", guncelDonem).eq("gun", gunAdi),
           supabase.from("sinav_takvimi").select("id", { count: "exact", head: true })
-            .eq("bolum", profileRow.bolum).eq("sinif", profileRow.sinif).eq("tarih", bugunIso()),
+            .eq("bolum", profileRow.bolum).eq("sinif", profileRow.sinif).eq("donem", guncelDonem).eq("tarih", bugunIso()),
         ]);
         if (!cancelled) {
           const parcalar: string[] = [];
@@ -870,7 +1067,7 @@ export default function Home() {
         </header>
 
         <div className="page-body">
-          <ModuleHome role={role} displayName={profileInfo?.fullName} unreadCount={unreadCount} todaySummary={todaySummary} />
+          <ModuleHome role={role} displayName={profileInfo?.fullName} unreadCount={unreadCount} todaySummary={todaySummary} userId={userId} bolum={profileInfo?.bolum} sinif={profileInfo?.sinif} />
         </div>
       </section>
 

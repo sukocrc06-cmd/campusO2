@@ -1,11 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { supabase } from "../../../lib/supabase";
 
 const inputStyle = { height: 40, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 10, fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" };
+
+// Aynı hoca aynı fiziksel dersi (aynı gün/saat/ders kodu/dönem) birden fazla
+// bölüme veriyorsa, ders_programi'nda birden fazla satır olarak durur (bkz.
+// Ali İhsan hocanın BUS201 İstatistik 1 dersi — İşletme + Uluslararası
+// Ticaret ve İşletmecilik). Dropdown'da bunları TEK, birleşik bir seçenek
+// olarak gösteriyoruz; her zaman aynı (en küçük id'li) satırı "kanonik" seçip
+// kullanıyoruz ki QR/yoklama oturumları hep aynı id altında birikip, hangi
+// bölüm satırının seçildiğine göre bölünmesin.
+function birlesikDersGrupla(dersler) {
+  const gruplar = new Map();
+  (dersler || []).forEach((d) => {
+    const anahtar = [d.akademisyen_id, d.ders_kodu || d.ders_adi, d.gun, d.baslangic_saat, d.bitis_saat, d.donem].join("||");
+    if (!gruplar.has(anahtar)) gruplar.set(anahtar, []);
+    gruplar.get(anahtar).push(d);
+  });
+  return Array.from(gruplar.values())
+    .map((grup) => {
+      const sirali = [...grup].sort((a, b) => a.id.localeCompare(b.id));
+      const kanonik = sirali[0];
+      const bolumler = Array.from(new Set(grup.map((d) => d.bolum).filter(Boolean)));
+      return { ...kanonik, bolumEtiket: bolumler.join(" + ") };
+    })
+    .sort((a, b) => (a.ders_adi || "").localeCompare(b.ders_adi || "", "tr-TR"));
+}
 
 function formatCountdown(msLeft) {
   const secs = Math.max(0, Math.ceil(msLeft / 1000));
@@ -30,6 +54,7 @@ export default function AkademisyenQrYoklamaPage() {
   const [katilanlar, setKatilanlar] = useState([]); // [{ id, full_name }]
   const [tamamlandiPopup, setTamamlandiPopup] = useState(false);
 
+  const birlesikDersler = useMemo(() => birlesikDersGrupla(dersler), [dersler]);
   const secilenDers = dersler.find((d) => d.id === secilenDersId) || null;
   const pollTimer = useRef(null);
 
@@ -46,7 +71,8 @@ export default function AkademisyenQrYoklamaPage() {
       const { data, error: err } = await supabase.from("ders_programi").select("*").eq("akademisyen_id", session.user.id).eq("donem", guncelDonem).order("ders_adi");
       if (err) { setError("Derslerin alınamadı: " + err.message); setLoading(false); return; }
       setDersler(data || []);
-      if (data && data.length > 0) setSecilenDersId(data[0].id);
+      const birlesik = birlesikDersGrupla(data || []);
+      if (birlesik.length > 0) setSecilenDersId(birlesik[0].id);
       setLoading(false);
     }
     init();
@@ -142,7 +168,7 @@ export default function AkademisyenQrYoklamaPage() {
             {suresiDoldu && <div style={{ fontSize: 12.5, fontWeight: 700, color: "#984333", background: "#fff4f0", border: "1px solid #f2c5ba", borderRadius: 10, padding: "8px 12px" }}>Önceki QR'ın süresi doldu. Yeni bir QR oluşturabilirsin.</div>}
             <label style={{ fontSize: 12, fontWeight: 700, color: "#5b6b85", display: "flex", flexDirection: "column", gap: 5 }}>Ders
               <select style={inputStyle} value={secilenDersId} onChange={(e) => setSecilenDersId(e.target.value)}>
-                {dersler.map((d) => <option key={d.id} value={d.id}>{d.ders_adi} — {d.bolum} / {d.sinif}. sınıf</option>)}
+                {birlesikDersler.map((d) => <option key={d.id} value={d.id}>{d.ders_adi} — {d.bolumEtiket}{d.sinif ? ` / ${d.sinif}. sınıf` : ""}</option>)}
               </select>
             </label>
             <label style={{ fontSize: 12, fontWeight: 700, color: "#5b6b85", display: "flex", flexDirection: "column", gap: 5 }}>Süre

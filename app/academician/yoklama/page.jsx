@@ -29,6 +29,29 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Aynı hoca aynı fiziksel dersi (aynı gün/saat/ders kodu/dönem) birden fazla
+// bölüme veriyorsa, ders_programi'nda birden fazla satır olarak durur (bkz.
+// Ali İhsan hocanın BUS201 İstatistik 1 dersi). Dropdown'da bunları TEK,
+// birleşik bir seçenek olarak gösteriyoruz; her zaman aynı (en küçük id'li)
+// satırı "kanonik" seçip kullanıyoruz ki yoklama oturumları hep aynı id
+// altında birikip, hangi bölüm satırının seçildiğine göre bölünmesin.
+function birlesikDersGrupla(dersler) {
+  const gruplar = new Map();
+  (dersler || []).forEach((d) => {
+    const anahtar = [d.akademisyen_id, d.ders_kodu || d.ders_adi, d.gun, d.baslangic_saat, d.bitis_saat, d.donem].join("||");
+    if (!gruplar.has(anahtar)) gruplar.set(anahtar, []);
+    gruplar.get(anahtar).push(d);
+  });
+  return Array.from(gruplar.values())
+    .map((grup) => {
+      const sirali = [...grup].sort((a, b) => a.id.localeCompare(b.id));
+      const kanonik = sirali[0];
+      const bolumler = Array.from(new Set(grup.map((d) => d.bolum).filter(Boolean)));
+      return { ...kanonik, bolumEtiket: bolumler.join(" + ") };
+    })
+    .sort((a, b) => (a.ders_adi || "").localeCompare(b.ders_adi || "", "tr-TR"));
+}
+
 export default function AkademisyenYoklamaPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -54,6 +77,7 @@ export default function AkademisyenYoklamaPage() {
   const [aramaMetni, setAramaMetni] = useState("");
   const [aramaSonuc, setAramaSonuc] = useState([]);
 
+  const birlesikDersler = useMemo(() => birlesikDersGrupla(dersler), [dersler]);
   const secilenDers = dersler.find((d) => d.id === secilenDersId) || null;
 
   async function derslerYukle(uid) {
@@ -62,7 +86,8 @@ export default function AkademisyenYoklamaPage() {
     const { data, error: err } = await supabase.from("ders_programi").select("*").eq("akademisyen_id", uid).eq("donem", guncelDonem).order("ders_adi");
     if (err) { setError("Derslerin alınamadı: " + err.message); return; }
     setDersler(data || []);
-    if (data && data.length > 0 && !secilenDersId) setSecilenDersId(data[0].id);
+    const birlesik = birlesikDersGrupla(data || []);
+    if (birlesik.length > 0 && !secilenDersId) setSecilenDersId(birlesik[0].id);
   }
 
   useEffect(() => {
@@ -258,7 +283,7 @@ export default function AkademisyenYoklamaPage() {
             <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 18, marginBottom: 16, display: "grid", gap: 12, gridTemplateColumns: "2fr 1fr" }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: "#5b6b85", display: "flex", flexDirection: "column", gap: 5 }}>Ders
                 <select style={inputStyle} value={secilenDersId} onChange={(e) => setSecilenDersId(e.target.value)}>
-                  {dersler.map((d) => <option key={d.id} value={d.id}>{d.ders_adi} — {d.bolum} / {d.sinif}. sınıf</option>)}
+                  {birlesikDersler.map((d) => <option key={d.id} value={d.id}>{d.ders_adi} — {d.bolumEtiket}{d.sinif ? ` / ${d.sinif}. sınıf` : ""}</option>)}
                 </select>
               </label>
               <label style={{ fontSize: 12, fontWeight: 700, color: "#5b6b85", display: "flex", flexDirection: "column", gap: 5 }}>Tarih

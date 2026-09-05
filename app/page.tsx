@@ -376,12 +376,12 @@ async function goToAcadexTeacherPanel() {
   }
 }
 
-// Öğrenci ana sayfasındaki takvim: /ders-programi-sinav-takvimi sayfasının
-// "Takvimim" sekmesiyle BİREBİR AYNI bileşen (aynı ay ızgarası, aynı gün
-// detay paneli, aynı etkinlik ekleme formu) — kullanıcı buradan da doğrudan
-// kullanabilsin diye ana sayfaya da eklendi. "Tam takvimi aç" linki yine
-// tam sayfaya (ders programı/sınav sekmeleriyle birlikte) yönlendirir.
-function StudentTakvimWidget({ userId }: { userId?: string | null; bolum?: string; sinif?: string }) {
+// Ana sayfadaki takvim: /ders-programi-sinav-takvimi sayfasının "Takvimim"
+// sekmesiyle BİREBİR AYNI bileşen (aynı ay ızgarası, aynı gün detay paneli,
+// aynı etkinlik ekleme formu) — hem öğrenci hem akademisyen ana sayfasında
+// kullanılıyor (tamamen kişisel, kullanici_id bazlı olduğu için role bağımlı
+// değil). "Tam takvimi aç" linki yine tam sayfaya yönlendirir.
+function TakvimWidget({ userId }: { userId?: string | null }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -574,6 +574,16 @@ const OGRENCI_HIZLI_ISLEMLER: HizliIslem[] = [
   { title: "Kampüs Duvarı", icon: "message", accent: "coral", href: "/student/kampus-duvari" },
 ];
 
+const AKADEMISYEN_HIZLI_ISLEMLER: HizliIslem[] = [
+  { title: "Ders Programı", icon: "book", accent: "blue", href: "/ders-programi-sinav-takvimi" },
+  { title: "Yoklama Takibi", icon: "check", accent: "green", href: "/academician/yoklama" },
+  { title: "QR ile Yoklama", icon: "qr", accent: "sky", href: "/academician/qr-yoklama" },
+  { title: "Akademik Teşvik", icon: "graduation", accent: "amber", href: "/academician/tesvik" },
+  { title: "Staj Takip", icon: "briefcase", accent: "teal", href: "/academician/staj" },
+  { title: "Sosyal Sorumluluk", icon: "users", accent: "coral", href: "/academician/sosyal-sorumluluk" },
+  { title: "Kampüs Duvarı", icon: "message", accent: "sky", href: "/student/kampus-duvari" },
+];
+
 function HizliIslemler({ items }: { items: HizliIslem[] }) {
   return (
     <div className="dashboard-category">
@@ -632,57 +642,23 @@ function ModuleHome({
 
       {role === "student" ? (
         <>
-          <StudentTakvimWidget userId={userId} bolum={bolum} sinif={sinif} />
+          <TakvimWidget userId={userId} />
           <HizliIslemler items={OGRENCI_HIZLI_ISLEMLER} />
         </>
       ) : (
-        MODULE_CATEGORIES.map((category) => {
-          const items = category.items.filter((item) => !item.role || item.role === role);
-          if (items.length === 0) return null;
-          return (
-            <div className="dashboard-category" key={category.title}>
-              <p className="dashboard-category-title">{category.title}</p>
-              <div className="module-grid">
-                {items.map((item) => {
-                  const badge = item.badgeKey === "unread" ? unreadCount : undefined;
-                  const href = item.hrefFor ? item.hrefFor(role) : (item.href || "#");
-                  // The Acadex card SSOs faculty straight into the teacher
-                  // panel instead of just linking out — see
-                  // goToAcadexTeacherPanel() above. Students/admins keep the
-                  // plain external link (they don't get an Acadex teacher
-                  // account this way).
-                  const isAcadexSso = item.ssoTarget === "acadex" && role === "faculty";
-                  return (
-                    <a
-                      key={item.title}
-                      className="module-grid-card"
-                      href={isAcadexSso ? "#" : href}
-                      target={!isAcadexSso && item.external ? "_blank" : undefined}
-                      rel={!isAcadexSso && item.external ? "noopener noreferrer" : undefined}
-                      onClick={isAcadexSso ? (e) => { e.preventDefault(); goToAcadexTeacherPanel(); } : undefined}
-                    >
-                      <span className="module-grid-icon" style={moduleIconStyle(item.accent)}><Icon name={item.icon} size={22} /></span>
-                      <h3>
-                        {item.title}
-                        {!!badge && (
-                          <span style={{ marginLeft: 7, fontSize: 10, fontWeight: 800, color: "#fff", background: "#ef5c63", borderRadius: 999, padding: "1.5px 7px", verticalAlign: "middle" }}>
-                            {badge}
-                          </span>
-                        )}
-                      </h3>
-                      <p>{typeof item.desc === "function" ? item.desc(role) : item.desc}</p>
-                      <span className="grid-cta">{item.external ? "Aç" : "Modülü aç"} <Icon name="arrow" size={13} /></span>
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })
+        <>
+          <TakvimWidget userId={userId} />
+          <HizliIslemler items={AKADEMISYEN_HIZLI_ISLEMLER} />
+        </>
       )}
+
     </div>
   );
 }
+
+// Not: kategorili modül ızgarası (MODULE_CATEGORIES) artık ana sayfada
+// gösterilmiyor — hem öğrenci hem akademisyen ana sayfası artık takvim +
+// hızlı işlemler kullanıyor. Tüm modüllere sidebar üzerinden erişim hâlâ var.
 
 type ModuleGridItem = {
   title: string;

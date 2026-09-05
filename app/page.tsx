@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchWithAuth, getCampusSession, supabase } from "../lib/supabase";
 import { TAKVIM_TURLERI, AY_ADLARI, GUN_KISALTMALARI, tarihIso, ayIzgarasiUret } from "../lib/kisisel-takvim";
 import { BuyuyenBitki, saniyeyiMMSSyapVeyaSaat } from "../lib/buyuyen-bitki";
@@ -604,6 +605,99 @@ function HizliIslemler({ items }: { items: HizliIslem[] }) {
   );
 }
 
+// "Akademik Yönetim" — AYRINTILI TASARIM.docx'teki 1. modül ve alt katmanları
+// (1.1-1.8). Şu an gerçekten var olan özellikler ilgili alt maddeye bağlandı
+// (Ders Programı, Ders İçerikleri, Sınav Bilgileri, Devamsızlık, Bilimsel
+// Çalışma Teknikleri); henüz kurulmamış olanlar (Not ve Başarı Durumu,
+// Transkript, Cornell Not Sistemi) "yapım aşamasında" etiketiyle sadece
+// görüntü amaçlı listeleniyor, tıklanamıyor.
+type AkademikAltModul = { title: string; desc: string; icon: IconName; href?: string; durum: "aktif" | "yapim" };
+const AKADEMIK_YONETIM_ALT_MODULLER: AkademikAltModul[] = [
+  { title: "Ders Programı", desc: "Haftalık ders programını görüntüle", icon: "calendar", href: "/ders-programi-sinav-takvimi", durum: "aktif" },
+  { title: "Ders İçerikleri", desc: "Amaç, içerik, hoca ve haftalık konular", icon: "book", href: "/student/ders-icerikleri", durum: "aktif" },
+  { title: "Sınav Bilgileri", desc: "Vize / final / bütünleme takvimi", icon: "check", href: "/ders-programi-sinav-takvimi?tab=sinav", durum: "aktif" },
+  { title: "Not ve Başarı Durumu", desc: "Not görüntüleme, GPA, başarı grafikleri", icon: "spark", durum: "yapim" },
+  { title: "Devamsızlık", desc: "Devam yüzden ve yoklama geçmişin", icon: "shield", href: "/student/yoklamalarim", durum: "aktif" },
+  { title: "Transkript", desc: "Anlık transkript talebi, PDF indirme", icon: "graduation", durum: "yapim" },
+  { title: "Cornell Not Sistemi", desc: "Ders bazlı not şablonu, PDF dışa aktar", icon: "message", durum: "yapim" },
+  { title: "Bilimsel Çalışma Teknikleri", desc: "Pomodoro, Aralıklı Tekrar, Uzun Odaklı Çalışma", icon: "leaf", href: "/student/calisma-teknikleri", durum: "aktif" },
+];
+
+function AkademikYonetimNav() {
+  const [acik, setAcik] = useState(false);
+  const [konum, setKonum] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const kapatZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function ac() {
+    if (kapatZamanlayici.current) { clearTimeout(kapatZamanlayici.current); kapatZamanlayici.current = null; }
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setKonum({ top: Math.min(r.top, window.innerHeight - 430), left: r.right + 10 });
+    }
+    setAcik(true);
+  }
+  function kapatGecikmeli() {
+    kapatZamanlayici.current = setTimeout(() => setAcik(false), 180);
+  }
+
+  return (
+    <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
+      <button ref={btnRef} type="button" onClick={() => (acik ? setAcik(false) : ac())} aria-haspopup="true" aria-expanded={acik}>
+        <Icon name="graduation" size={19} /><span>Akademik Yönetim</span><Icon name="chevron" size={14} />
+      </button>
+      {acik && konum && typeof document !== "undefined" && createPortal(
+        <>
+          <div onClick={() => setAcik(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />
+          <div
+            onMouseEnter={ac}
+            onMouseLeave={kapatGecikmeli}
+            style={{
+              position: "fixed", top: konum.top, left: konum.left, width: 290, zIndex: 200,
+              background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
+              border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
+            }}
+          >
+            <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>AKADEMİK YÖNETİM</div>
+            {AKADEMIK_YONETIM_ALT_MODULLER.map((m) => {
+              const yapim = m.durum === "yapim";
+              return (
+                <button
+                  key={m.title}
+                  type="button"
+                  disabled={yapim}
+                  title={yapim ? "Yapım aşamasında" : undefined}
+                  onClick={() => { if (!yapim && m.href) window.location.href = m.href; }}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 10px", borderRadius: 11,
+                    border: "none", background: "transparent", textAlign: "left", cursor: yapim ? "default" : "pointer",
+                    opacity: yapim ? 0.5 : 1, color: "#0f1b33", minHeight: 0,
+                  }}
+                  onMouseEnter={(e) => { if (!yapim) (e.currentTarget as HTMLButtonElement).style.background = "#f5f8fc"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                >
+                  <span style={{ marginTop: 2, color: "#175cd3", flex: "none" }}><Icon name={m.icon} size={17} /></span>
+                  <span style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "#0f1b33" }}>
+                      {m.title}
+                    </div>
+                    {yapim ? (
+                      <div style={{ fontSize: 8.5, fontWeight: 800, color: "#b7853f", background: "#fdf1dc", padding: "2px 6px", borderRadius: 999, display: "inline-block", marginTop: 3 }}>YAPIM AŞAMASINDA</div>
+                    ) : (
+                      <div style={{ fontSize: 10.5, color: "#8fa0bc", marginTop: 1 }}>{m.desc}</div>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // Öğrenci ana sayfasındaki "büyüyen bitki" özet widget'ı — Uzun Odaklı
 // Çalışma tekniğine bağlı: aktif bir oturum varsa kalan süreyi ve büyüyen
 // filizi gösterir, yoksa "bugün bir bitki dikmeye ne dersin?" çağrısı yapar.
@@ -1117,7 +1211,10 @@ export default function Home() {
         <p className="nav-label">KAMPÜS</p>
         <nav className="side-nav" aria-label="Uygulama menüsü">
           <button className="active" onClick={() => setMobileOpen(false)}><Icon name="home" size={19} /><span>Ana Sayfa</span></button>
-          <button onClick={() => { window.location.href = role === "student" ? "/student/qr-yoklama" : "/academician/qr-yoklama"; }}><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
+          {role === "faculty" && (
+            <button onClick={() => { window.location.href = "/academician/qr-yoklama"; }}><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
+          )}
+          {role === "student" && <AkademikYonetimNav />}
           <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
           {role === "faculty" && (
             <button onClick={() => { window.location.href = "/academician/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>
@@ -1125,11 +1222,12 @@ export default function Home() {
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/sosyal-sorumluluk" : "/academician/sosyal-sorumluluk"; }}><Icon name="users" size={19} /><span>Sosyal Sorumluluk</span></button>
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/kulupler" : "/academician/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
           <button onClick={() => { window.location.href = "/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
-          {role === "student" && (
-            <button onClick={() => { window.location.href = "/student/ders-kayit"; }}><Icon name="graduation" size={19} /><span>Ders Kayıt</span></button>
+          {role === "faculty" && (
+            <button onClick={() => { window.location.href = "/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
           )}
-          <button onClick={() => { window.location.href = "/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
-          <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/yoklamalarim" : "/academician/yoklama"; }}><Icon name="check" size={19} /><span>Yoklama Takibi</span></button>
+          {role === "faculty" && (
+            <button onClick={() => { window.location.href = "/academician/yoklama"; }}><Icon name="check" size={19} /><span>Yoklama Takibi</span></button>
+          )}
           <button onClick={() => { window.location.href = "/student/kampus-duvari"; }}><Icon name="message" size={19} /><span>Kampüs Duvarı</span></button>
                     <button onClick={() => { if (role === "faculty") { goToAcadexTeacherPanel(); } else { window.open("https://acadex-1lku.vercel.app", "_blank"); } }}><Icon name="spark" size={19} /><span>Acadex</span></button>
         </nav>

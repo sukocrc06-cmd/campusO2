@@ -32,6 +32,7 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+
 export default function DersSinavTakvimiPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,6 +42,13 @@ export default function DersSinavTakvimiPage() {
   const [isAcademician, setIsAcademician] = useState(false);
   const [kendiAdi, setKendiAdi] = useState("");
   const [aktifDonem, setAktifDonem] = useState("bahar");
+
+  // Akademik Yönetim > Sınav Bilgileri gibi dış bağlantılar ?tab=sinav ile
+  // doğrudan sınav sekmesini açabilsin diye URL'den okunuyor.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("tab") === "sinav") setTab("sinav");
+  }, []);
 
   const [dersListe, setDersListe] = useState([]);
   const [sinavListe, setSinavListe] = useState([]);

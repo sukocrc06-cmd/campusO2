@@ -47,6 +47,10 @@ export default function AdminKullanicilarPage() {
   const [sifreBusyId, setSifreBusyId] = useState(null);
   const [sifreBelirlenenler, setSifreBelirlenenler] = useState({});
 
+  const [silAcikId, setSilAcikId] = useState(null);
+  const [silOnayMetni, setSilOnayMetni] = useState("");
+  const [silBusyId, setSilBusyId] = useState(null);
+
   useEffect(() => {
     async function fetchUsers() {
       if (!supabase) {
@@ -131,6 +135,31 @@ export default function AdminKullanicilarPage() {
       setMessage("Hata: " + (err instanceof Error ? err.message : String(err)));
     }
     setSifreBusyId(null);
+  }
+
+  function silmeyeBasla(user) {
+    setSilAcikId(user.id);
+    setSilOnayMetni("");
+    setMessage("");
+  }
+
+  async function handleHesapSil(user) {
+    if (silOnayMetni.trim().toLowerCase() !== (user.email || "").trim().toLowerCase()) {
+      setMessage("Hata: Onaylamak için kullanıcının e-posta adresini eksiksiz yazmalısın.");
+      return;
+    }
+    setSilBusyId(user.id);
+    setMessage("");
+    const { error } = await supabase.rpc("campuso_admin_hesap_sil", { p_user_id: user.id });
+    if (error) {
+      setMessage("Hata: Hesap silinemedi: " + error.message);
+    } else {
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      setSilAcikId(null);
+      setSilOnayMetni("");
+      setMessage(`${user.full_name || user.email} hesabı kalıcı olarak silindi.`);
+    }
+    setSilBusyId(null);
   }
 
   const filteredUsers = useMemo(() => {
@@ -388,7 +417,35 @@ export default function AdminKullanicilarPage() {
                           : "—"}
                       </td>
                       <td style={{ padding: "12px" }}>
-                        {sifreAcikId === user.id ? (
+                        {silAcikId === user.id ? (
+                          <div style={{ display: "grid", gap: 6, minWidth: 260, padding: 10, borderRadius: 10, background: "#fff4f0", border: "1px solid #f2c5ba" }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#984333", lineHeight: 1.5 }}>
+                              Bu hesabı ve tüm verilerini (ders kaydı, yoklama geçmişi, gönderiler vb.) KALICI olarak sileceksin. Onaylamak için e-posta adresini ({user.email}) yaz.
+                            </div>
+                            <input
+                              autoFocus
+                              value={silOnayMetni}
+                              onChange={(e) => setSilOnayMetni(e.target.value)}
+                              placeholder={user.email}
+                              style={{ height: 32, padding: "0 10px", border: "1px solid #f2c5ba", borderRadius: 8, fontSize: 12, outline: "none" }}
+                            />
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <button
+                                onClick={() => handleHesapSil(user)}
+                                disabled={silBusyId === user.id || silOnayMetni.trim().toLowerCase() !== (user.email || "").trim().toLowerCase()}
+                                style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, border: "none", background: "#c0273c", color: "#fff", borderRadius: 7, cursor: "pointer", opacity: silOnayMetni.trim().toLowerCase() !== (user.email || "").trim().toLowerCase() ? 0.5 : 1 }}
+                              >
+                                {silBusyId === user.id ? "Siliniyor…" : "Kalıcı Olarak Sil"}
+                              </button>
+                              <button
+                                onClick={() => setSilAcikId(null)}
+                                style={{ minHeight: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", borderRadius: 7, cursor: "pointer" }}
+                              >
+                                Vazgeç
+                              </button>
+                            </div>
+                          </div>
+                        ) : sifreAcikId === user.id ? (
                           <div style={{ display: "grid", gap: 6, minWidth: 220 }}>
                             <input
                               type="password"
@@ -441,6 +498,14 @@ export default function AdminKullanicilarPage() {
                             >
                               {sifreBelirlenenler[user.id] ? "Şifreyi tekrar belirle" : "Yeni şifre belirle"}
                             </button>
+                            {(user.role === "student" || user.role === "academician") && (
+                              <button
+                                onClick={() => silmeyeBasla(user)}
+                                style={{ minHeight: 34, padding: "0 12px", fontSize: 12, fontWeight: 700, borderRadius: 10, border: "1px solid #f2c5ba", background: "#fff", color: "#984333", cursor: "pointer" }}
+                              >
+                                Hesabı Sil
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>

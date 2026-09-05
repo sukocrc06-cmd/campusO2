@@ -649,7 +649,7 @@ function useMobilMi() {
 // altından taşmayacak şekilde yukarı kaydırır. Hem üst seviye "Akademik
 // Yönetim" menüsü hem de içindeki "Bilimsel Çalışma Teknikleri" alt menüsü
 // tarafından ortak kullanılıyor.
-function useFlyoutKonum(acik: boolean, tetikleyiciRef: React.RefObject<HTMLElement>, panelRef: React.RefObject<HTMLElement>) {
+function useFlyoutKonum(acik: boolean, tetikleyiciRef: React.RefObject<HTMLElement | null>, panelRef: React.RefObject<HTMLElement | null>) {
   const [konum, setKonum] = useState<{ top: number; left: number } | null>(null);
   useLayoutEffect(() => {
     if (!acik || !tetikleyiciRef.current) return;

@@ -607,11 +607,21 @@ function HizliIslemler({ items }: { items: HizliIslem[] }) {
 
 // "Akademik Yönetim" — AYRINTILI TASARIM.docx'teki 1. modül ve alt katmanları
 // (1.1-1.8). Şu an gerçekten var olan özellikler ilgili alt maddeye bağlandı
-// (Ders Programı, Ders İçerikleri, Sınav Bilgileri, Devamsızlık, Bilimsel
-// Çalışma Teknikleri); henüz kurulmamış olanlar (Not ve Başarı Durumu,
-// Transkript, Cornell Not Sistemi) "yapım aşamasında" etiketiyle sadece
-// görüntü amaçlı listeleniyor, tıklanamıyor.
-type AkademikAltModul = { title: string; desc: string; icon: IconName; href?: string; durum: "aktif" | "yapim" };
+// (Ders Programı, Ders İçerikleri, Sınav Bilgileri, Devamsızlık); henüz
+// kurulmamış olanlar (Not ve Başarı Durumu, Transkript, Cornell Not Sistemi)
+// "yapım aşamasında" etiketiyle sadece görüntü amaçlı listeleniyor, tıklanamıyor.
+// Bilimsel Çalışma Teknikleri'nin 3 ayrı sayfası düz listeye karışmasın diye
+// kendi alt menüsü (children) altında toplanıyor — masaüstünde üzerine
+// gelince yana açılan ikinci bir flyout, mobilde ise dokununca aşağı açılan
+// bir akordeon olarak gösteriliyor.
+type AkademikAltModul = { title: string; desc: string; icon: IconName; href?: string; durum: "aktif" | "yapim"; children?: AkademikAltModul[] };
+
+const BILIMSEL_CALISMA_ALT_MODULLER: AkademikAltModul[] = [
+  { title: "Pomodoro Tekniği", desc: "25dk odaklan, 5dk mola — döngüsel çalışma", icon: "leaf", href: "/student/calisma-teknikleri/pomodoro", durum: "aktif" },
+  { title: "Aralıklı Tekrar", desc: "1 → 3 → 7 → 16 gün tekrar zinciri", icon: "leaf", href: "/student/calisma-teknikleri/aralikli-tekrar", durum: "aktif" },
+  { title: "Uzun Odaklı Çalışma", desc: "Büyüyen bitki eşliğinde derin odak", icon: "leaf", href: "/student/calisma-teknikleri/uzun-odakli", durum: "aktif" },
+];
+
 const AKADEMIK_YONETIM_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Ders Programı", desc: "Haftalık ders programını görüntüle", icon: "calendar", href: "/ders-programi-sinav-takvimi", durum: "aktif" },
   { title: "Ders İçerikleri", desc: "Amaç, içerik, hoca ve haftalık konular", icon: "book", href: "/student/ders-icerikleri", durum: "aktif" },
@@ -620,48 +630,205 @@ const AKADEMIK_YONETIM_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Devamsızlık", desc: "Devam yüzden ve yoklama geçmişin", icon: "shield", href: "/student/yoklamalarim", durum: "aktif" },
   { title: "Transkript", desc: "Anlık transkript talebi, PDF indirme", icon: "graduation", durum: "yapim" },
   { title: "Cornell Not Sistemi", desc: "Ders bazlı not şablonu, PDF dışa aktar", icon: "message", durum: "yapim" },
-  { title: "Pomodoro Tekniği", desc: "25dk odaklan, 5dk mola — döngüsel çalışma", icon: "leaf", href: "/student/calisma-teknikleri/pomodoro", durum: "aktif" },
-  { title: "Aralıklı Tekrar", desc: "1 → 3 → 7 → 16 gün tekrar zinciri", icon: "leaf", href: "/student/calisma-teknikleri/aralikli-tekrar", durum: "aktif" },
-  { title: "Uzun Odaklı Çalışma", desc: "Büyüyen bitki eşliğinde derin odak", icon: "leaf", href: "/student/calisma-teknikleri/uzun-odakli", durum: "aktif" },
+  { title: "Bilimsel Çalışma Teknikleri", desc: "Pomodoro, Aralıklı Tekrar, Uzun Odaklı Çalışma", icon: "leaf", durum: "aktif", children: BILIMSEL_CALISMA_ALT_MODULLER },
 ];
 
-function AkademikYonetimNav() {
-  const [acik, setAcik] = useState(false);
+function useMobilMi() {
+  const [mobil, setMobil] = useState(false);
+  useEffect(() => {
+    function kontrolEt() { setMobil(window.innerWidth <= 900); }
+    kontrolEt();
+    window.addEventListener("resize", kontrolEt);
+    return () => window.removeEventListener("resize", kontrolEt);
+  }, []);
+  return mobil;
+}
+
+// Bir tetikleyici elemanın sağında açılan flyout panelin konumunu hesaplar;
+// panel gerçekten render olduktan sonra kendi yüksekliğini ölçüp ekranın
+// altından taşmayacak şekilde yukarı kaydırır. Hem üst seviye "Akademik
+// Yönetim" menüsü hem de içindeki "Bilimsel Çalışma Teknikleri" alt menüsü
+// tarafından ortak kullanılıyor.
+function useFlyoutKonum(acik: boolean, tetikleyiciRef: React.RefObject<HTMLElement>, panelRef: React.RefObject<HTMLElement>) {
   const [konum, setKonum] = useState<{ top: number; left: number } | null>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!acik || !tetikleyiciRef.current) return;
+    const r = tetikleyiciRef.current.getBoundingClientRect();
+    setKonum({ top: r.top, left: r.right + 10 });
+  }, [acik]);
+  useLayoutEffect(() => {
+    if (!acik || !panelRef.current || !tetikleyiciRef.current) return;
+    const panelH = panelRef.current.offsetHeight;
+    const r = tetikleyiciRef.current.getBoundingClientRect();
+    const maxTop = Math.max(12, window.innerHeight - panelH - 12);
+    const yeniTop = Math.min(r.top, maxTop);
+    setKonum((k) => (k && Math.round(k.top) !== Math.round(yeniTop) ? { ...k, top: yeniTop } : k));
+  }, [acik]);
+  return konum;
+}
+
+// Tek bir alt madde satırı (link ya da "yapım aşamasında"). zeminKoyu=true,
+// mobildeki koyu sidebar zemini üzerinde okunaklı olsun diye açık renk
+// metin kullanır; masaüstündeki beyaz flyout kartında zeminKoyu=false kalır.
+function AltModulSatiri({ m, zeminKoyu = false }: { m: AkademikAltModul; zeminKoyu?: boolean }) {
+  const yapim = m.durum === "yapim";
+  const metinRenk = zeminKoyu ? "#eafaf0" : "#0f1b33";
+  const aciklamaRenk = zeminKoyu ? "rgba(234,250,240,0.55)" : "#8fa0bc";
+  const ikonRenk = zeminKoyu ? "#9adfff" : "#175cd3";
+  const hoverBg = zeminKoyu ? "rgba(255,255,255,0.08)" : "#f5f8fc";
+  return (
+    <button
+      type="button"
+      disabled={yapim}
+      title={yapim ? "Yapım aşamasında" : undefined}
+      onClick={() => { if (!yapim && m.href) window.location.href = m.href; }}
+      style={{
+        width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 10px", borderRadius: 11,
+        border: "none", background: "transparent", textAlign: "left", cursor: yapim ? "default" : "pointer",
+        opacity: yapim ? 0.5 : 1, color: metinRenk, minHeight: 0,
+      }}
+      onMouseEnter={(e) => { if (!yapim) (e.currentTarget as HTMLButtonElement).style.background = hoverBg; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+    >
+      <span style={{ marginTop: 2, color: ikonRenk, flex: "none" }}><Icon name={m.icon} size={17} /></span>
+      <span style={{ flex: 1 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: metinRenk }}>{m.title}</div>
+        {yapim ? (
+          <div style={{ fontSize: 8.5, fontWeight: 800, color: zeminKoyu ? "#ffd76a" : "#b7853f", background: zeminKoyu ? "rgba(255,215,106,0.15)" : "#fdf1dc", padding: "2px 6px", borderRadius: 999, display: "inline-block", marginTop: 3 }}>YAPIM AŞAMASINDA</div>
+        ) : (
+          <div style={{ fontSize: 10.5, color: aciklamaRenk, marginTop: 1 }}>{m.desc}</div>
+        )}
+      </span>
+    </button>
+  );
+}
+
+// Masaüstü: "Bilimsel Çalışma Teknikleri" satırının üzerine gelince yanına
+// (üst panelin sağına) ikinci bir flyout açar.
+function AltModulAltMenuSatiri({ m }: { m: AkademikAltModul }) {
+  const [acik, setAcik] = useState(false);
+  const satirRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const kapatZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const konum = useFlyoutKonum(acik, satirRef, panelRef);
 
   function ac() {
     if (kapatZamanlayici.current) { clearTimeout(kapatZamanlayici.current); kapatZamanlayici.current = null; }
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      setKonum({ top: r.top, left: r.right + 10 });
-    }
     setAcik(true);
   }
   function kapatGecikmeli() {
     kapatZamanlayici.current = setTimeout(() => setAcik(false), 180);
   }
 
-  // Panel içeriği (8 alt madde) buton hizasından başlayınca ekranın altından
-  // taşıp son maddelerin sıkışmasına/görünmemesine yol açabiliyordu — panel
-  // gerçekten render olduktan sonra gerçek yüksekliğini ölçüp gerekirse
-  // yukarı kaydırıyoruz; yine de sığmazsa panelin kendisi kayabilir (overflow).
-  useLayoutEffect(() => {
-    if (!acik || !panelRef.current || !btnRef.current) return;
-    const panelH = panelRef.current.offsetHeight;
-    const r = btnRef.current.getBoundingClientRect();
-    const maxTop = Math.max(12, window.innerHeight - panelH - 12);
-    const yeniTop = Math.min(r.top, maxTop);
-    setKonum((k) => (k && Math.round(k.top) !== Math.round(yeniTop) ? { ...k, top: yeniTop } : k));
-  }, [acik]);
+  return (
+    <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
+      <button
+        ref={satirRef}
+        type="button"
+        onClick={ac}
+        style={{
+          width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 10px", borderRadius: 11,
+          border: "none", background: acik ? "#f5f8fc" : "transparent", textAlign: "left", cursor: "pointer", color: "#0f1b33",
+        }}
+      >
+        <span style={{ marginTop: 2, color: "#175cd3", flex: "none" }}><Icon name={m.icon} size={17} /></span>
+        <span style={{ flex: 1 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0f1b33" }}>{m.title}</div>
+          <div style={{ fontSize: 10.5, color: "#8fa0bc", marginTop: 1 }}>{m.desc}</div>
+        </span>
+        <span style={{ color: "#8fa0bc", flex: "none", marginTop: 3 }}><Icon name="chevron" size={14} /></span>
+      </button>
+
+      {acik && konum && m.children && typeof document !== "undefined" && createPortal(
+        <div
+          ref={panelRef}
+          onMouseEnter={ac}
+          onMouseLeave={kapatGecikmeli}
+          style={{
+            position: "fixed", top: konum.top, left: konum.left, width: 270, zIndex: 201,
+            background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
+            border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
+            maxHeight: "calc(100vh - 24px)", overflowY: "auto",
+          }}
+        >
+          <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>{m.title.toUpperCase()}</div>
+          {m.children.map((c) => <AltModulSatiri key={c.title} m={c} />)}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// Mobil: tıklayınca aşağı doğru açılan akordeon satırı (children varsa iç
+// içe bir akordeon daha).
+function AltModulMobilSatiri({ m }: { m: AkademikAltModul }) {
+  const [acik, setAcik] = useState(false);
+  if (m.children) {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setAcik((a) => !a)}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 11, border: "none", background: "transparent", textAlign: "left", cursor: "pointer", color: "#eafaf0" }}
+        >
+          <span style={{ color: "#9adfff", flex: "none" }}><Icon name={m.icon} size={17} /></span>
+          <span style={{ flex: 1, fontSize: 12.5, fontWeight: 700 }}>{m.title}</span>
+          <Icon name="chevron" size={14} />
+        </button>
+        {acik && (
+          <div style={{ paddingLeft: 20, display: "grid", gap: 2 }}>
+            {m.children.map((c) => <AltModulSatiri key={c.title} m={c} zeminKoyu />)}
+          </div>
+        )}
+      </div>
+    );
+  }
+  return <AltModulSatiri m={m} zeminKoyu />;
+}
+
+function AkademikYonetimNav() {
+  const mobil = useMobilMi();
+  const [acik, setAcik] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const kapatZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const konum = useFlyoutKonum(!mobil && acik, btnRef, panelRef);
+
+  function ac() {
+    if (mobil) return; // mobilde hover yerine tıklama kullanılıyor
+    if (kapatZamanlayici.current) { clearTimeout(kapatZamanlayici.current); kapatZamanlayici.current = null; }
+    setAcik(true);
+  }
+  function kapatGecikmeli() {
+    if (mobil) return;
+    kapatZamanlayici.current = setTimeout(() => setAcik(false), 180);
+  }
+
+  const buton = (
+    <button ref={btnRef} type="button" onClick={() => setAcik((a) => !a)} aria-haspopup="true" aria-expanded={acik}>
+      <Icon name="graduation" size={19} /><span>Akademik Yönetim</span><Icon name="chevron" size={14} />
+    </button>
+  );
+
+  // Mobil: sabit konumlu flyout dar ekranda taşıp sıkışıyordu — bunun yerine
+  // sidebar'ın kendi akışı içinde, dokununca açılan bir akordeon kullanılır.
+  if (mobil) {
+    return (
+      <div>
+        {buton}
+        {acik && (
+          <div style={{ padding: "2px 0 6px 4px", display: "grid", gap: 2 }}>
+            {AKADEMIK_YONETIM_ALT_MODULLER.map((m) => <AltModulMobilSatiri key={m.title} m={m} />)}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
-      <button ref={btnRef} type="button" onClick={() => (acik ? setAcik(false) : ac())} aria-haspopup="true" aria-expanded={acik}>
-        <Icon name="graduation" size={19} /><span>Akademik Yönetim</span><Icon name="chevron" size={14} />
-      </button>
+      {buton}
       {acik && konum && typeof document !== "undefined" && createPortal(
         <>
           <div onClick={() => setAcik(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />
@@ -677,37 +844,9 @@ function AkademikYonetimNav() {
             }}
           >
             <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>AKADEMİK YÖNETİM</div>
-            {AKADEMIK_YONETIM_ALT_MODULLER.map((m) => {
-              const yapim = m.durum === "yapim";
-              return (
-                <button
-                  key={m.title}
-                  type="button"
-                  disabled={yapim}
-                  title={yapim ? "Yapım aşamasında" : undefined}
-                  onClick={() => { if (!yapim && m.href) window.location.href = m.href; }}
-                  style={{
-                    width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 10px", borderRadius: 11,
-                    border: "none", background: "transparent", textAlign: "left", cursor: yapim ? "default" : "pointer",
-                    opacity: yapim ? 0.5 : 1, color: "#0f1b33", minHeight: 0,
-                  }}
-                  onMouseEnter={(e) => { if (!yapim) (e.currentTarget as HTMLButtonElement).style.background = "#f5f8fc"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-                >
-                  <span style={{ marginTop: 2, color: "#175cd3", flex: "none" }}><Icon name={m.icon} size={17} /></span>
-                  <span style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: "#0f1b33" }}>
-                      {m.title}
-                    </div>
-                    {yapim ? (
-                      <div style={{ fontSize: 8.5, fontWeight: 800, color: "#b7853f", background: "#fdf1dc", padding: "2px 6px", borderRadius: 999, display: "inline-block", marginTop: 3 }}>YAPIM AŞAMASINDA</div>
-                    ) : (
-                      <div style={{ fontSize: 10.5, color: "#8fa0bc", marginTop: 1 }}>{m.desc}</div>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
+            {AKADEMIK_YONETIM_ALT_MODULLER.map((m) => (
+              m.children ? <AltModulAltMenuSatiri key={m.title} m={m} /> : <AltModulSatiri key={m.title} m={m} />
+            ))}
           </div>
         </>,
         document.body

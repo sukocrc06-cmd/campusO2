@@ -57,6 +57,7 @@ export default function AdminDersSinavPage() {
 
   const [filtreBolum, setFiltreBolum] = useState("");
   const [filtreSinif, setFiltreSinif] = useState("");
+  const [filtreHoca, setFiltreHoca] = useState("");
   const [akademisyenler, setAkademisyenler] = useState([]);
   const [onayBekleyenler, setOnayBekleyenler] = useState([]);
   const [adminId, setAdminId] = useState(null);
@@ -137,6 +138,19 @@ export default function AdminDersSinavPage() {
     ]);
     return Array.from(set).filter(Boolean).sort();
   }, [dersListe, sinavListe, donemGoruntule]);
+
+  // Öğretmen adına göre arama için otomatik tamamlama listesi — hem ders/sınav
+  // satırlarındaki serbest metin hoca_adi'larından hem de akademisyen
+  // hesaplarının profil isimlerinden (henüz hiç dersi olmayan yeni bir hoca
+  // hesabı da bulunabilsin diye) birleştiriliyor.
+  const hocaSecenekleri = useMemo(() => {
+    const set = new Set([
+      ...dersListe.map((d) => d.hoca_adi),
+      ...sinavListe.map((s) => s.hoca_adi),
+      ...akademisyenler.map((a) => a.full_name),
+    ]);
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, "tr-TR"));
+  }, [dersListe, sinavListe, akademisyenler]);
 
   async function handleDersDosya(e) {
     const file = e.target.files?.[0];
@@ -286,8 +300,11 @@ export default function AdminDersSinavPage() {
     setBusy(false);
   }
 
-  const filtrelenmisDers = dersListe.filter((d) => (d.donem || "bahar") === donemGoruntule && (!filtreBolum || d.bolum === filtreBolum) && (!filtreSinif || d.sinif === filtreSinif));
-  const filtrelenmisSinav = sinavListe.filter((s) => (s.donem || "bahar") === donemGoruntule && (!filtreBolum || s.bolum === filtreBolum) && (!filtreSinif || s.sinif === filtreSinif));
+  const hocaAramaMetni = filtreHoca.trim().toLocaleLowerCase("tr-TR");
+  const hocaEslesiyorMu = (hocaAdi) => !hocaAramaMetni || (hocaAdi || "").toLocaleLowerCase("tr-TR").includes(hocaAramaMetni);
+
+  const filtrelenmisDers = dersListe.filter((d) => (d.donem || "bahar") === donemGoruntule && (!filtreBolum || d.bolum === filtreBolum) && (!filtreSinif || d.sinif === filtreSinif) && hocaEslesiyorMu(d.hoca_adi));
+  const filtrelenmisSinav = sinavListe.filter((s) => (s.donem || "bahar") === donemGoruntule && (!filtreBolum || s.bolum === filtreBolum) && (!filtreSinif || s.sinif === filtreSinif) && hocaEslesiyorMu(s.hoca_adi));
 
   // Bölüm/Sınıf bazlı katlanabilir gruplar — 163+ kaydı tek düz liste yerine
   // varsayılan kapalı başlıklara ayırarak scroll'u kısaltır.
@@ -447,11 +464,11 @@ export default function AdminDersSinavPage() {
                 )}
 
                 <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 20 }}>
-                  <FiltreBar bolumSecenekleri={bolumSecenekleri} filtreBolum={filtreBolum} setFiltreBolum={setFiltreBolum} filtreSinif={filtreSinif} setFiltreSinif={setFiltreSinif} onToplu={() => handleFiltrelenenleriSil("ders_programi")} busy={busy} />
+                  <FiltreBar bolumSecenekleri={bolumSecenekleri} filtreBolum={filtreBolum} setFiltreBolum={setFiltreBolum} filtreSinif={filtreSinif} setFiltreSinif={setFiltreSinif} hocaSecenekleri={hocaSecenekleri} filtreHoca={filtreHoca} setFiltreHoca={setFiltreHoca} onToplu={() => handleFiltrelenenleriSil("ders_programi")} busy={busy} />
                   <div style={{ fontSize: 12, color: "var(--muted)", margin: "10px 0" }}>{filtrelenmisDers.length} kayıt · {dersGruplari.length} bölüm/sınıf grubu</div>
                   <div style={{ display: "grid", gap: 8 }}>
                     {dersGruplari.map((grup) => (
-                      <details key={`${grup.bolum}||${grup.sinif}`} style={{ border: "1px solid #e3ebf6", borderRadius: 12, overflow: "hidden" }}>
+                      <details key={`${grup.bolum}||${grup.sinif}`} open={!!filtreHoca} style={{ border: "1px solid #e3ebf6", borderRadius: 12, overflow: "hidden" }}>
                         <summary style={{ cursor: "pointer", listStyle: "none", padding: "12px 14px", fontSize: 12.5, fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f5f8fc" }}>
                           <span>{grup.bolum} / {grup.sinif}. sınıf</span>
                           <span style={{ fontSize: 11, fontWeight: 700, color: "#5b6b85" }}>{grup.kayitlar.length} ders</span>
@@ -540,11 +557,11 @@ export default function AdminDersSinavPage() {
                 </details>
 
                 <section style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 16, padding: 20 }}>
-                  <FiltreBar bolumSecenekleri={bolumSecenekleri} filtreBolum={filtreBolum} setFiltreBolum={setFiltreBolum} filtreSinif={filtreSinif} setFiltreSinif={setFiltreSinif} onToplu={() => handleFiltrelenenleriSil("sinav_takvimi")} busy={busy} />
+                  <FiltreBar bolumSecenekleri={bolumSecenekleri} filtreBolum={filtreBolum} setFiltreBolum={setFiltreBolum} filtreSinif={filtreSinif} setFiltreSinif={setFiltreSinif} hocaSecenekleri={hocaSecenekleri} filtreHoca={filtreHoca} setFiltreHoca={setFiltreHoca} onToplu={() => handleFiltrelenenleriSil("sinav_takvimi")} busy={busy} />
                   <div style={{ fontSize: 12, color: "var(--muted)", margin: "10px 0" }}>{filtrelenmisSinav.length} kayıt · {sinavGruplari.length} bölüm/sınıf grubu</div>
                   <div style={{ display: "grid", gap: 8 }}>
                     {sinavGruplari.map((grup) => (
-                      <details key={`${grup.bolum}||${grup.sinif}`} style={{ border: "1px solid #e3ebf6", borderRadius: 12, overflow: "hidden" }}>
+                      <details key={`${grup.bolum}||${grup.sinif}`} open={!!filtreHoca} style={{ border: "1px solid #e3ebf6", borderRadius: 12, overflow: "hidden" }}>
                         <summary style={{ cursor: "pointer", listStyle: "none", padding: "12px 14px", fontSize: 12.5, fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f5f8fc" }}>
                           <span>{grup.bolum} / {grup.sinif}. sınıf</span>
                           <span style={{ fontSize: 11, fontWeight: 700, color: "#5b6b85" }}>{grup.kayitlar.length} sınav</span>
@@ -573,7 +590,7 @@ export default function AdminDersSinavPage() {
   );
 }
 
-function FiltreBar({ bolumSecenekleri, filtreBolum, setFiltreBolum, filtreSinif, setFiltreSinif, onToplu, busy }) {
+function FiltreBar({ bolumSecenekleri, filtreBolum, setFiltreBolum, filtreSinif, setFiltreSinif, hocaSecenekleri, filtreHoca, setFiltreHoca, onToplu, busy }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
       <label style={{ ...labelStyle, minWidth: 180 }}>Bölüm filtrele
@@ -585,6 +602,23 @@ function FiltreBar({ bolumSecenekleri, filtreBolum, setFiltreBolum, filtreSinif,
       <label style={{ ...labelStyle, minWidth: 120 }}>Sınıf filtrele
         <input style={inputStyle} value={filtreSinif} onChange={(e) => setFiltreSinif(e.target.value)} placeholder="ör. 2" />
       </label>
+      <label style={{ ...labelStyle, minWidth: 200 }}>Öğretmen adına göre ara
+        <input
+          style={inputStyle}
+          value={filtreHoca}
+          onChange={(e) => setFiltreHoca(e.target.value)}
+          placeholder="ör. Ali İhsan Çetin"
+          list="hoca-secenekleri"
+        />
+        <datalist id="hoca-secenekleri">
+          {(hocaSecenekleri || []).map((h) => <option key={h} value={h} />)}
+        </datalist>
+      </label>
+      {filtreHoca && (
+        <button type="button" onClick={() => setFiltreHoca("")} style={{ minHeight: 42, padding: "0 12px", fontSize: 12, fontWeight: 700, borderRadius: 10, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", cursor: "pointer" }}>
+          Aramayı temizle
+        </button>
+      )}
       <button type="button" onClick={onToplu} disabled={busy || !filtreBolum} style={{ minHeight: 42, padding: "0 14px", fontSize: 12, fontWeight: 700, borderRadius: 10, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: busy || !filtreBolum ? "not-allowed" : "pointer", opacity: !filtreBolum ? 0.5 : 1 }}>
         Filtrelenenleri Sil
       </button>

@@ -5,10 +5,13 @@ import Link from "next/link";
 import { supabase } from "../../../../lib/supabase";
 import { BuyuyenBitki, Konfeti, bitkiTuruBelirle, saniyeyiMMSSyapVeyaSaat, saniyeyiOkunurMetneYap, sesCal } from "../../../../lib/buyuyen-bitki";
 
-const cardStyle = { background: "#fff", border: "1px solid #e3ebf6", borderRadius: 18, padding: 24 };
-const btnPrimary = { minHeight: 46, padding: "0 20px", fontSize: 14, fontWeight: 800, borderRadius: 12, border: "none", background: "#175cd3", color: "#fff", cursor: "pointer" };
-const btnGhost = { minHeight: 40, padding: "0 14px", fontSize: 12.5, fontWeight: 700, borderRadius: 11, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", cursor: "pointer" };
-const inputStyle = { height: 44, padding: "0 14px", border: "1px solid #e3ebf6", borderRadius: 11, fontSize: 13.5, outline: "none", width: "100%", boxSizing: "border-box" };
+// Sayfa tamamen "koyu orman" temasına geçti (kullanıcı isteğiyle) — üstteki
+// büyüyen bitki kartıyla aynı koyu yeşil paleti artık header ve alttaki
+// "Bitki Koleksiyonun" / "Bu Hafta" kartlarına da yayılıyor.
+const cardStyle = { background: "#17281d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: 24, color: "#eafaf0" };
+const btnPrimary = { minHeight: 46, padding: "0 20px", fontSize: 14, fontWeight: 800, borderRadius: 12, border: "none", background: "#2f9e58", color: "#fff", cursor: "pointer" };
+const btnGhost = { minHeight: 40, padding: "0 14px", fontSize: 12.5, fontWeight: 700, borderRadius: 11, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#bfe6c8", cursor: "pointer" };
+const inputStyle = { height: 44, padding: "0 14px", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 11, fontSize: 13.5, outline: "none", width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.06)", color: "#eafaf0" };
 
 const BITKI_TUR_SIRASI = [
   { tur: "cicek", ad: "Çiçek", esikSaat: 0 },
@@ -124,25 +127,25 @@ export default function UzunOdakliCalismaPage() {
   const bugunToplamSaniyeHafta = gecmis.reduce((acc, g) => acc + g.hedef_saniye, 0);
 
   return (
-    <div style={{ minHeight: "100dvh", background: "#f5f8fc", fontFamily: "system-ui, sans-serif", color: "#0f1b33" }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 22px", borderBottom: "1px solid #e3ebf6", background: "#fff" }}>
+    <div style={{ minHeight: "100dvh", background: "linear-gradient(180deg, #0f1f16, #0b160f)", fontFamily: "system-ui, sans-serif", color: "#eafaf0" }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 22px", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "#14261b" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Link href="/?role=student" style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 11, border: "1px solid #e3ebf6", background: "#f5f8fc", color: "#175cd3", textDecoration: "none" }}>←</Link>
+          <Link href="/?role=student" style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 11, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.06)", color: "#9fe0ae", textDecoration: "none" }}>←</Link>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", color: "#175cd3" }}>AKADEMİK YÖNETİM · BİLİMSEL ÇALIŞMA TEKNİKLERİ</div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>Uzun Odaklı Çalışma</div>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", color: "#8fd6a0" }}>AKADEMİK YÖNETİM · BİLİMSEL ÇALIŞMA TEKNİKLERİ</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#eafaf0" }}>Uzun Odaklı Çalışma</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <Link href="/student/calisma-teknikleri/pomodoro" style={{ minHeight: 40, padding: "0 14px", fontSize: 12.5, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 11, border: "1px solid #e3ebf6", color: "#5b6b85" }}>Pomodoro</Link>
-          <Link href="/student/calisma-teknikleri/aralikli-tekrar" style={{ minHeight: 40, padding: "0 14px", fontSize: 12.5, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 11, border: "1px solid #e3ebf6", color: "#5b6b85" }}>Aralıklı Tekrar</Link>
+          <Link href="/student/calisma-teknikleri/pomodoro" style={{ minHeight: 40, padding: "0 14px", fontSize: 12.5, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 11, border: "1px solid rgba(255,255,255,0.15)", color: "#bfe6c8" }}>Pomodoro</Link>
+          <Link href="/student/calisma-teknikleri/aralikli-tekrar" style={{ minHeight: 40, padding: "0 14px", fontSize: 12.5, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 11, border: "1px solid rgba(255,255,255,0.15)", color: "#bfe6c8" }}>Aralıklı Tekrar</Link>
         </div>
       </header>
 
       <main style={{ width: "min(640px, 100%)", margin: "0 auto", padding: "28px 18px 60px", display: "grid", gap: 18 }}>
-        {error ? <div style={{ padding: "12px 14px", borderRadius: 12, background: "#fff4f0", border: "1px solid #f2c5ba", color: "#984333", fontSize: 13, fontWeight: 600 }}>{error}</div> : null}
+        {error ? <div style={{ padding: "12px 14px", borderRadius: 12, background: "rgba(255,99,71,0.12)", border: "1px solid rgba(255,99,71,0.4)", color: "#ffb4a0", fontSize: 13, fontWeight: 600 }}>{error}</div> : null}
 
-        {loading ? <div style={{ color: "#8fa0bc", fontSize: 13 }}>Yükleniyor…</div> : (
+        {loading ? <div style={{ color: "rgba(234,250,240,0.6)", fontSize: 13 }}>Yükleniyor…</div> : (
           <>
             <div style={{ ...cardStyle, background: "linear-gradient(180deg, #1c3324, #14261b)", color: "#eafaf0", border: "none", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", position: "relative", overflow: "hidden" }}>
               {konfetiAktif && <Konfeti />}
@@ -196,22 +199,22 @@ export default function UzunOdakliCalismaPage() {
             </div>
 
             <div style={cardStyle}>
-              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>Bitki Koleksiyonun</div>
-              <div style={{ fontSize: 12, color: "#8fa0bc", marginBottom: 16 }}>Toplam odak süren arttıkça yeni bitki türleri açılır.</div>
+              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4, color: "#eafaf0" }}>Bitki Koleksiyonun</div>
+              <div style={{ fontSize: 12, color: "rgba(234,250,240,0.55)", marginBottom: 16 }}>Toplam odak süren arttıkça yeni bitki türleri açılır.</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
                 {BITKI_TUR_SIRASI.map((t, i) => {
                   const acik = i <= suankiSiraIndex;
                   return (
                     <div key={t.tur} style={{ textAlign: "center", opacity: acik ? 1 : 0.35 }}>
-                      <BuyuyenBitki percent={100} tamamlandi size={56} tur={t.tur} />
-                      <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 2 }}>{t.ad}</div>
-                      <div style={{ fontSize: 9.5, color: "#8fa0bc" }}>{t.esikSaat} sa+</div>
+                      <BuyuyenBitki percent={100} tamamlandi size={56} tur={t.tur} dark />
+                      <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 2, color: "#eafaf0" }}>{t.ad}</div>
+                      <div style={{ fontSize: 9.5, color: "rgba(234,250,240,0.55)" }}>{t.esikSaat} sa+</div>
                     </div>
                   );
                 })}
               </div>
-              <div style={{ fontSize: 12, color: "#5b6b85" }}>
-                Toplam odak süren: <b style={{ color: "#0f1b33" }}>{saniyeyiOkunurMetneYap(toplamSaniye)}</b>
+              <div style={{ fontSize: 12, color: "rgba(234,250,240,0.7)" }}>
+                Toplam odak süren: <b style={{ color: "#eafaf0" }}>{saniyeyiOkunurMetneYap(toplamSaniye)}</b>
                 {sonrakiTur && (
                   <> · <b>{sonrakiTur.ad}</b>'a ulaşmak için <b>{saniyeyiOkunurMetneYap(Math.max(0, sonrakiTur.esikSaat * 3600 - toplamSaniye))}</b> daha odaklanmalısın.</>
                 )}
@@ -219,19 +222,19 @@ export default function UzunOdakliCalismaPage() {
             </div>
 
             <div style={cardStyle}>
-              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>Bu Hafta</div>
-              <div style={{ fontSize: 12, color: "#8fa0bc", marginBottom: 16 }}>Son 7 gündeki tamamlanmış oturumların. Toplam: <b style={{ color: "#0f1b33" }}>{saniyeyiOkunurMetneYap(bugunToplamSaniyeHafta)}</b></div>
+              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4, color: "#eafaf0" }}>Bu Hafta</div>
+              <div style={{ fontSize: 12, color: "rgba(234,250,240,0.55)", marginBottom: 16 }}>Son 7 gündeki tamamlanmış oturumların. Toplam: <b style={{ color: "#eafaf0" }}>{saniyeyiOkunurMetneYap(bugunToplamSaniyeHafta)}</b></div>
               {gecmis.length === 0 ? (
-                <div style={{ padding: 18, textAlign: "center", color: "#8fa0bc", fontSize: 13, border: "1px dashed #e3ebf6", borderRadius: 12 }}>Bu hafta henüz tamamlanmış bir oturumun yok.</div>
+                <div style={{ padding: 18, textAlign: "center", color: "rgba(234,250,240,0.55)", fontSize: 13, border: "1px dashed rgba(255,255,255,0.18)", borderRadius: 12 }}>Bu hafta henüz tamamlanmış bir oturumun yok.</div>
               ) : (
                 <div style={{ display: "grid", gap: 8 }}>
                   {gecmis.map((g) => (
-                    <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, padding: "8px 0", borderBottom: "1px solid #f0f4fa" }}>
+                    <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.08)", color: "#eafaf0" }}>
                       <span>
                         <b>{g.konu || "Etiketsiz"}</b>
-                        <span style={{ color: "#8fa0bc", marginLeft: 6 }}>{new Date(g.tamamlanma_at).toLocaleDateString("tr-TR", { day: "numeric", month: "long" })}</span>
+                        <span style={{ color: "rgba(234,250,240,0.55)", marginLeft: 6 }}>{new Date(g.tamamlanma_at).toLocaleDateString("tr-TR", { day: "numeric", month: "long" })}</span>
                       </span>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: "#0b8f5c", background: "#e7f8ef", padding: "3px 10px", borderRadius: 999 }}>{Math.round(g.hedef_saniye / 60)} dk</span>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: "#9fe0ae", background: "rgba(159,224,174,0.15)", padding: "3px 10px", borderRadius: 999 }}>{Math.round(g.hedef_saniye / 60)} dk</span>
                     </div>
                   ))}
                 </div>

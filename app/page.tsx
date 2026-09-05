@@ -644,27 +644,24 @@ function useMobilMi() {
   return mobil;
 }
 
-// Bir tetikleyici elemanın sağında açılan flyout panelin konumunu hesaplar;
-// panel gerçekten render olduktan sonra kendi yüksekliğini ölçüp ekranın
-// altından taşmayacak şekilde yukarı kaydırır. Hem üst seviye "Akademik
-// Yönetim" menüsü hem de içindeki "Bilimsel Çalışma Teknikleri" alt menüsü
-// tarafından ortak kullanılıyor.
-function useFlyoutKonum(acik: boolean, tetikleyiciRef: React.RefObject<HTMLElement | null>, panelRef: React.RefObject<HTMLElement | null>) {
-  const [konum, setKonum] = useState<{ top: number; left: number } | null>(null);
+// Bir tetikleyici elemanın sağında açılan flyout panelin yatay konumunu
+// hesaplar. Dikey konum artık trigger'ın ekrandaki yerine göre DEĞİL, her
+// zaman ekranın dikey ortasına (top:50% + translateY(-50%)) sabitleniyor —
+// önceki sürümde panel yüksekliği trigger'ın altında kalan boşluğa
+// sığmadığında (ör. "Bilimsel Çalışma Teknikleri" sidebar'ın en altındayken
+// açılan alt menü) panel ekranın dışına taşıyor ve erişilemez oluyordu. Dikey
+// ortalama + maxHeight/overflow-y ile bu tamamen ortadan kalkıyor: madde
+// sayısı ne olursa olsun panel her zaman ekrana sığar, gerekirse kendi
+// içinde kaydırılır. Hem üst seviye "Akademik Yönetim" menüsü hem de
+// içindeki "Bilimsel Çalışma Teknikleri" alt menüsü tarafından kullanılıyor.
+function useFlyoutSol(acik: boolean, tetikleyiciRef: React.RefObject<HTMLElement | null>) {
+  const [sol, setSol] = useState<number | null>(null);
   useLayoutEffect(() => {
-    if (!acik || !tetikleyiciRef.current) return;
+    if (!acik || !tetikleyiciRef.current) { setSol(null); return; }
     const r = tetikleyiciRef.current.getBoundingClientRect();
-    setKonum({ top: r.top, left: r.right + 10 });
+    setSol(r.right + 10);
   }, [acik]);
-  useLayoutEffect(() => {
-    if (!acik || !panelRef.current || !tetikleyiciRef.current) return;
-    const panelH = panelRef.current.offsetHeight;
-    const r = tetikleyiciRef.current.getBoundingClientRect();
-    const maxTop = Math.max(12, window.innerHeight - panelH - 12);
-    const yeniTop = Math.min(r.top, maxTop);
-    setKonum((k) => (k && Math.round(k.top) !== Math.round(yeniTop) ? { ...k, top: yeniTop } : k));
-  }, [acik]);
-  return konum;
+  return sol;
 }
 
 // Tek bir alt madde satırı (link ya da "yapım aşamasında"). zeminKoyu=true,
@@ -708,9 +705,8 @@ function AltModulSatiri({ m, zeminKoyu = false }: { m: AkademikAltModul; zeminKo
 function AltModulAltMenuSatiri({ m }: { m: AkademikAltModul }) {
   const [acik, setAcik] = useState(false);
   const satirRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
   const kapatZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const konum = useFlyoutKonum(acik, satirRef, panelRef);
+  const sol = useFlyoutSol(acik, satirRef);
 
   function ac() {
     if (kapatZamanlayici.current) { clearTimeout(kapatZamanlayici.current); kapatZamanlayici.current = null; }
@@ -739,13 +735,12 @@ function AltModulAltMenuSatiri({ m }: { m: AkademikAltModul }) {
         <span style={{ color: "#8fa0bc", flex: "none", marginTop: 3 }}><Icon name="chevron" size={14} /></span>
       </button>
 
-      {acik && konum && m.children && typeof document !== "undefined" && createPortal(
+      {acik && sol != null && m.children && typeof document !== "undefined" && createPortal(
         <div
-          ref={panelRef}
           onMouseEnter={ac}
           onMouseLeave={kapatGecikmeli}
           style={{
-            position: "fixed", top: konum.top, left: konum.left, width: 270, zIndex: 201,
+            position: "fixed", top: "50%", left: sol, transform: "translateY(-50%)", width: 270, zIndex: 201,
             background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
             border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
             maxHeight: "calc(100vh - 24px)", overflowY: "auto",
@@ -791,9 +786,8 @@ function AkademikYonetimNav() {
   const mobil = useMobilMi();
   const [acik, setAcik] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
   const kapatZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const konum = useFlyoutKonum(!mobil && acik, btnRef, panelRef);
+  const sol = useFlyoutSol(!mobil && acik, btnRef);
 
   function ac() {
     if (mobil) return; // mobilde hover yerine tıklama kullanılıyor
@@ -829,15 +823,14 @@ function AkademikYonetimNav() {
   return (
     <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
       {buton}
-      {acik && konum && typeof document !== "undefined" && createPortal(
+      {acik && sol != null && typeof document !== "undefined" && createPortal(
         <>
           <div onClick={() => setAcik(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />
           <div
-            ref={panelRef}
             onMouseEnter={ac}
             onMouseLeave={kapatGecikmeli}
             style={{
-              position: "fixed", top: konum.top, left: konum.left, width: 290, zIndex: 200,
+              position: "fixed", top: "50%", left: sol, transform: "translateY(-50%)", width: 290, zIndex: 200,
               background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
               border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
               maxHeight: "calc(100vh - 24px)", overflowY: "auto",

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchWithAuth, getCampusSession, supabase } from "../lib/supabase";
 import { TAKVIM_TURLERI, AY_ADLARI, GUN_KISALTMALARI, tarihIso, ayIzgarasiUret } from "../lib/kisisel-takvim";
+import { BuyuyenBitki, saniyeyiMMSSyapVeyaSaat } from "../lib/buyuyen-bitki";
 
 const takvimInputStyle = { height: 42, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 11, fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" as const };
 // Bir günde birden fazla etkinlik türü varsa hücrenin tamamını dolduracak
@@ -32,7 +33,8 @@ type IconName =
   | "shield"
   | "settings"
   | "sun"
-  | "moon";
+  | "moon"
+  | "leaf";
 
 const roleCopy: Record<Role, { title: string; panel: string; description: string }> = {
   student: {
@@ -94,6 +96,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.1.4.3.7.6 1 .3.2.7.4 1.1.4h.1v4h-.1c-.4 0-.8.2-1.1.4-.3.3-.5.6-.6 1Z" /></>,
     sun: <><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.4M12 19.1v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7" /></>,
     moon: <path d="M20.5 14.7A8.5 8.5 0 1 1 9.3 3.5a7 7 0 0 0 11.2 11.2Z" />,
+    leaf: <><path d="M5 21c8 0 14-6 14-14V5h-2C9 5 5 11 5 19v2Z" /><path d="M5 21c0-6 3-10 8-13" /></>,
   };
 
   return <svg {...common}>{paths[name]}</svg>;
@@ -567,6 +570,7 @@ type HizliIslem = { title: string; icon: IconName; accent: keyof typeof MODULE_A
 const OGRENCI_HIZLI_ISLEMLER: HizliIslem[] = [
   { title: "Ders Kayıt", icon: "graduation", accent: "coral", href: "/student/ders-kayit" },
   { title: "Ders Programı", icon: "book", accent: "blue", href: "/ders-programi-sinav-takvimi" },
+  { title: "Çalışma Teknikleri", icon: "leaf", accent: "green", href: "/student/calisma-teknikleri" },
   { title: "Yoklama Takibi", icon: "check", accent: "green", href: "/student/yoklamalarim" },
   { title: "QR ile Yoklama", icon: "qr", accent: "sky", href: "/student/qr-yoklama" },
   { title: "Staj Takip", icon: "briefcase", accent: "amber", href: "/student/staj" },
@@ -597,6 +601,72 @@ function HizliIslemler({ items }: { items: HizliIslem[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+// Öğrenci ana sayfasındaki "büyüyen bitki" özet widget'ı — Uzun Odaklı
+// Çalışma tekniğine bağlı: aktif bir oturum varsa kalan süreyi ve büyüyen
+// filizi gösterir, yoksa "bugün bir bitki dikmeye ne dersin?" çağrısı yapar.
+function BitkiWidget({ userId }: { userId?: string | null }) {
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [oturum, setOturum] = useState<any>(null);
+  const [kalan, setKalan] = useState(0);
+  const [hasat, setHasat] = useState(0);
+
+  useEffect(() => {
+    if (!userId || !supabase) { setYukleniyor(false); return; }
+    let iptal = false;
+    async function yukle() {
+      const { data: profil } = await supabase!.from("profiles").select("tamamlanan_odak_oturumu_sayisi").eq("id", userId).maybeSingle();
+      const { data: aktif } = await supabase!.from("calisma_oturumlari").select("*").eq("kullanici_id", userId).eq("tur", "uzun_odakli").eq("durum", "devam_ediyor").maybeSingle();
+      if (iptal) return;
+      setHasat(profil?.tamamlanan_odak_oturumu_sayisi || 0);
+      setOturum(aktif || null);
+      setYukleniyor(false);
+    }
+    yukle();
+    return () => { iptal = true; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!oturum) return;
+    const bitis = new Date(oturum.bitis_zamani_planlanan).getTime();
+    const tik = () => setKalan(Math.max(0, Math.round((bitis - Date.now()) / 1000)));
+    tik();
+    const id = setInterval(tik, 1000);
+    return () => clearInterval(id);
+  }, [oturum?.id]);
+
+  if (yukleniyor) return null;
+
+  const yuzde = oturum ? Math.min(100, Math.max(0, 100 * (1 - kalan / Math.max(1, (new Date(oturum.bitis_zamani_planlanan).getTime() - new Date(oturum.baslangic_at).getTime()) / 1000)))) : 0;
+
+  return (
+    <a href="/student/calisma-teknikleri" style={{ textDecoration: "none", color: "inherit" }}>
+      <section
+        className="dashboard-category"
+        style={{
+          display: "flex", alignItems: "center", gap: 16, padding: "16px 18px",
+          background: "linear-gradient(135deg, #1c3324, #14261b)", borderRadius: 18, color: "#eafaf0", border: "none",
+        }}
+      >
+        <BuyuyenBitki percent={yuzde} size={56} dark />
+        <div style={{ flex: 1 }}>
+          {oturum ? (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 800 }}>Filizin büyüyor 🌱</div>
+              <div style={{ fontSize: 11.5, color: "#bfe6c8", marginTop: 2 }}>Kalan süre: {saniyeyiMMSSyapVeyaSaat(kalan)} — devam etmek için dokun.</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 800 }}>Bugün bir bitki dikmeye ne dersin?</div>
+              <div style={{ fontSize: 11.5, color: "#bfe6c8", marginTop: 2 }}>Uzun Odaklı Çalışma ile odaklan, filizin gözünün önünde büyüsün.{hasat > 0 ? ` Şimdiye kadar ${hasat} bitki yetiştirdin.` : ""}</div>
+            </>
+          )}
+        </div>
+        <Icon name="arrow" size={18} />
+      </section>
+    </a>
   );
 }
 
@@ -642,6 +712,7 @@ function ModuleHome({
 
       {role === "student" ? (
         <>
+          <BitkiWidget userId={userId} />
           <TakvimWidget userId={userId} />
           <HizliIslemler items={OGRENCI_HIZLI_ISLEMLER} />
         </>

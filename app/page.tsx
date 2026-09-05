@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchWithAuth, getCampusSession, supabase } from "../lib/supabase";
 import { TAKVIM_TURLERI, AY_ADLARI, GUN_KISALTMALARI, tarihIso, ayIzgarasiUret } from "../lib/kisisel-takvim";
-import { BuyuyenBitki, saniyeyiMMSSyapVeyaSaat } from "../lib/buyuyen-bitki";
+import { BuyuyenBitki, bitkiTuruBelirle, saniyeyiMMSSyapVeyaSaat } from "../lib/buyuyen-bitki";
 
 const takvimInputStyle = { height: 42, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 11, fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" as const };
 // Bir günde birden fazla etkinlik türü varsa hücrenin tamamını dolduracak
@@ -620,26 +620,42 @@ const AKADEMIK_YONETIM_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Devamsızlık", desc: "Devam yüzden ve yoklama geçmişin", icon: "shield", href: "/student/yoklamalarim", durum: "aktif" },
   { title: "Transkript", desc: "Anlık transkript talebi, PDF indirme", icon: "graduation", durum: "yapim" },
   { title: "Cornell Not Sistemi", desc: "Ders bazlı not şablonu, PDF dışa aktar", icon: "message", durum: "yapim" },
-  { title: "Bilimsel Çalışma Teknikleri", desc: "Pomodoro, Aralıklı Tekrar, Uzun Odaklı Çalışma", icon: "leaf", href: "/student/calisma-teknikleri", durum: "aktif" },
+  { title: "Pomodoro Tekniği", desc: "25dk odaklan, 5dk mola — döngüsel çalışma", icon: "leaf", href: "/student/calisma-teknikleri/pomodoro", durum: "aktif" },
+  { title: "Aralıklı Tekrar", desc: "1 → 3 → 7 → 16 gün tekrar zinciri", icon: "leaf", href: "/student/calisma-teknikleri/aralikli-tekrar", durum: "aktif" },
+  { title: "Uzun Odaklı Çalışma", desc: "Büyüyen bitki eşliğinde derin odak", icon: "leaf", href: "/student/calisma-teknikleri/uzun-odakli", durum: "aktif" },
 ];
 
 function AkademikYonetimNav() {
   const [acik, setAcik] = useState(false);
   const [konum, setKonum] = useState<{ top: number; left: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const kapatZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function ac() {
     if (kapatZamanlayici.current) { clearTimeout(kapatZamanlayici.current); kapatZamanlayici.current = null; }
     if (btnRef.current) {
       const r = btnRef.current.getBoundingClientRect();
-      setKonum({ top: Math.min(r.top, window.innerHeight - 430), left: r.right + 10 });
+      setKonum({ top: r.top, left: r.right + 10 });
     }
     setAcik(true);
   }
   function kapatGecikmeli() {
     kapatZamanlayici.current = setTimeout(() => setAcik(false), 180);
   }
+
+  // Panel içeriği (8 alt madde) buton hizasından başlayınca ekranın altından
+  // taşıp son maddelerin sıkışmasına/görünmemesine yol açabiliyordu — panel
+  // gerçekten render olduktan sonra gerçek yüksekliğini ölçüp gerekirse
+  // yukarı kaydırıyoruz; yine de sığmazsa panelin kendisi kayabilir (overflow).
+  useLayoutEffect(() => {
+    if (!acik || !panelRef.current || !btnRef.current) return;
+    const panelH = panelRef.current.offsetHeight;
+    const r = btnRef.current.getBoundingClientRect();
+    const maxTop = Math.max(12, window.innerHeight - panelH - 12);
+    const yeniTop = Math.min(r.top, maxTop);
+    setKonum((k) => (k && Math.round(k.top) !== Math.round(yeniTop) ? { ...k, top: yeniTop } : k));
+  }, [acik]);
 
   return (
     <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
@@ -650,12 +666,14 @@ function AkademikYonetimNav() {
         <>
           <div onClick={() => setAcik(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />
           <div
+            ref={panelRef}
             onMouseEnter={ac}
             onMouseLeave={kapatGecikmeli}
             style={{
               position: "fixed", top: konum.top, left: konum.left, width: 290, zIndex: 200,
               background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
               border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
+              maxHeight: "calc(100vh - 24px)", overflowY: "auto",
             }}
           >
             <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>AKADEMİK YÖNETİM</div>
@@ -706,15 +724,17 @@ function BitkiWidget({ userId }: { userId?: string | null }) {
   const [oturum, setOturum] = useState<any>(null);
   const [kalan, setKalan] = useState(0);
   const [hasat, setHasat] = useState(0);
+  const [toplamSaniye, setToplamSaniye] = useState(0);
 
   useEffect(() => {
     if (!userId || !supabase) { setYukleniyor(false); return; }
     let iptal = false;
     async function yukle() {
-      const { data: profil } = await supabase!.from("profiles").select("tamamlanan_odak_oturumu_sayisi").eq("id", userId).maybeSingle();
+      const { data: profil } = await supabase!.from("profiles").select("tamamlanan_odak_oturumu_sayisi, toplam_odak_saniyesi").eq("id", userId).maybeSingle();
       const { data: aktif } = await supabase!.from("calisma_oturumlari").select("*").eq("kullanici_id", userId).eq("tur", "uzun_odakli").eq("durum", "devam_ediyor").maybeSingle();
       if (iptal) return;
       setHasat(profil?.tamamlanan_odak_oturumu_sayisi || 0);
+      setToplamSaniye(profil?.toplam_odak_saniyesi || 0);
       setOturum(aktif || null);
       setYukleniyor(false);
     }
@@ -734,9 +754,10 @@ function BitkiWidget({ userId }: { userId?: string | null }) {
   if (yukleniyor) return null;
 
   const yuzde = oturum ? Math.min(100, Math.max(0, 100 * (1 - kalan / Math.max(1, (new Date(oturum.bitis_zamani_planlanan).getTime() - new Date(oturum.baslangic_at).getTime()) / 1000)))) : 0;
+  const bitkiTuru = bitkiTuruBelirle(toplamSaniye);
 
   return (
-    <a href="/student/calisma-teknikleri" style={{ textDecoration: "none", color: "inherit" }}>
+    <a href="/student/calisma-teknikleri/uzun-odakli" style={{ textDecoration: "none", color: "inherit" }}>
       <section
         className="dashboard-category"
         style={{
@@ -744,7 +765,7 @@ function BitkiWidget({ userId }: { userId?: string | null }) {
           background: "linear-gradient(135deg, #1c3324, #14261b)", borderRadius: 18, color: "#eafaf0", border: "none",
         }}
       >
-        <BuyuyenBitki percent={yuzde} size={56} dark />
+        <BuyuyenBitki percent={yuzde} size={56} dark tur={bitkiTuru.tur} />
         <div style={{ flex: 1 }}>
           {oturum ? (
             <>

@@ -633,6 +633,21 @@ const AKADEMIK_YONETIM_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Bilimsel Çalışma Teknikleri", desc: "Pomodoro, Aralıklı Tekrar, Uzun Odaklı Çalışma", icon: "leaf", durum: "aktif", children: BILIMSEL_CALISMA_ALT_MODULLER },
 ];
 
+// "Öğrenci Kimliğim" — AYRINTILI TASARIM.docx'teki 2. modül (Öğrenci Kimliği
+// ve Giriş) ve alt katmanları (2.1-2.4). 2.1 Hesap Yönetimi (kurumsal e-posta,
+// şifre, telefon doğrulama) ve 2.2 Profil (fotoğraf, bölüm/sınıf/öğrenci no,
+// QR kimlik kartı) zaten /profil sayfasında gerçekten var, o yüzden ikisi de
+// oraya bağlandı. 2.3 Kampüs Geçişleri (turnike/yemekhane/kütüphane QR
+// tarama) ve 2.4 Kart Yönetimi (bakiye görüntüleme/yükleme) için gerçek bir
+// donanım/ödeme entegrasyonu henüz kurulmadığından "yapım aşamasında"
+// etiketiyle sadece görüntü amaçlı listeleniyor.
+const OGRENCI_KIMLIK_ALT_MODULLER: AkademikAltModul[] = [
+  { title: "Hesap Yönetimi", desc: "Kurumsal e-posta, şifre, telefon doğrulama", icon: "shield", href: "/profil", durum: "aktif" },
+  { title: "Profil ve Kimlik Kartım", desc: "Fotoğraf, bölüm/sınıf, öğrenci no, QR kimlik kartı", icon: "user", href: "/profil", durum: "aktif" },
+  { title: "Kampüs Geçişleri", desc: "Turnike, yemekhane, kütüphane QR geçiş", icon: "qr", durum: "yapim" },
+  { title: "Kart Yönetimi", desc: "Kart bakiyesi görüntüleme, bakiye yükleme", icon: "settings", durum: "yapim" },
+];
+
 function useMobilMi() {
   const [mobil, setMobil] = useState(false);
   useEffect(() => {
@@ -840,6 +855,72 @@ function AkademikYonetimNav() {
             {AKADEMIK_YONETIM_ALT_MODULLER.map((m) => (
               m.children ? <AltModulAltMenuSatiri key={m.title} m={m} /> : <AltModulSatiri key={m.title} m={m} />
             ))}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// "Öğrenci Kimliğim" flyout menüsü — Akademik Yönetim ile aynı desen
+// (masaüstünde hover ile açılan flyout, mobilde tıklamayla açılan akordeon)
+// tekrar kullanılıyor; burada hiçbir alt madde iç içe olmadığı için ikinci
+// seviye flyout'a (AltModulAltMenuSatiri) ihtiyaç yok.
+function OgrenciKimlikNav() {
+  const mobil = useMobilMi();
+  const [acik, setAcik] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const kapatZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sol = useFlyoutSol(!mobil && acik, btnRef);
+
+  function ac() {
+    if (mobil) return;
+    if (kapatZamanlayici.current) { clearTimeout(kapatZamanlayici.current); kapatZamanlayici.current = null; }
+    setAcik(true);
+  }
+  function kapatGecikmeli() {
+    if (mobil) return;
+    kapatZamanlayici.current = setTimeout(() => setAcik(false), 180);
+  }
+
+  const buton = (
+    <button ref={btnRef} type="button" onClick={() => setAcik((a) => !a)} aria-haspopup="true" aria-expanded={acik}>
+      <Icon name="user" size={19} /><span>Öğrenci Kimliğim</span><Icon name="chevron" size={14} />
+    </button>
+  );
+
+  if (mobil) {
+    return (
+      <div>
+        {buton}
+        {acik && (
+          <div style={{ padding: "2px 0 6px 4px", display: "grid", gap: 2 }}>
+            {OGRENCI_KIMLIK_ALT_MODULLER.map((m) => <AltModulMobilSatiri key={m.title} m={m} />)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
+      {buton}
+      {acik && sol != null && typeof document !== "undefined" && createPortal(
+        <>
+          <div onClick={() => setAcik(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />
+          <div
+            onMouseEnter={ac}
+            onMouseLeave={kapatGecikmeli}
+            style={{
+              position: "fixed", top: "50%", left: sol, transform: "translateY(-50%)", width: 290, zIndex: 200,
+              background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
+              border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
+              maxHeight: "calc(100vh - 24px)", overflowY: "auto",
+            }}
+          >
+            <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>ÖĞRENCİ KİMLİĞİM</div>
+            {OGRENCI_KIMLIK_ALT_MODULLER.map((m) => <AltModulSatiri key={m.title} m={m} />)}
           </div>
         </>,
         document.body
@@ -1369,6 +1450,7 @@ export default function Home() {
             <button onClick={() => { window.location.href = "/academician/qr-yoklama"; }}><Icon name="qr" size={19} /><span>QR Yoklama</span></button>
           )}
           {role === "student" && <AkademikYonetimNav />}
+          {role === "student" && <OgrenciKimlikNav />}
           <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
           {role === "faculty" && (
             <button onClick={() => { window.location.href = "/academician/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>

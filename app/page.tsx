@@ -664,16 +664,21 @@ const OGRENCI_KIMLIK_ALT_MODULLER: AkademikAltModul[] = [
 // olmadığından, admin panelinden (/admin/sanal-tur) elle "normal" ya da
 // "360° panorama" olarak işaretlenmiş fotoğraflar yükleniyor, /sanal-tur
 // sayfasında panorama'lar Pannellum (ücretsiz/açık kaynak) ile gösteriliyor.
-// Geri kalan alt maddelerin (Kampüs Hizmetleri, Park Alanları, Bilgilendirme
-// Rehberleri) hiçbiri henüz gerçek bir veri kaynağına bağlanmadığından
-// "yapım aşamasında" etiketiyle sırayla inşa edilmeyi bekliyor.
+// 3.6 Bilgilendirme Rehberleri, diğer modüllerin aksine admin-yönetimli bir
+// veri tablosuna değil doğrudan sayfaya (bkz. app/bilgilendirme-rehberleri)
+// yazıldı — içerik (Wi-Fi/e-posta/OBS ayarları) AYBÜ Bilgi İşlem Daire
+// Başkanlığı'nın (aybu.edu.tr/bidb) resmi ve nadiren değişen kurulum
+// bilgileri, her kart resmi kılavuza link veriyor. Geri kalan alt maddelerin
+// (Kampüs Hizmetleri, Park Alanları) henüz gerçek bir veri kaynağına
+// bağlanmadığından "yapım aşamasında" etiketiyle sırayla inşa edilmeyi
+// bekliyor.
 const KAMPUS_YASAMI_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Yemekhane", desc: "Günlük/haftalık menü, kalori-besin bilgisi", icon: "spark", href: "/yemek-menusu", durum: "aktif" },
   { title: "Ulaşım", desc: "Ring saatleri, servis saatleri, durak konumları", icon: "arrow", href: "/kampus-ulasim", durum: "aktif" },
   { title: "Kampüs Haritası", desc: "Gerçek harita, bina/sınıf/laboratuvar konumları", icon: "home", href: "/kampus-haritasi", durum: "aktif" },
   { title: "Kampüs Hizmetleri", desc: "ATM, market/kırtasiye, spor salonu, medikal, cami, kargo", icon: "settings", durum: "yapim" },
   { title: "Park Alanları", desc: "Otopark doluluk göstergesi, park noktası detayları", icon: "check", durum: "yapim" },
-  { title: "Bilgilendirme Rehberleri", desc: "Wi-Fi, e-posta kurulumu, OBS/LMS kullanımı", icon: "book", durum: "yapim" },
+  { title: "Bilgilendirme Rehberleri", desc: "Wi-Fi, e-posta kurulumu, OBS/LMS kullanımı", icon: "book", href: "/bilgilendirme-rehberleri", durum: "aktif" },
   { title: "Sanal Tur", desc: "360° panorama ve fotoğraflarla kampüsü keşfet", icon: "search", href: "/sanal-tur", durum: "aktif" },
 ];
 

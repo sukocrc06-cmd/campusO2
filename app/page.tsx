@@ -652,14 +652,16 @@ const OGRENCI_KIMLIK_ALT_MODULLER: AkademikAltModul[] = [
 // inşa ediliyor. 3.1 Yemekhane zaten var olan /yemek-menusu sayfasına
 // (Günlük/Haftalık sekmeli, kalori gösterimli) bağlandı — sidebar'daki eski
 // bağımsız "Yemek Menüsü" butonu artık sadece akademisyen panelinde kaldı,
-// öğrenci tarafında buraya taşındığı için kaldırıldı. Geri kalan alt
-// maddelerin (Ulaşım, Kampüs Haritası, Kampüs Hizmetleri, Park Alanları,
-// Bilgilendirme Rehberleri, Sanal Tur) hiçbiri henüz gerçek bir veri
-// kaynağına bağlanmadığından "yapım aşamasında" etiketiyle sırayla inşa
-// edilmeyi bekliyor.
+// öğrenci tarafında buraya taşındığı için kaldırıldı. 3.2 Ulaşım için
+// AYBÜ'nün resmi sitesinde otomatik senkronize edilebilecek bir ring/servis
+// kaynağı bulunmadığından veri /admin/kampus-ulasim üzerinden elle girilip
+// /kampus-ulasim sayfasında gösteriliyor. Geri kalan alt maddelerin (Kampüs
+// Haritası, Kampüs Hizmetleri, Park Alanları, Bilgilendirme Rehberleri,
+// Sanal Tur) hiçbiri henüz gerçek bir veri kaynağına bağlanmadığından
+// "yapım aşamasında" etiketiyle sırayla inşa edilmeyi bekliyor.
 const KAMPUS_YASAMI_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Yemekhane", desc: "Günlük/haftalık menü, kalori-besin bilgisi", icon: "spark", href: "/yemek-menusu", durum: "aktif" },
-  { title: "Ulaşım", desc: "Ring saatleri, servis saatleri, durak konumları", icon: "arrow", durum: "yapim" },
+  { title: "Ulaşım", desc: "Ring saatleri, servis saatleri, durak konumları", icon: "arrow", href: "/kampus-ulasim", durum: "aktif" },
   { title: "Kampüs Haritası", desc: "2D/3D harita, bina-sınıf-lab konumları", icon: "home", durum: "yapim" },
   { title: "Kampüs Hizmetleri", desc: "ATM, market/kırtasiye, spor salonu, medikal, cami, kargo", icon: "settings", durum: "yapim" },
   { title: "Park Alanları", desc: "Otopark doluluk göstergesi, park noktası detayları", icon: "check", durum: "yapim" },
@@ -1238,6 +1240,7 @@ function AdminPanel({ onExit }: { onExit: () => void }) {
           <button onClick={() => { window.location.href = "/admin/sosyal-sorumluluk"; }}><Icon name="check" size={19} /><span>Sosyal Sorumluluk</span></button>
           <button onClick={() => { window.location.href = "/admin/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
           <button onClick={() => { window.location.href = "/admin/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
+          <button onClick={() => { window.location.href = "/admin/kampus-ulasim"; }}><Icon name="arrow" size={19} /><span>Kampüs Ulaşımı</span></button>
           <button onClick={() => { window.location.href = "/admin/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
           <button onClick={() => { window.location.href = "/admin/ders-icerikleri"; }}><Icon name="book" size={19} /><span>Ders İçerikleri Kataloğu</span></button>
           <button onClick={() => { window.location.href = "/admin/yoklama"; }}><Icon name="check" size={19} /><span>Yoklama Takibi</span></button>

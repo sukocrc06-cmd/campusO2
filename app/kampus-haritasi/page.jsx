@@ -270,6 +270,16 @@ export default function KampusHaritasiPage() {
                 >
                   📍 Google Maps'te Aç / Yol Tarifi Al
                 </a>
+                <Link
+                  href="/sanal-tur"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, marginLeft: 8,
+                    fontSize: 11.5, fontWeight: 800, color: "#ffbf5a", textDecoration: "none",
+                    padding: "5px 10px", borderRadius: 999, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,191,90,0.4)",
+                  }}
+                >
+                  🧭 Sanal Turu Gör
+                </Link>
 
                 {Object.keys(mekanlarKatGrubu).length > 0 ? (
                   <div style={{ marginTop: 16, display: "grid", gap: 12 }}>

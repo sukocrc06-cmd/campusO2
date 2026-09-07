@@ -79,23 +79,31 @@ function useKapGenislik() {
 function GuzergahSeridi({ adimlar, renk }) {
   const benzersizId = useId().replace(/[:]/g, "");
   const [kapRef, kapGenislik] = useKapGenislik();
+  const [hoverI, setHoverI] = useState(-1);
+  const [kaydirildi, setKaydirildi] = useState(false);
   const n = adimlar.length;
   const genislik = kapGenislik > 0 ? kapGenislik : 600; // ölçülene kadarki makul varsayım
   const kolonHedefGenisligi = 130;
-  const satirBasinaAdim = Math.max(2, Math.min(n, Math.floor(genislik / kolonHedefGenisligi)));
-  const satirSayisi = Math.ceil(n / satirBasinaAdim);
+  // Dar ekranda (ör. telefon) çok adımlı bir rotayı alt alta sıkıştırmak yerine
+  // tek satırda bırakıp yatay kaydırmaya bırakıyoruz — hem kart gereksiz uzamıyor
+  // hem de akış (soldan sağa gidiş yönü) bozulmuyor.
+  const darEkran = genislik > 0 && genislik < 380 && n > 3;
+  const kolonSabitGenisligi = 108;
+  const satirBasinaAdim = darEkran ? n : Math.max(2, Math.min(n, Math.floor(genislik / kolonHedefGenisligi)));
+  const satirSayisi = darEkran ? 1 : Math.ceil(n / satirBasinaAdim);
   const satirYuksekligi = 138;
   const ustBant = satirYuksekligi * 0.34;
   const altBant = satirYuksekligi * 0.7;
   const dikeyBosluk = 10;
   const yukseklik = satirSayisi * satirYuksekligi + dikeyBosluk * 2;
+  const icerikGenisligi = darEkran ? Math.max(genislik, n * kolonSabitGenisligi) : genislik;
 
   const noktalar = adimlar.map((_, i) => {
     const satir = Math.floor(i / satirBasinaAdim);
     const satirBaslangic = satir * satirBasinaAdim;
     const buSatirdakiAdim = Math.min(satirBasinaAdim, n - satirBaslangic);
     const konumSira = i - satirBaslangic;
-    const kolonG = genislik / buSatirdakiAdim;
+    const kolonG = icerikGenisligi / buSatirdakiAdim;
     return {
       x: kolonG * (konumSira + 0.5),
       y: dikeyBosluk + satir * satirYuksekligi + (konumSira % 2 === 0 ? ustBant : altBant),
@@ -113,9 +121,14 @@ function GuzergahSeridi({ adimlar, renk }) {
   const sure = `${Math.max(5, n * 2.2).toFixed(1)}s`;
 
   return (
-    <div ref={kapRef} style={{ position: "relative", width: "100%", height: yukseklik, margin: "16px 0 4px" }}>
+    <div ref={kapRef} style={{ position: "relative", width: "100%" }}>
+    <div
+      style={{ position: "relative", width: "100%", overflowX: darEkran ? "auto" : "visible", WebkitOverflowScrolling: "touch" }}
+      onScroll={darEkran ? () => setKaydirildi(true) : undefined}
+    >
+    <div style={{ position: "relative", width: icerikGenisligi, minWidth: "100%", height: yukseklik, margin: "16px 0 4px" }}>
       {n > 1 && kapGenislik > 0 && (
-        <svg width={genislik} height={yukseklik} viewBox={`0 0 ${genislik} ${yukseklik}`} style={{ position: "absolute", inset: 0 }}>
+        <svg width={icerikGenisligi} height={yukseklik} viewBox={`0 0 ${icerikGenisligi} ${yukseklik}`} style={{ position: "absolute", inset: 0 }}>
           <defs>
             <linearGradient id={`grad-${benzersizId}`} x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor={renk} stopOpacity="0.35" />
@@ -136,6 +149,7 @@ function GuzergahSeridi({ adimlar, renk }) {
       {kapGenislik > 0 && adimlar.map((adim, i) => {
         const nokta = noktalar[i];
         const sonMu = i === n - 1;
+        const hoverli = hoverI === i;
         return (
           <div
             key={i}
@@ -148,69 +162,150 @@ function GuzergahSeridi({ adimlar, renk }) {
               flexDirection: "column",
               alignItems: "center",
               gap: 5,
-              width: Math.min(126, genislik / (n > satirBasinaAdim ? satirBasinaAdim : n) - 6),
+              width: Math.min(126, icerikGenisligi / (n > satirBasinaAdim ? satirBasinaAdim : n) - 6),
               opacity: 0,
+              zIndex: hoverli ? 4 : 1,
               animation: `kuGuzergahBelir 0.5s ease ${(i * 0.15).toFixed(2)}s forwards`,
             }}
           >
-            <div style={{ position: "relative" }}>
-              <div
-                style={{
-                  width: sonMu ? 52 : 44,
-                  height: sonMu ? 52 : 44,
-                  borderRadius: "50%",
-                  background: sonMu ? renk : "rgba(255,255,255,0.07)",
-                  border: sonMu ? "3px solid rgba(255,255,255,0.9)" : `3px solid ${renk}`,
-                  display: "grid",
-                  placeItems: "center",
-                  fontSize: sonMu ? 21 : 17,
-                  boxShadow: `0 8px 18px -10px ${renk}, 0 0 0 4px rgba(255,255,255,0.03)`,
-                  flex: "none",
-                }}
-              >
-                {adimIkonuBul(adim.ad, sonMu)}
-              </div>
-              {adim.hat_no && (
+            <div
+              onMouseEnter={() => setHoverI(i)}
+              onMouseLeave={() => setHoverI(-1)}
+              title={adim.hat_no ? `${adim.ad} · 🚍 ${adim.hat_no}` : adim.ad}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 5,
+                width: "100%",
+                cursor: "default",
+                transform: hoverli ? "scale(1.12)" : "scale(1)",
+                transition: "transform 0.18s ease",
+              }}
+            >
+              <div style={{ position: "relative" }}>
+                <div
+                  style={{
+                    width: sonMu ? 52 : 44,
+                    height: sonMu ? 52 : 44,
+                    borderRadius: "50%",
+                    background: sonMu ? renk : "rgba(255,255,255,0.07)",
+                    border: sonMu ? "3px solid rgba(255,255,255,0.9)" : `3px solid ${renk}`,
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: sonMu ? 21 : 17,
+                    boxShadow: hoverli
+                      ? `0 10px 26px -8px ${renk}, 0 0 0 6px rgba(255,255,255,0.08)`
+                      : `0 8px 18px -10px ${renk}, 0 0 0 4px rgba(255,255,255,0.03)`,
+                    filter: hoverli ? "brightness(1.15)" : "none",
+                    transition: "box-shadow 0.18s ease, filter 0.18s ease",
+                    flex: "none",
+                  }}
+                >
+                  {adimIkonuBul(adim.ad, sonMu)}
+                </div>
                 <span
                   style={{
                     position: "absolute",
-                    top: -10,
-                    right: -14,
-                    minWidth: 28,
-                    padding: "3px 7px",
-                    borderRadius: 999,
-                    background: renk,
-                    color: "#0b1220",
-                    border: "2.5px solid #0b1730",
-                    fontSize: 11.5,
-                    fontWeight: 900,
-                    letterSpacing: "-0.01em",
-                    textAlign: "center",
-                    boxShadow: `0 6px 14px -6px ${renk}`,
-                    whiteSpace: "nowrap",
+                    bottom: -3,
+                    left: -3,
+                    minWidth: 16,
+                    height: 16,
+                    padding: "0 3px",
+                    borderRadius: "50%",
+                    background: "#0b1730",
+                    border: `1.5px solid ${renk}`,
+                    color: "#e8eefc",
+                    fontSize: 9,
+                    fontWeight: 800,
+                    display: "grid",
+                    placeItems: "center",
+                    lineHeight: 1,
                   }}
                 >
-                  {adim.hat_no}
+                  {i + 1}
                 </span>
+                {adim.hat_no && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: -10,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      maxWidth: 108,
+                      padding: "3px 8px",
+                      borderRadius: 10,
+                      background: renk,
+                      color: "#0b1220",
+                      border: "2.5px solid #0b1730",
+                      fontSize: 10.5,
+                      fontWeight: 900,
+                      letterSpacing: "-0.01em",
+                      textAlign: "center",
+                      lineHeight: 1.2,
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                      boxShadow: `0 6px 14px -6px ${renk}`,
+                    }}
+                  >
+                    {adim.hat_no}
+                  </span>
+                )}
+              </div>
+              <div
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  textAlign: "center",
+                  color: hoverli ? "#ffffff" : "#e8eefc",
+                  lineHeight: 1.25,
+                  transition: "color 0.18s ease",
+                }}
+              >
+                {adim.ad}
+              </div>
+              {adim.saatler?.length > 0 && (
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(232,238,252,0.55)" }}>{adim.saatler.join(" · ")}</span>
+              )}
+              {adim.konum && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adim.konum)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 9.5, fontWeight: 800, color: renk, textDecoration: "none" }}
+                >
+                  📍 Haritada Aç
+                </a>
               )}
             </div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, textAlign: "center", color: "#e8eefc", lineHeight: 1.25 }}>{adim.ad}</div>
-            {adim.saatler?.length > 0 && (
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(232,238,252,0.55)" }}>{adim.saatler.join(" · ")}</span>
-            )}
-            {adim.konum && (
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adim.konum)}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontSize: 9.5, fontWeight: 800, color: renk, textDecoration: "none" }}
-              >
-                📍 Haritada Aç
-              </a>
-            )}
           </div>
         );
       })}
+    </div>
+    </div>
+    {darEkran && !kaydirildi && (
+      <div
+        style={{
+          position: "absolute",
+          right: 2,
+          bottom: dikeyBosluk + 2,
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "3px 9px",
+          borderRadius: 999,
+          background: "rgba(11,23,48,0.85)",
+          border: "1px solid rgba(255,255,255,0.18)",
+          color: "rgba(232,238,252,0.75)",
+          fontSize: 10,
+          fontWeight: 700,
+          pointerEvents: "none",
+          animation: "kuKaydirIpucu 1.4s ease-in-out infinite",
+        }}
+      >
+        kaydırın →
+      </div>
+    )}
     </div>
   );
 }
@@ -258,6 +353,10 @@ export default function KampusUlasimPage() {
         @keyframes kuGuzergahBelir {
           from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
           to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        @keyframes kuKaydirIpucu {
+          0%, 100% { transform: translateX(0); opacity: 0.7; }
+          50% { transform: translateX(4px); opacity: 1; }
         }
       `}</style>
 
@@ -311,6 +410,9 @@ export default function KampusUlasimPage() {
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 800, color: "#f4f8ff" }}>{h.ad}</div>
                       <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", color: meta.renk, background: meta.zemin, padding: "2px 8px", borderRadius: 999 }}>{meta.etiket.toUpperCase()}</span>
+                      {duraklar.length > 1 && (
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(232,238,252,0.5)", marginLeft: 8 }}>Toplam {duraklar.length} adım</span>
+                      )}
                     </div>
                   </div>
 

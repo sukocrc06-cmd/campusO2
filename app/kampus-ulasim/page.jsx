@@ -122,28 +122,48 @@ function GuzergahSeridi({ adimlar, renk, zemin }) {
               animation: `kuGuzergahBelir 0.55s ease ${(i * 0.18).toFixed(2)}s forwards`,
             }}
           >
-            <div
-              style={{
-                width: sonMu ? 54 : 46,
-                height: sonMu ? 54 : 46,
-                borderRadius: "50%",
-                background: sonMu ? renk : "#fff",
-                border: `3px solid ${renk}`,
-                display: "grid",
-                placeItems: "center",
-                fontSize: sonMu ? 22 : 18,
-                boxShadow: `0 8px 18px -10px ${renk}`,
-                flex: "none",
-              }}
-            >
-              {adimIkonuBul(adim.ad, sonMu)}
+            <div style={{ position: "relative" }}>
+              <div
+                style={{
+                  width: sonMu ? 54 : 46,
+                  height: sonMu ? 54 : 46,
+                  borderRadius: "50%",
+                  background: sonMu ? renk : "#fff",
+                  border: `3px solid ${renk}`,
+                  display: "grid",
+                  placeItems: "center",
+                  fontSize: sonMu ? 22 : 18,
+                  boxShadow: `0 8px 18px -10px ${renk}`,
+                  flex: "none",
+                }}
+              >
+                {adimIkonuBul(adim.ad, sonMu)}
+              </div>
+              {adim.hat_no && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: -10,
+                    right: -14,
+                    minWidth: 30,
+                    padding: "3px 7px",
+                    borderRadius: 999,
+                    background: renk,
+                    color: "#fff",
+                    border: "2.5px solid #fff",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    letterSpacing: "-0.01em",
+                    textAlign: "center",
+                    boxShadow: `0 6px 14px -6px ${renk}`,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {adim.hat_no}
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, textAlign: "center", color: "#0f1b33", lineHeight: 1.25 }}>{adim.ad}</div>
-            {adim.hat_no && (
-              <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: zemin, color: renk, whiteSpace: "nowrap" }}>
-                🚍 {adim.hat_no}
-              </span>
-            )}
             {adim.saatler?.length > 0 && (
               <span style={{ fontSize: 9.5, fontWeight: 700, color: "#8fa0bc" }}>{adim.saatler.join(" · ")}</span>
             )}

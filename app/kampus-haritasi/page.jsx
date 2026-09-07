@@ -70,12 +70,16 @@ function KampusHaritasi({ binalar, seciliId, onSecim }) {
       ? [binalar.reduce((s, b) => s + b.lat, 0) / binalar.length, binalar.reduce((s, b) => s + b.lng, 0) / binalar.length]
       : [40.1328489, 32.9440116];
     const harita = L.map(kapRef.current, { zoomControl: true, attributionControl: true }).setView(merkez, 17);
-    // CARTO'nun ücretsiz "dark matter" kutucukları — API key gerekmez, sayfanın
-    // koyu "gece haritası" temasıyla görsel olarak uyumlu.
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> katkıda bulunanlar &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      maxZoom: 20,
-      subdomains: "abcd",
+    // Standart OpenStreetMap kutucukları — kesin ücretsiz, API key gerekmez.
+    // CARTO'nun "dark matter" katmanı artık hesap/API key istediği için
+    // (kutucuklarda "API KEY REQUIRED" görünüyordu) buna geçtik; koyu tema
+    // görünümünü kutucuk katmanına uygulanan bir CSS filtresiyle (aşağıdaki
+    // .ku-harita-alani stil bloğu) elde ediyoruz — sunucu tarafında hiçbir
+    // ek bağımlılık/anahtar yok.
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> katkıda bulunanlar',
+      maxZoom: 19,
+      subdomains: "abc",
     }).addTo(harita);
     haritaRef.current = harita;
     return () => { harita.remove(); haritaRef.current = null; };
@@ -112,7 +116,26 @@ function KampusHaritasi({ binalar, seciliId, onSecim }) {
   }, [binalar, seciliId, leafletHazir, onSecim]);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "min(62vh, 520px)", borderRadius: 18, overflow: "hidden", border: "1px solid rgba(255,255,255,0.12)" }}>
+    <div className="ku-harita-alani" style={{ position: "relative", width: "100%", height: "min(62vh, 520px)", borderRadius: 18, overflow: "hidden", border: "1px solid rgba(255,255,255,0.12)" }}>
+      {/* Standart OpenStreetMap kutucukları doğası gereği açık renkli — bu
+          filtre yalnızca kutucuk katmanına (marker/popup'lara değil)
+          uygulanıp sayfanın koyu temasına yakın bir "gece haritası" görünümü
+          veriyor. Tamamen CSS, ek servis/anahtar gerekmiyor. */}
+      <style>{`
+        .ku-harita-alani .leaflet-tile-pane {
+          filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55);
+        }
+        .ku-harita-alani .leaflet-control-attribution {
+          background: rgba(8,14,28,0.75);
+          color: rgba(232,238,252,0.6);
+        }
+        .ku-harita-alani .leaflet-control-attribution a { color: #9cc4ff; }
+        .ku-harita-alani .leaflet-control-zoom a {
+          background: rgba(8,14,28,0.85);
+          color: #e8eefc;
+          border-color: rgba(255,255,255,0.15);
+        }
+      `}</style>
       <div ref={kapRef} style={{ width: "100%", height: "100%", background: "#0a1428" }} />
       {!leafletHazir && (
         <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "rgba(232,238,252,0.6)", fontSize: 13 }}>Harita yükleniyor…</div>

@@ -839,24 +839,21 @@ function AkademikYonetimNav() {
     <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
       {buton}
       {acik && sol != null && typeof document !== "undefined" && createPortal(
-        <>
-          <div onClick={() => setAcik(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />
-          <div
-            onMouseEnter={ac}
-            onMouseLeave={kapatGecikmeli}
-            style={{
-              position: "fixed", top: "50%", left: sol, transform: "translateY(-50%)", width: 290, zIndex: 200,
-              background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
-              border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
-              maxHeight: "calc(100vh - 24px)", overflowY: "auto",
-            }}
-          >
-            <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>AKADEMİK YÖNETİM</div>
-            {AKADEMIK_YONETIM_ALT_MODULLER.map((m) => (
-              m.children ? <AltModulAltMenuSatiri key={m.title} m={m} /> : <AltModulSatiri key={m.title} m={m} />
-            ))}
-          </div>
-        </>,
+        <div
+          onMouseEnter={ac}
+          onMouseLeave={kapatGecikmeli}
+          style={{
+            position: "fixed", top: "50%", left: sol, transform: "translateY(-50%)", width: 290, zIndex: 200,
+            background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
+            border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
+            maxHeight: "calc(100vh - 24px)", overflowY: "auto",
+          }}
+        >
+          <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>AKADEMİK YÖNETİM</div>
+          {AKADEMIK_YONETIM_ALT_MODULLER.map((m) => (
+            m.children ? <AltModulAltMenuSatiri key={m.title} m={m} /> : <AltModulSatiri key={m.title} m={m} />
+          ))}
+        </div>,
         document.body
       )}
     </div>
@@ -907,22 +904,19 @@ function OgrenciKimlikNav() {
     <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
       {buton}
       {acik && sol != null && typeof document !== "undefined" && createPortal(
-        <>
-          <div onClick={() => setAcik(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />
-          <div
-            onMouseEnter={ac}
-            onMouseLeave={kapatGecikmeli}
-            style={{
-              position: "fixed", top: "50%", left: sol, transform: "translateY(-50%)", width: 290, zIndex: 200,
-              background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
-              border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
-              maxHeight: "calc(100vh - 24px)", overflowY: "auto",
-            }}
-          >
-            <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>ÖĞRENCİ KİMLİĞİM</div>
-            {OGRENCI_KIMLIK_ALT_MODULLER.map((m) => <AltModulSatiri key={m.title} m={m} />)}
-          </div>
-        </>,
+        <div
+          onMouseEnter={ac}
+          onMouseLeave={kapatGecikmeli}
+          style={{
+            position: "fixed", top: "50%", left: sol, transform: "translateY(-50%)", width: 290, zIndex: 200,
+            background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
+            border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
+            maxHeight: "calc(100vh - 24px)", overflowY: "auto",
+          }}
+        >
+          <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>ÖĞRENCİ KİMLİĞİM</div>
+          {OGRENCI_KIMLIK_ALT_MODULLER.map((m) => <AltModulSatiri key={m.title} m={m} />)}
+        </div>,
         document.body
       )}
     </div>

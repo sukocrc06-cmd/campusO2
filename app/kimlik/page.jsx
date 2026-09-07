@@ -20,13 +20,17 @@ export default function OgrenciKimlikKartiPage() {
       const params = new URLSearchParams(window.location.search);
       const id = params.get("id");
       if (!id) { setDurum("yok"); return; }
-      const { data } = await supabase
+      // "role" alanına göre sıkı filtreleme yapmıyoruz: bazı hesaplarda bu
+      // alan hiç set edilmemiş (null) olabiliyor ve profil sayfası bunu
+      // "student" kabul ediyor (bkz. profil/page.jsx: profile.role || "student").
+      // Aynı esnekliği burada da uyguluyoruz — sadece açıkça akademisyen/admin
+      // olarak işaretlenmiş hesapları kimlik kartından hariç tutuyoruz.
+      const { data, error: sorguHatasi } = await supabase
         .from("profiles")
         .select("full_name, bolum, sinif, ogrenci_no, avatar_url, role")
         .eq("id", id)
-        .eq("role", "student")
         .maybeSingle();
-      if (!data) { setDurum("yok"); return; }
+      if (sorguHatasi || !data || data.role === "academician" || data.role === "admin") { setDurum("yok"); return; }
       setProfil(data);
       setDurum("bulundu");
     }

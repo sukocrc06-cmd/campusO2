@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
 
 // Sanal öğrenci kimlik kartındaki QR kod, ham JSON yerine artık bu sayfaya
 // (?id=<profil id>) yönlendiren bir URL taşıyor — telefonla okutunca
@@ -9,30 +8,33 @@ import { supabase } from "../../lib/supabase";
 // gösteriyor. Sayfa bilerek herkese açık: fiziksel bir kimlik kartına
 // bakmakla aynı — giriş yapmaya gerek yok, sadece isim/bölüm/sınıf/öğrenci
 // no gibi kart üzerinde zaten yazılı olan bilgileri gösteriyor, e-posta gibi
-// hassas alanları hiç sorgulamıyor.
+// hassas alanları hiç döndürmüyor.
+//
+// Veri, tarayıcının anon anahtarıyla doğrudan Supabase'e sorulmuyor — bir
+// ziyaretçi giriş yapmamış olduğu için Supabase projesindeki RLS
+// politikaları bu isteği sessizce boş döndürebiliyordu (hata yok, sadece
+// "bulunamadı" gibi görünüyordu). Bunun yerine /api/kimlik uç noktası
+// (service-role anahtarıyla, admin-set-password ile aynı desen) RLS'i
+// bypass edip sadece kart üzerinde zaten yazılı olan zararsız alanları
+// döndürüyor.
 export default function OgrenciKimlikKartiPage() {
   const [durum, setDurum] = useState("yukleniyor"); // yukleniyor | bulundu | yok
   const [profil, setProfil] = useState(null);
 
   useEffect(() => {
     async function yukle() {
-      if (!supabase) { setDurum("yok"); return; }
       const params = new URLSearchParams(window.location.search);
       const id = params.get("id");
       if (!id) { setDurum("yok"); return; }
-      // "role" alanına göre sıkı filtreleme yapmıyoruz: bazı hesaplarda bu
-      // alan hiç set edilmemiş (null) olabiliyor ve profil sayfası bunu
-      // "student" kabul ediyor (bkz. profil/page.jsx: profile.role || "student").
-      // Aynı esnekliği burada da uyguluyoruz — sadece açıkça akademisyen/admin
-      // olarak işaretlenmiş hesapları kimlik kartından hariç tutuyoruz.
-      const { data, error: sorguHatasi } = await supabase
-        .from("profiles")
-        .select("full_name, bolum, sinif, ogrenci_no, avatar_url, role")
-        .eq("id", id)
-        .maybeSingle();
-      if (sorguHatasi || !data || data.role === "academician" || data.role === "admin") { setDurum("yok"); return; }
-      setProfil(data);
-      setDurum("bulundu");
+      try {
+        const res = await fetch(`/api/kimlik?id=${encodeURIComponent(id)}`);
+        if (!res.ok) { setDurum("yok"); return; }
+        const data = await res.json();
+        setProfil(data);
+        setDurum("bulundu");
+      } catch {
+        setDurum("yok");
+      }
     }
     yukle();
   }, []);

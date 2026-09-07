@@ -668,15 +668,21 @@ const OGRENCI_KIMLIK_ALT_MODULLER: AkademikAltModul[] = [
 // veri tablosuna değil doğrudan sayfaya (bkz. app/bilgilendirme-rehberleri)
 // yazıldı — içerik (Wi-Fi/e-posta/OBS ayarları) AYBÜ Bilgi İşlem Daire
 // Başkanlığı'nın (aybu.edu.tr/bidb) resmi ve nadiren değişen kurulum
-// bilgileri, her kart resmi kılavuza link veriyor. Geri kalan alt maddelerin
-// (Kampüs Hizmetleri, Park Alanları) henüz gerçek bir veri kaynağına
-// bağlanmadığından "yapım aşamasında" etiketiyle sırayla inşa edilmeyi
-// bekliyor.
+// bilgileri, her kart resmi kılavuza link veriyor. 3.4 Kampüs Hizmetleri
+// (ATM, market/kırtasiye, spor salonu, medikal, cami, kargo) için AYBÜ'nün
+// resmi sitesinde çoğu kalemin (ATM konumu, market işletmecisi, revir,
+// cami, kargo noktası) somut bilgisi yayınlanmadığından /admin/kampus-
+// hizmetleri üzerinden elle girilen bir tablo kullanılıyor — sadece
+// doğrulanmış bilgilerle (Spor Salonu, Yemekhane/SKS, PDR) başlangıç verisi
+// var, her hizmet opsiyonel olarak bir kampus_binalar kaydına bağlanıp
+// Kampüs Haritası'nda da gösterilebiliyor. Park Alanları henüz gerçek bir
+// veri kaynağına bağlanmadığından "yapım aşamasında" etiketiyle sırayla
+// inşa edilmeyi bekliyor.
 const KAMPUS_YASAMI_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Yemekhane", desc: "Günlük/haftalık menü, kalori-besin bilgisi", icon: "spark", href: "/yemek-menusu", durum: "aktif" },
   { title: "Ulaşım", desc: "Ring saatleri, servis saatleri, durak konumları", icon: "arrow", href: "/kampus-ulasim", durum: "aktif" },
   { title: "Kampüs Haritası", desc: "Gerçek harita, bina/sınıf/laboratuvar konumları", icon: "home", href: "/kampus-haritasi", durum: "aktif" },
-  { title: "Kampüs Hizmetleri", desc: "ATM, market/kırtasiye, spor salonu, medikal, cami, kargo", icon: "settings", durum: "yapim" },
+  { title: "Kampüs Hizmetleri", desc: "ATM, market/kırtasiye, spor salonu, medikal, cami, kargo", icon: "settings", href: "/kampus-hizmetleri", durum: "aktif" },
   { title: "Park Alanları", desc: "Otopark doluluk göstergesi, park noktası detayları", icon: "check", durum: "yapim" },
   { title: "Bilgilendirme Rehberleri", desc: "Wi-Fi, e-posta kurulumu, OBS/LMS kullanımı", icon: "book", href: "/bilgilendirme-rehberleri", durum: "aktif" },
   { title: "Sanal Tur", desc: "360° panorama ve fotoğraflarla kampüsü keşfet", icon: "search", href: "/sanal-tur", durum: "aktif" },
@@ -1256,6 +1262,7 @@ function AdminPanel({ onExit }: { onExit: () => void }) {
           <button onClick={() => { window.location.href = "/admin/kampus-ulasim"; }}><Icon name="arrow" size={19} /><span>Kampüs Ulaşımı</span></button>
           <button onClick={() => { window.location.href = "/admin/kampus-haritasi"; }}><Icon name="home" size={19} /><span>Kampüs Haritası</span></button>
           <button onClick={() => { window.location.href = "/admin/sanal-tur"; }}><Icon name="search" size={19} /><span>Sanal Tur</span></button>
+          <button onClick={() => { window.location.href = "/admin/kampus-hizmetleri"; }}><Icon name="settings" size={19} /><span>Kampüs Hizmetleri</span></button>
           <button onClick={() => { window.location.href = "/admin/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
           <button onClick={() => { window.location.href = "/admin/ders-icerikleri"; }}><Icon name="book" size={19} /><span>Ders İçerikleri Kataloğu</span></button>
           <button onClick={() => { window.location.href = "/admin/yoklama"; }}><Icon name="check" size={19} /><span>Yoklama Takibi</span></button>

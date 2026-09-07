@@ -171,6 +171,14 @@ export default function KampusHaritasiPage() {
       if (err) { setError("Kampüs haritası alınamadı: " + err.message); setLoading(false); return; }
       setBinalar((data || []).filter((b) => Number.isFinite(b.lat) && Number.isFinite(b.lng)));
       setLoading(false);
+
+      // Kampüs Hizmetleri sayfasından "?bina=<id>" ile gelindiyse ilgili
+      // binayı otomatik seçili aç (window.location — Suspense gerektiren
+      // next/navigation useSearchParams yerine, mevcut basit desenle uyumlu).
+      if (typeof window !== "undefined") {
+        const binaParam = new URLSearchParams(window.location.search).get("bina");
+        if (binaParam) setSeciliId(binaParam);
+      }
     }
     init();
   }, []);

@@ -129,20 +129,21 @@ export default function ProfilAyarlariPage() {
     }
   }, [sonGiris]);
 
-  // Sanal öğrenci kimliği kartındaki QR kod — kimliği kanıtlayan bir sunucu
-  // doğrulaması (turnike/kütüphane taraması) henüz kurulmadığı için şimdilik
-  // sadece kimlik bilgilerini encode eden görsel bir kod üretiliyor; ileride
-  // bir tarama sistemi eklenirse aynı QR, sunucu tarafında öğrenci id'sini
-  // doğrulayan bir uç noktaya yönlendirilecek şekilde genişletilebilir.
+  // Sanal öğrenci kimliği kartındaki QR kod, ham veri yerine /kimlik
+  // sayfasına yönlendiren bir URL taşıyor — telefonla okutulduğunda tarayıcı
+  // doğrudan şık, mavi-beyaz kimlik kartı sayfasını açıyor (önceden QR ham
+  // JSON içeriyordu ve telefon kamerası bunu bir arama sorgusu sanıp Google'a
+  // gidiyordu). Gerçek bir turnike/kütüphane taraması eklenirse /kimlik
+  // sayfası aynı QR üzerinden doğrulama da yapacak şekilde genişletilebilir.
   useEffect(() => {
-    if (role !== "student" || !userId) { setKimlikQr(""); return; }
+    if (role !== "student" || !userId || typeof window === "undefined") { setKimlikQr(""); return; }
     let iptal = false;
-    const veri = JSON.stringify({ tip: "campuso_ogrenci_kimlik", id: userId, no: ogrenciNo || null });
-    QRCode.toDataURL(veri, { width: 200, margin: 1, color: { dark: "#0f1b33", light: "#ffffff" } })
-      .then((url) => { if (!iptal) setKimlikQr(url); })
+    const url = `${window.location.origin}/kimlik?id=${userId}`;
+    QRCode.toDataURL(url, { width: 200, margin: 1, color: { dark: "#0f1b33", light: "#ffffff" } })
+      .then((veri) => { if (!iptal) setKimlikQr(veri); })
       .catch(() => { if (!iptal) setKimlikQr(""); });
     return () => { iptal = true; };
-  }, [role, userId, ogrenciNo]);
+  }, [role, userId]);
 
   async function handleAvatarSec(e) {
     const file = e.target.files?.[0];
@@ -369,7 +370,7 @@ export default function ProfilAyarlariPage() {
                     ) : (
                       <div style={{ width: 150, height: 150, borderRadius: 12, border: "1px dashed #e3ebf6", display: "grid", placeItems: "center", color: "#8fa0bc", fontSize: 11 }}>Hazırlanıyor…</div>
                     )}
-                    <div style={{ fontSize: 10.5, color: "#8fa0bc", marginTop: 8, maxWidth: 150 }}>Bu QR şu an sadece kimlik bilgilerini taşır; turnike/kütüphane taraması ileride eklenecek.</div>
+                    <div style={{ fontSize: 10.5, color: "#8fa0bc", marginTop: 8, maxWidth: 150 }}>Okutunca kimlik kartını gösteren bir sayfa açılır; turnike/kütüphane taraması ileride eklenecek.</div>
                   </div>
                 </div>
               </section>

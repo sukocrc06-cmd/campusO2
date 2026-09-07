@@ -648,16 +648,17 @@ const OGRENCI_KIMLIK_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Kart Yönetimi", desc: "Kart bakiyesi görüntüleme, bakiye yükleme", icon: "settings", durum: "yapim" },
 ];
 
-// "Kampüs Yaşamı" — AYRINTILI TASARIM.docx'teki 3. modül (3.1-3.7). Bu
-// alanların hiçbiri henüz gerçek bir veri kaynağına (yemekhane menü API'si,
-// ring/servis saatleri, kampüs haritası, otopark doluluk sensörü vb.)
-// bağlanmadığından tamamı şimdilik "yapım aşamasında" etiketiyle sadece
-// görüntü amaçlı listeleniyor; sırayla inşa edilecek. Sidebar'da başka bir
-// yerde bu alt maddelerle çakışan ayrı bir buton yoktu (mevcut "Kampüs
-// Duvarı" butonu farklı bir özellik — sosyal duyuru duvarı), o yüzden
-// birleştirme/kaldırma gerekmedi.
+// "Kampüs Yaşamı" — AYRINTILI TASARIM.docx'teki 3. modül (3.1-3.7), sırayla
+// inşa ediliyor. 3.1 Yemekhane zaten var olan /yemek-menusu sayfasına
+// (Günlük/Haftalık sekmeli, kalori gösterimli) bağlandı — sidebar'daki eski
+// bağımsız "Yemek Menüsü" butonu artık sadece akademisyen panelinde kaldı,
+// öğrenci tarafında buraya taşındığı için kaldırıldı. Geri kalan alt
+// maddelerin (Ulaşım, Kampüs Haritası, Kampüs Hizmetleri, Park Alanları,
+// Bilgilendirme Rehberleri, Sanal Tur) hiçbiri henüz gerçek bir veri
+// kaynağına bağlanmadığından "yapım aşamasında" etiketiyle sırayla inşa
+// edilmeyi bekliyor.
 const KAMPUS_YASAMI_ALT_MODULLER: AkademikAltModul[] = [
-  { title: "Yemekhane", desc: "Günlük/haftalık menü, kalori-besin bilgisi", icon: "spark", durum: "yapim" },
+  { title: "Yemekhane", desc: "Günlük/haftalık menü, kalori-besin bilgisi", icon: "spark", href: "/yemek-menusu", durum: "aktif" },
   { title: "Ulaşım", desc: "Ring saatleri, servis saatleri, durak konumları", icon: "arrow", durum: "yapim" },
   { title: "Kampüs Haritası", desc: "2D/3D harita, bina-sınıf-lab konumları", icon: "home", durum: "yapim" },
   { title: "Kampüs Hizmetleri", desc: "ATM, market/kırtasiye, spor salonu, medikal, cami, kargo", icon: "settings", durum: "yapim" },
@@ -1533,7 +1534,9 @@ export default function Home() {
           )}
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/sosyal-sorumluluk" : "/academician/sosyal-sorumluluk"; }}><Icon name="users" size={19} /><span>Sosyal Sorumluluk</span></button>
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/kulupler" : "/academician/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
-          <button onClick={() => { window.location.href = "/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
+          {role === "faculty" && (
+            <button onClick={() => { window.location.href = "/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
+          )}
           {role === "faculty" && (
             <button onClick={() => { window.location.href = "/ders-programi-sinav-takvimi"; }}><Icon name="book" size={19} /><span>Ders ve Sınav Takvimi</span></button>
           )}

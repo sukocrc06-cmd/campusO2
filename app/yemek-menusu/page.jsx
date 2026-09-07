@@ -85,24 +85,158 @@ const GUN_KISA = { "Pazartesi": "Pzt", "Salı": "Sal", "Çarşamba": "Çar", "Pe
 // "Bir öğün" için referans kalori değeri — dairesel göstergenin yüzdesini bulmak için.
 const OGUN_REFERANS_KCAL = 1200;
 
-function KaloriHalkasi({ kcal }) {
+function KaloriHalkasi({ kcal, boyut = 72 }) {
   const yuzde = Math.max(0, Math.min(100, Math.round((kcal / OGUN_REFERANS_KCAL) * 100)));
-  const r = 30;
+  const r = boyut === 72 ? 30 : 22;
   const cevre = 2 * Math.PI * r;
   const dolu = (yuzde / 100) * cevre;
+  const merkez = boyut / 2;
   return (
-    <div style={{ position: "relative", width: 72, height: 72, flex: "none" }}>
-      <svg width="72" height="72" viewBox="0 0 72 72" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="36" cy="36" r={r} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="7" />
+    <div style={{ position: "relative", width: boyut, height: boyut, flex: "none" }}>
+      <svg width={boyut} height={boyut} viewBox={`0 0 ${boyut} ${boyut}`} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={merkez} cy={merkez} r={r} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth={boyut === 72 ? 7 : 5} />
         <circle
-          cx="36" cy="36" r={r} fill="none" stroke="#ffd166" strokeWidth="7" strokeLinecap="round"
+          cx={merkez} cy={merkez} r={r} fill="none" stroke="#ffd166" strokeWidth={boyut === 72 ? 7 : 5} strokeLinecap="round"
           strokeDasharray={`${dolu} ${cevre}`}
         />
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", lineHeight: 1 }}>{kcal}</div>
-        <div style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.8)", marginTop: 2 }}>KCAL</div>
+        <div style={{ fontSize: boyut === 72 ? 14 : 11, fontWeight: 800, color: "#fff", lineHeight: 1 }}>{kcal}</div>
+        <div style={{ fontSize: boyut === 72 ? 8 : 7, fontWeight: 700, color: "rgba(255,255,255,0.8)", marginTop: 2 }}>KCAL</div>
       </div>
+    </div>
+  );
+}
+
+// Bir günün hero kartı + kategorilere ayrılmış yemek listesi. Hem "Günlük"
+// (tek gün, büyük) hem "Haftalık" (art arda, kompakt) görünümde aynı yapı
+// tekrar kullanılıyor — kompakt modda boşluklar/yazı boyutları küçültülüyor.
+function GunBolumu({ gun, kompakt = false }) {
+  const kategoriliYemekler = useMemo(() => {
+    const map = new Map();
+    (gun.yemekler || []).forEach((y) => {
+      const kat = y.kategori || "Diğer";
+      if (!map.has(kat)) map.set(kat, []);
+      map.get(kat).push(y);
+    });
+    return Array.from(map.entries());
+  }, [gun]);
+
+  const toplamKalori = useMemo(() => (gun.yemekler || []).reduce((s, y) => s + (y.kalori || 0), 0), [gun]);
+  const bugun = todayIso();
+  const isBugun = gun.tarih === bugun;
+
+  return (
+    <div style={{ marginBottom: kompakt ? 14 : 20 }}>
+      <section
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background: "linear-gradient(135deg, #0e4bae, #175cd3)",
+          borderRadius: kompakt ? 16 : 20,
+          padding: kompakt ? "16px 18px" : "24px 26px",
+          color: "#fff",
+          marginBottom: kompakt ? 10 : 20,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 18,
+        }}
+      >
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "radial-gradient(circle at 12% 20%, rgba(255,255,255,0.10) 0, rgba(255,255,255,0.10) 8px, transparent 9px)," +
+              "radial-gradient(circle at 85% 15%, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 14px, transparent 15px)," +
+              "radial-gradient(circle at 70% 80%, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 10px, transparent 11px)",
+            pointerEvents: "none",
+          }}
+        />
+        {!kompakt && (
+          <div aria-hidden style={{ position: "absolute", right: -10, bottom: -22, fontSize: 96, opacity: 0.12, transform: "rotate(-8deg)", pointerEvents: "none" }}>
+            🍽️
+          </div>
+        )}
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontSize: kompakt ? 10 : 11, fontWeight: 800, letterSpacing: "0.14em", opacity: 0.85 }}>{gun.gun_adi.toUpperCase()}</div>
+            {isBugun && (
+              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 999, background: "rgba(255,255,255,0.22)" }}>BUGÜN</span>
+            )}
+          </div>
+          <div style={{ fontSize: kompakt ? 15 : 20, fontWeight: 800, marginTop: 4, letterSpacing: "-0.02em" }}>{formatTarih(gun.tarih)}</div>
+          {kategoriliYemekler.length > 0 && (
+            <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {kategoriliYemekler.map(([kategori]) => (
+                <span key={kategori} style={{ fontSize: kompakt ? 12 : 14 }} title={kategori}>{kategoriMeta(kategori).emoji}</span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {toplamKalori > 0 && (
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <KaloriHalkasi kcal={toplamKalori} boyut={kompakt ? 54 : 72} />
+          </div>
+        )}
+      </section>
+
+      {kategoriliYemekler.length === 0 ? (
+        <div style={{ padding: kompakt ? 18 : 28, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 13 }}>
+          Bu gün için yemek listesi bulunamadı.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: kompakt ? 8 : 12 }}>
+          {kategoriliYemekler.map(([kategori, yemekler]) => {
+            const meta = kategoriMeta(kategori);
+            return (
+              <div
+                key={kategori}
+                style={{
+                  background: meta.zemin,
+                  border: `1px solid ${meta.kenar}`,
+                  borderRadius: 14,
+                  padding: kompakt ? 12 : 16,
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "flex-start",
+                }}
+              >
+                <div
+                  style={{
+                    flex: "none",
+                    width: kompakt ? 30 : 38,
+                    height: kompakt ? 30 : 38,
+                    borderRadius: 11,
+                    background: "#fff",
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: kompakt ? 15 : 19,
+                    boxShadow: `0 4px 10px -6px ${meta.renk}55`,
+                  }}
+                >
+                  {meta.emoji}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: kompakt ? 10 : 11, fontWeight: 800, letterSpacing: "0.08em", color: meta.renk, marginBottom: kompakt ? 5 : 8 }}>{kategori.toUpperCase()}</div>
+                  <div style={{ display: "grid", gap: kompakt ? 4 : 6 }}>
+                    {yemekler.map((y, idx) => (
+                      <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                        <span style={{ fontSize: kompakt ? 13 : 14, fontWeight: 600 }}>{y.ad}</span>
+                        {y.kalori ? <span style={{ fontSize: kompakt ? 10 : 11, color: "#5b6b85", whiteSpace: "nowrap" }}>{y.kalori} kcal</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -113,6 +247,7 @@ export default function YemekMenusuPage() {
   const [error, setError] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [roleHref, setRoleHref] = useState("/");
+  const [gorunum, setGorunum] = useState("gunluk"); // gunluk | haftalik
 
   useEffect(() => {
     async function init() {
@@ -146,19 +281,9 @@ export default function YemekMenusuPage() {
 
   const aktifGun = gunler[activeIndex] || null;
   const bugun = todayIso();
-
-  const kategoriliYemekler = useMemo(() => {
-    if (!aktifGun) return [];
-    const map = new Map();
-    (aktifGun.yemekler || []).forEach((y) => {
-      const kat = y.kategori || "Diğer";
-      if (!map.has(kat)) map.set(kat, []);
-      map.get(kat).push(y);
-    });
-    return Array.from(map.entries());
-  }, [aktifGun]);
-
-  const toplamKalori = useMemo(() => (aktifGun?.yemekler || []).reduce((s, y) => s + (y.kalori || 0), 0), [aktifGun]);
+  // "Haftalık" görünüm, bugünden başlayarak önümüzdeki 7 günü (Pazartesi
+  // sınırı gözetmeden, yaklaşan hafta olarak) tek sayfada art arda gösterir.
+  const haftalikGunler = useMemo(() => gunler.slice(0, 7), [gunler]);
 
   return (
     <div
@@ -176,8 +301,8 @@ export default function YemekMenusuPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Link href={roleHref} style={{ display: "grid", placeItems: "center", width: 38, height: 38, borderRadius: 11, border: "1px solid #e3ebf6", background: "#f5f8fc", color: "#175cd3", textDecoration: "none" }}>←</Link>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", color: "#175cd3" }}>VOL 1-7 · YEMEK MENÜSÜ</div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>Haftalık Yemek Menüsü</div>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", color: "#175cd3" }}>KAMPÜS YAŞAMI · YEMEKHANE</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>Yemek Menüsü</div>
           </div>
         </div>
         <Link href={roleHref} style={{ minHeight: 40, padding: "0 16px", fontSize: 13, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 12, border: "1px solid #c7deff", color: "#0e4bae" }}>Panele dön</Link>
@@ -195,148 +320,87 @@ export default function YemekMenusuPage() {
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
-              {gunler.map((g, i) => {
-                const isBugun = g.tarih === bugun;
-                const isActive = i === activeIndex;
-                return (
-                  <button
-                    key={g.id}
-                    type="button"
-                    onClick={() => setActiveIndex(i)}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 2,
-                      minWidth: 58,
-                      padding: "8px 10px 9px",
-                      borderRadius: 14,
-                      border: isActive ? "1px solid #175cd3" : isBugun ? "1px solid #a9e8c8" : "1px solid #e3ebf6",
-                      background: isActive ? "linear-gradient(160deg, #175cd3, #0e4bae)" : isBugun ? "#eefaf3" : "#fff",
-                      color: isActive ? "#fff" : "#0f1b33",
-                      cursor: "pointer",
-                      position: "relative",
-                      boxShadow: isActive ? "0 10px 20px -12px rgba(23,92,211,.6)" : "none",
-                    }}
-                  >
-                    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".05em", color: isActive ? "rgba(255,255,255,0.85)" : "#8fa0bc" }}>
-                      {GUN_KISA[g.gun_adi] || g.gun_adi.slice(0, 3)}
-                    </span>
-                    <span style={{ fontSize: 17, fontWeight: 800, lineHeight: 1 }}>{formatGunNo(g.tarih)}</span>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: isActive ? "rgba(255,255,255,0.75)" : "#8fa0bc" }}>{formatAyKisa(g.tarih)}</span>
-                    {isBugun && (
-                      <span style={{ position: "absolute", top: -4, right: -4, width: 10, height: 10, borderRadius: 999, background: "#22b879", border: "2px solid #f5f8fc" }} />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {aktifGun && (
-              <section
+            {/* Günlük / Haftalık geçiş sekmesi */}
+            <div style={{ display: "inline-flex", gap: 4, padding: 4, borderRadius: 12, background: "#eaf1ff", marginBottom: 16 }}>
+              <button
+                type="button"
+                onClick={() => setGorunum("gunluk")}
                 style={{
-                  position: "relative",
-                  overflow: "hidden",
-                  background: "linear-gradient(135deg, #0e4bae, #175cd3)",
-                  borderRadius: 20,
-                  padding: "24px 26px",
-                  color: "#fff",
-                  marginBottom: 20,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 18,
+                  padding: "7px 16px", borderRadius: 9, border: "none", cursor: "pointer",
+                  fontSize: 12.5, fontWeight: 800,
+                  background: gorunum === "gunluk" ? "#fff" : "transparent",
+                  color: gorunum === "gunluk" ? "#175cd3" : "#5b6b85",
+                  boxShadow: gorunum === "gunluk" ? "0 4px 10px -6px rgba(23,92,211,0.4)" : "none",
                 }}
               >
-                {/* Yemek temalı hafif desen: soluk tabak/çatal-bıçak motifleri */}
-                <div
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    backgroundImage:
-                      "radial-gradient(circle at 12% 20%, rgba(255,255,255,0.10) 0, rgba(255,255,255,0.10) 8px, transparent 9px)," +
-                      "radial-gradient(circle at 85% 15%, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 14px, transparent 15px)," +
-                      "radial-gradient(circle at 70% 80%, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 10px, transparent 11px)",
-                    pointerEvents: "none",
-                  }}
-                />
-                <div aria-hidden style={{ position: "absolute", right: -10, bottom: -22, fontSize: 96, opacity: 0.12, transform: "rotate(-8deg)", pointerEvents: "none" }}>
-                  🍽️
-                </div>
+                Günlük
+              </button>
+              <button
+                type="button"
+                onClick={() => setGorunum("haftalik")}
+                style={{
+                  padding: "7px 16px", borderRadius: 9, border: "none", cursor: "pointer",
+                  fontSize: 12.5, fontWeight: 800,
+                  background: gorunum === "haftalik" ? "#fff" : "transparent",
+                  color: gorunum === "haftalik" ? "#175cd3" : "#5b6b85",
+                  boxShadow: gorunum === "haftalik" ? "0 4px 10px -6px rgba(23,92,211,0.4)" : "none",
+                }}
+              >
+                Haftalık
+              </button>
+            </div>
 
-                <div style={{ position: "relative", zIndex: 1 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", opacity: 0.85 }}>{aktifGun.gun_adi.toUpperCase()}</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4, letterSpacing: "-0.02em" }}>{formatTarih(aktifGun.tarih)}</div>
-                  {kategoriliYemekler.length > 0 && (
-                    <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {kategoriliYemekler.map(([kategori]) => (
-                        <span key={kategori} style={{ fontSize: 14 }} title={kategori}>{kategoriMeta(kategori).emoji}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {toplamKalori > 0 && (
-                  <div style={{ position: "relative", zIndex: 1 }}>
-                    <KaloriHalkasi kcal={toplamKalori} />
-                  </div>
-                )}
-              </section>
-            )}
-
-            {kategoriliYemekler.length === 0 ? (
-              <div style={{ padding: 28, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>
-                Bu gün için yemek listesi bulunamadı.
-              </div>
-            ) : (
-              <div style={{ display: "grid", gap: 12 }}>
-                {kategoriliYemekler.map(([kategori, yemekler]) => {
-                  const meta = kategoriMeta(kategori);
-                  return (
-                    <div
-                      key={kategori}
-                      style={{
-                        background: meta.zemin,
-                        border: `1px solid ${meta.kenar}`,
-                        borderRadius: 14,
-                        padding: 16,
-                        display: "flex",
-                        gap: 12,
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      <div
+            {gorunum === "gunluk" ? (
+              <>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+                  {gunler.map((g, i) => {
+                    const isBugun = g.tarih === bugun;
+                    const isActive = i === activeIndex;
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setActiveIndex(i)}
                         style={{
-                          flex: "none",
-                          width: 38,
-                          height: 38,
-                          borderRadius: 11,
-                          background: "#fff",
-                          display: "grid",
-                          placeItems: "center",
-                          fontSize: 19,
-                          boxShadow: `0 4px 10px -6px ${meta.renk}55`,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 2,
+                          minWidth: 58,
+                          padding: "8px 10px 9px",
+                          borderRadius: 14,
+                          border: isActive ? "1px solid #175cd3" : isBugun ? "1px solid #a9e8c8" : "1px solid #e3ebf6",
+                          background: isActive ? "linear-gradient(160deg, #175cd3, #0e4bae)" : isBugun ? "#eefaf3" : "#fff",
+                          color: isActive ? "#fff" : "#0f1b33",
+                          cursor: "pointer",
+                          position: "relative",
+                          boxShadow: isActive ? "0 10px 20px -12px rgba(23,92,211,.6)" : "none",
                         }}
                       >
-                        {meta.emoji}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: meta.renk, marginBottom: 8 }}>{kategori.toUpperCase()}</div>
-                        <div style={{ display: "grid", gap: 6 }}>
-                          {yemekler.map((y, idx) => (
-                            <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-                              <span style={{ fontSize: 14, fontWeight: 600 }}>{y.ad}</span>
-                              {y.kalori ? <span style={{ fontSize: 11, color: "#5b6b85", whiteSpace: "nowrap" }}>{y.kalori} kcal</span> : null}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".05em", color: isActive ? "rgba(255,255,255,0.85)" : "#8fa0bc" }}>
+                          {GUN_KISA[g.gun_adi] || g.gun_adi.slice(0, 3)}
+                        </span>
+                        <span style={{ fontSize: 17, fontWeight: 800, lineHeight: 1 }}>{formatGunNo(g.tarih)}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: isActive ? "rgba(255,255,255,0.75)" : "#8fa0bc" }}>{formatAyKisa(g.tarih)}</span>
+                        {isBugun && (
+                          <span style={{ position: "absolute", top: -4, right: -4, width: 10, height: 10, borderRadius: 999, background: "#22b879", border: "2px solid #f5f8fc" }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {aktifGun && <GunBolumu gun={aktifGun} />}
+              </>
+            ) : (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#5b6b85", marginBottom: 12 }}>
+                  Önümüzdeki {haftalikGunler.length} gün — hepsi tek sayfada.
+                </div>
+                {haftalikGunler.map((g) => (
+                  <GunBolumu key={g.id} gun={g} kompakt />
+                ))}
               </div>
             )}
           </>

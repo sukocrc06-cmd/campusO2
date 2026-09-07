@@ -232,7 +232,8 @@ function GuzergahSeridi({ adimlar, renk }) {
                       top: -10,
                       left: "50%",
                       transform: "translateX(-50%)",
-                      maxWidth: 108,
+                      width: "max-content",
+                      maxWidth: 92,
                       padding: "3px 8px",
                       borderRadius: 10,
                       background: renk,
@@ -242,9 +243,10 @@ function GuzergahSeridi({ adimlar, renk }) {
                       fontWeight: 900,
                       letterSpacing: "-0.01em",
                       textAlign: "center",
-                      lineHeight: 1.2,
+                      lineHeight: 1.25,
                       whiteSpace: "normal",
-                      wordBreak: "break-word",
+                      wordBreak: "normal",
+                      overflowWrap: "break-word",
                       boxShadow: `0 6px 14px -6px ${renk}`,
                     }}
                   >

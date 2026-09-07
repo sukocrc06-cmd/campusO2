@@ -605,6 +605,268 @@ function HizliIslemler({ items }: { items: HizliIslem[] }) {
   );
 }
 
+// Ana Ekran Yönetimi widget galerisine eklenen 4 opsiyonel widget — hepsi
+// kendi tablosunu gerektirmiyor, zaten var olan gerçek verileri (ders
+// kaydı, sınav takvimi, yemek menüsü, kampüs duvarı) okuyor. Varsayılan
+// olarak GİZLİ: kullanıcı "+ Widget Ekle" galerisinden isteyerek ekliyor.
+
+// "Bugünün Dersleri" — ders_kayitlari (öğrencinin kendi seçtiği dersler,
+// bkz. /student/ders-kayit) ile ders_programi'nı birleştirip bugüne ait
+// dersleri saate göre sıralar; henüz bitmemiş ilk dersi "SIRADA" rozetiyle,
+// bitmiş olanları soluk gösterir.
+function BugununDersleriWidget({ userId }: { userId?: string | null }) {
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [dersler, setDersler] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!userId || !supabase) { setYukleniyor(false); return; }
+    let iptal = false;
+    (async () => {
+      const { data: donemSatiri } = await supabase!.from("aktif_donem").select("donem").eq("id", true).maybeSingle();
+      const guncelDonem = donemSatiri?.donem || "bahar";
+      const gunAdi = bugununGunAdi();
+      const { data } = await supabase!
+        .from("ders_kayitlari")
+        .select("ders_programi:ders_programi_id(id, ders_adi, gun, baslangic_saat, bitis_saat, derslik)")
+        .eq("ogrenci_id", userId)
+        .eq("donem", guncelDonem);
+      if (iptal) return;
+      const bugununDersleri = (data || [])
+        .map((r: any) => r.ders_programi)
+        .filter((d: any) => d && d.gun === gunAdi)
+        .sort((a: any, b: any) => (a.baslangic_saat || "").localeCompare(b.baslangic_saat || ""));
+      setDersler(bugununDersleri);
+      setYukleniyor(false);
+    })();
+    return () => { iptal = true; };
+  }, [userId]);
+
+  if (yukleniyor) return null;
+
+  function saatToDk(s?: string) {
+    if (!s) return 0;
+    const [h, m] = s.split(":").map(Number);
+    return h * 60 + (m || 0);
+  }
+  const suAn = new Date();
+  const suAnDk = suAn.getHours() * 60 + suAn.getMinutes();
+  const siradakiIndex = dersler.findIndex((d) => saatToDk(d.bitis_saat) > suAnDk);
+
+  return (
+    <section className="dashboard-category" style={{ padding: "16px 18px", borderRadius: 18, background: "#fff", border: "1px solid #e3ebf6" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <p className="dashboard-category-title" style={{ margin: 0 }}>Bugünün Dersleri</p>
+        <a href="/ders-programi-sinav-takvimi" style={{ fontSize: 11, fontWeight: 700, color: "#175cd3", textDecoration: "none" }}>Tümü →</a>
+      </div>
+      {dersler.length === 0 ? (
+        <div style={{ fontSize: 12, color: "#8fa0bc" }}>Bugün için kayıtlı dersin yok.</div>
+      ) : (
+        <div style={{ display: "grid", gap: 8 }}>
+          {dersler.map((d, i) => {
+            const gecti = saatToDk(d.bitis_saat) <= suAnDk;
+            const sirada = i === siradakiIndex;
+            return (
+              <div
+                key={d.id}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 12,
+                  background: sirada ? "#eef4ff" : "#f8fafc", opacity: gecti ? 0.5 : 1,
+                  border: sirada ? "1px solid #c7deff" : "1px solid transparent",
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 800, color: sirada ? "#175cd3" : "#5b6b85", minWidth: 82, flex: "none" }}>{d.baslangic_saat}–{d.bitis_saat}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0f1b33" }}>{d.ders_adi}</div>
+                  {d.derslik ? <div style={{ fontSize: 10.5, color: "#8fa0bc" }}>{d.derslik}</div> : null}
+                </div>
+                {sirada && <span style={{ fontSize: 9, fontWeight: 800, color: "#175cd3", background: "#dbe9ff", padding: "2px 7px", borderRadius: 999, flex: "none" }}>SIRADA</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// "Yaklaşan Sınav" — sinav_takvimi'ni öğrencinin kayıtlı olduğu ders
+// kod+bölüm eşleşmesine göre süzüp (bkz. loadDashboardExtras'taki aynı
+// mantık), bugünden itibaren en yakın 3 sınavı geri sayımla listeler.
+function YaklasanSinavWidget({ userId }: { userId?: string | null }) {
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [sinavlar, setSinavlar] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!userId || !supabase) { setYukleniyor(false); return; }
+    let iptal = false;
+    (async () => {
+      const { data: donemSatiri } = await supabase!.from("aktif_donem").select("donem").eq("id", true).maybeSingle();
+      const guncelDonem = donemSatiri?.donem || "bahar";
+      const { data: kayitli } = await supabase!
+        .from("ders_kayitlari")
+        .select("ders_programi:ders_programi_id(ders_kodu, bolum)")
+        .eq("ogrenci_id", userId)
+        .eq("donem", guncelDonem);
+      const kayitliSet = new Set(
+        (kayitli || [])
+          .map((r: any) => r.ders_programi)
+          .filter((d: any) => d && d.ders_kodu)
+          .map((d: any) => `${d.ders_kodu}||${d.bolum}`)
+      );
+      const { data: sinavRows } = await supabase!
+        .from("sinav_takvimi")
+        .select("ders_adi, ders_kodu, bolum, sinav_turu, tarih, saat, derslik")
+        .eq("donem", guncelDonem)
+        .gte("tarih", bugunIso())
+        .order("tarih", { ascending: true })
+        .limit(30);
+      if (iptal) return;
+      const filtreli = (sinavRows || []).filter((s: any) => kayitliSet.has(`${s.ders_kodu}||${s.bolum}`)).slice(0, 3);
+      setSinavlar(filtreli);
+      setYukleniyor(false);
+    })();
+    return () => { iptal = true; };
+  }, [userId]);
+
+  if (yukleniyor) return null;
+
+  function gunFarki(tarih: string) {
+    const fark = Math.round((new Date(tarih).getTime() - new Date(bugunIso()).getTime()) / 86400000);
+    if (fark <= 0) return "Bugün";
+    if (fark === 1) return "Yarın";
+    return `${fark} gün sonra`;
+  }
+
+  return (
+    <section className="dashboard-category" style={{ padding: "16px 18px", borderRadius: 18, background: "#fff", border: "1px solid #e3ebf6" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <p className="dashboard-category-title" style={{ margin: 0 }}>Yaklaşan Sınav</p>
+        <a href="/ders-programi-sinav-takvimi?tab=sinav" style={{ fontSize: 11, fontWeight: 700, color: "#175cd3", textDecoration: "none" }}>Tümü →</a>
+      </div>
+      {sinavlar.length === 0 ? (
+        <div style={{ fontSize: 12, color: "#8fa0bc" }}>Yaklaşan bir sınavın görünmüyor.</div>
+      ) : (
+        <div style={{ display: "grid", gap: 8 }}>
+          {sinavlar.map((s, i) => (
+            <div
+              key={`${s.ders_kodu}-${s.tarih}-${i}`}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 12,
+                background: i === 0 ? "#fff4e8" : "#f8fafc", border: i === 0 ? "1px solid #ffdcae" : "1px solid transparent",
+              }}
+            >
+              <div style={{ fontSize: 10.5, fontWeight: 800, color: i === 0 ? "#b7853f" : "#5b6b85", minWidth: 76, flex: "none" }}>{gunFarki(s.tarih)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0f1b33" }}>{s.ders_adi} · {s.sinav_turu}</div>
+                <div style={{ fontSize: 10.5, color: "#8fa0bc" }}>{s.saat}{s.derslik ? ` · ${s.derslik}` : ""}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// "Yemek Menüsü (Bugün)" — yemek_menusu'ndan sadece bugünün satırını çekip
+// yemek adlarını tek satırda özetler (tam menü/haftalık görünüm için hâlâ
+// /yemek-menusu sayfasına yönlendiriyor).
+function YemekOzetWidget({ userId }: { userId?: string | null }) {
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [yemekler, setYemekler] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!userId || !supabase) { setYukleniyor(false); return; }
+    let iptal = false;
+    (async () => {
+      const { data } = await supabase!.from("yemek_menusu").select("tarih, yemekler").eq("tarih", bugunIso()).maybeSingle();
+      if (iptal) return;
+      setYemekler((data as any)?.yemekler || []);
+      setYukleniyor(false);
+    })();
+    return () => { iptal = true; };
+  }, [userId]);
+
+  if (yukleniyor) return null;
+
+  return (
+    <a href="/yemek-menusu" style={{ textDecoration: "none", color: "inherit" }}>
+      <section className="dashboard-category" style={{ padding: "16px 18px", borderRadius: 18, background: "#fff", border: "1px solid #e3ebf6" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <p className="dashboard-category-title" style={{ margin: 0 }}>Yemek Menüsü (Bugün)</p>
+          <Icon name="arrow" size={16} />
+        </div>
+        {yemekler.length === 0 ? (
+          <div style={{ fontSize: 12, color: "#8fa0bc" }}>Bugün için menü henüz girilmemiş.</div>
+        ) : (
+          <div style={{ fontSize: 12.5, color: "#0f1b33", lineHeight: 1.7 }}>
+            {yemekler.map((y: any) => y.ad).filter(Boolean).join(" · ")}
+          </div>
+        )}
+      </section>
+    </a>
+  );
+}
+
+// "Kampüs Duvarı Önizleme" — gonderiler'den en son (sabitlenmiş varsa önce
+// onlar) 3 gönderiyi, yazarın profil bilgisiyle birlikte kısaltılmış
+// gösterir; tam akış için /student/kampus-duvari'na yönlendiriyor.
+function DuvarOnizlemeWidget({ userId }: { userId?: string | null }) {
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [gonderiler, setGonderiler] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!userId || !supabase) { setYukleniyor(false); return; }
+    let iptal = false;
+    (async () => {
+      const { data } = await supabase!
+        .from("gonderiler")
+        .select("id, icerik, yazar_id, created_at, resmi_duyuru")
+        .order("sabitlenmis", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(3);
+      if (iptal) return;
+      const rows = data || [];
+      const yazarIdler = Array.from(new Set(rows.map((g: any) => g.yazar_id)));
+      let profiller: Record<string, any> = {};
+      if (yazarIdler.length) {
+        const { data: profilRows } = await supabase!.from("profiles").select("id, full_name").in("id", yazarIdler);
+        (profilRows || []).forEach((p: any) => { profiller[p.id] = p; });
+      }
+      if (iptal) return;
+      setGonderiler(rows.map((g: any) => ({ ...g, yazarAdi: profiller[g.yazar_id]?.full_name || "Bir öğrenci" })));
+      setYukleniyor(false);
+    })();
+    return () => { iptal = true; };
+  }, [userId]);
+
+  if (yukleniyor) return null;
+
+  return (
+    <section className="dashboard-category" style={{ padding: "16px 18px", borderRadius: 18, background: "#fff", border: "1px solid #e3ebf6" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <p className="dashboard-category-title" style={{ margin: 0 }}>Kampüs Duvarı</p>
+        <a href="/student/kampus-duvari" style={{ fontSize: 11, fontWeight: 700, color: "#175cd3", textDecoration: "none" }}>Tümü →</a>
+      </div>
+      {gonderiler.length === 0 ? (
+        <div style={{ fontSize: 12, color: "#8fa0bc" }}>Henüz gönderi yok — ilk paylaşan sen ol.</div>
+      ) : (
+        <div style={{ display: "grid", gap: 8 }}>
+          {gonderiler.map((g) => (
+            <a key={g.id} href="/student/kampus-duvari" style={{ display: "block", padding: "9px 10px", borderRadius: 12, background: "#f8fafc", textDecoration: "none", color: "inherit" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: "#0f1b33" }}>{g.yazarAdi}</span>
+                {g.resmi_duyuru && <span style={{ fontSize: 8.5, fontWeight: 800, color: "#b7853f", background: "#fdf1dc", padding: "1px 6px", borderRadius: 999 }}>DUYURU</span>}
+              </div>
+              <div style={{ fontSize: 12, color: "#5b6b85", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>{g.icerik}</div>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // "Akademik Yönetim" — AYRINTILI TASARIM.docx'teki 1. modül ve alt katmanları
 // (1.1-1.8). Şu an gerçekten var olan özellikler ilgili alt maddeye bağlandı
 // (Ders Programı, Ders İçerikleri, Sınav Bilgileri, Devamsızlık); henüz
@@ -1189,23 +1451,38 @@ function BitkiWidget({ userId }: { userId?: string | null }) {
 // kaydırılan diğer kartlar FLIP tekniğiyle yumuşakça kayar. "Kaydet"e
 // basılana kadar hiçbir şey veritabanına yazılmıyor — "Vazgeç" ile taslak
 // atılıyor.
-type AnaEkranWidgetId = "bitki" | "takvim" | "hizli";
+type AnaEkranWidgetId = "bitki" | "takvim" | "hizli" | "gunun_dersleri" | "yaklasan_sinav" | "yemek_bugun" | "duvar_onizleme";
+// İlk kez açan bir kullanıcının ana sayfasında GÖRÜNÜR başlayan 3 widget —
+// uygulamanın en başından beri var olanlar, davranış değişmesin diye aynı
+// kaldı. Diğer 4'ü (gerçek veriye bağlı, sonradan eklenen) varsayılan
+// olarak GİZLİ — "+ Widget Ekle" galerisinden isteğe bağlı ekleniyor.
 const ANA_EKRAN_VARSAYILAN_SIRA: AnaEkranWidgetId[] = ["bitki", "takvim", "hizli"];
+const ANA_EKRAN_TUM_WIDGETLER: AnaEkranWidgetId[] = ["bitki", "takvim", "hizli", "gunun_dersleri", "yaklasan_sinav", "yemek_bugun", "duvar_onizleme"];
 const ANA_EKRAN_WIDGET_KATALOGU: Record<AnaEkranWidgetId, { baslik: string; aciklama: string; icon: IconName }> = {
   bitki: { baslik: "Bitki / Odaklanma", aciklama: "Uzun Odaklı Çalışma oturumun ve büyüyen filizin", icon: "leaf" },
   takvim: { baslik: "Takvim", aciklama: "Aylık takvim önizlemesi ve yaklaşan etkinlikler", icon: "calendar" },
   hizli: { baslik: "Hızlı İşlemler", aciklama: "En sık kullandığın kısayollar", icon: "spark" },
+  gunun_dersleri: { baslik: "Bugünün Dersleri", aciklama: "Kayıtlı olduğun derslerden bugüne ait olanlar, sıradaki vurgulu", icon: "book" },
+  yaklasan_sinav: { baslik: "Yaklaşan Sınav", aciklama: "Kayıtlı derslerinden en yakın 3 sınava geri sayım", icon: "graduation" },
+  yemek_bugun: { baslik: "Yemek Menüsü (Bugün)", aciklama: "Bugünkü yemekhane menüsünün kısa özeti", icon: "spark" },
+  duvar_onizleme: { baslik: "Kampüs Duvarı", aciklama: "Son 3 gönderiyi ana sayfandan takip et", icon: "message" },
 };
 
 function anaEkranWidgetGoster(id: AnaEkranWidgetId, userId?: string | null) {
   if (id === "bitki") return <BitkiWidget userId={userId} />;
   if (id === "takvim") return <TakvimWidget userId={userId} />;
-  return <HizliIslemler items={OGRENCI_HIZLI_ISLEMLER} />;
+  if (id === "hizli") return <HizliIslemler items={OGRENCI_HIZLI_ISLEMLER} />;
+  if (id === "gunun_dersleri") return <BugununDersleriWidget userId={userId} />;
+  if (id === "yaklasan_sinav") return <YaklasanSinavWidget userId={userId} />;
+  if (id === "yemek_bugun") return <YemekOzetWidget userId={userId} />;
+  return <DuvarOnizlemeWidget userId={userId} />;
 }
 
 // Tercihleri kampus_ana_ekran_tercihleri'nden okur/yazar. DB'de hiç kaydı
-// olmayan (yeni kullanıcı ya da ileride eklenecek yeni widget) id'ler
-// varsayılan sırada ve görünür kabul edilir, böylece geriye dönük uyumlu.
+// olmayan id'ler için: eski 3 varsayılan widget görünür, sonradan eklenen
+// yeni widget'lar gizli listesine düşer (kullanıcı isterse galeriden ekler)
+// — böylece bu widget'lar eklendiğinde var olan kullanıcıların ana sayfası
+// aniden değişmiyor.
 function useAnaEkranTercihleri(userId?: string | null) {
   const [sirali, setSirali] = useState<AnaEkranWidgetId[]>(ANA_EKRAN_VARSAYILAN_SIRA);
   const [gizli, setGizli] = useState<AnaEkranWidgetId[]>([]);
@@ -1221,14 +1498,15 @@ function useAnaEkranTercihleri(userId?: string | null) {
         .eq("kullanici_id", userId)
         .order("sira", { ascending: true });
       if (iptal) return;
-      if (data && data.length) {
-        const bilinen = data.filter((r) => (ANA_EKRAN_VARSAYILAN_SIRA as string[]).includes(r.widget_id));
-        const gorunenler = bilinen.filter((r) => r.gorunur).map((r) => r.widget_id as AnaEkranWidgetId);
-        const gizlenenler = bilinen.filter((r) => !r.gorunur).map((r) => r.widget_id as AnaEkranWidgetId);
-        const eksikler = ANA_EKRAN_VARSAYILAN_SIRA.filter((id) => !bilinen.some((r) => r.widget_id === id));
-        setSirali([...gorunenler, ...eksikler]);
-        setGizli(gizlenenler);
-      }
+      const bilinen = (data || []).filter((r) => (ANA_EKRAN_TUM_WIDGETLER as string[]).includes(r.widget_id));
+      const gorunenler = bilinen.filter((r) => r.gorunur).map((r) => r.widget_id as AnaEkranWidgetId);
+      const gizlenenler = bilinen.filter((r) => !r.gorunur).map((r) => r.widget_id as AnaEkranWidgetId);
+      const eksikGorunur = ANA_EKRAN_VARSAYILAN_SIRA.filter((id) => !bilinen.some((r) => r.widget_id === id));
+      const eksikGizli = ANA_EKRAN_TUM_WIDGETLER.filter(
+        (id) => !ANA_EKRAN_VARSAYILAN_SIRA.includes(id) && !bilinen.some((r) => r.widget_id === id)
+      );
+      setSirali([...gorunenler, ...eksikGorunur]);
+      setGizli([...gizlenenler, ...eksikGizli]);
       setYuklendi(true);
     })();
     return () => { iptal = true; };

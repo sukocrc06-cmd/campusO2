@@ -695,6 +695,18 @@ const KAMPUS_YASAMI_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Sanal Tur", desc: "360° panorama ve fotoğraflarla kampüsü keşfet", icon: "search", href: "/sanal-tur", durum: "aktif" },
 ];
 
+// "Kişiselleştirme" — AYRINTILI TASARIM.docx'teki 4. modül (4.1-4.4). Diğer
+// üç sidebar menüsünün aksine bu modülün hiçbir alt maddesi henüz kurulmadı;
+// kullanıcının isteği üzerine önce sadece sol menüye yol haritası olarak
+// eklendi, alt maddeler sırayla (önce hangisi konuşulup kararlaştırılırsa)
+// tek tek gerçek sayfalara bağlanacak.
+const KISISELLESTIRME_ALT_MODULLER: AkademikAltModul[] = [
+  { title: "Ana Ekran Yönetimi", desc: "Widget ekleme/çıkarma, sürükle-bırak düzenleme", icon: "settings", durum: "yapim" },
+  { title: "Bildirim Yönetimi", desc: "Etkinlik, sınav, ders iptali bildirimleri", icon: "bell", durum: "yapim" },
+  { title: "Tema Yönetimi", desc: "Dark mode / Light mode", icon: "moon", durum: "yapim" },
+  { title: "Takvim Yönetimi", desc: "Kişisel takvim + akademik takvim birleşimi, etkinlik ekleme/çıkarma", icon: "calendar", durum: "yapim" },
+];
+
 function useMobilMi() {
   const [mobil, setMobil] = useState(false);
   useEffect(() => {
@@ -1026,6 +1038,70 @@ function KampusYasamiNav() {
         >
           <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>KAMPÜS YAŞAMI</div>
           {KAMPUS_YASAMI_ALT_MODULLER.map((m) => <AltModulSatiri key={m.title} m={m} />)}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// "Kişiselleştirme" flyout menüsü — diğer üç sidebar menüsüyle (Akademik
+// Yönetim / Öğrenci Kimliğim / Kampüs Yaşamı) tamamen aynı desen. Alt
+// maddelerin tamamı "yapım aşamasında" — henüz sadece yol haritası olarak
+// listeleniyor, hangisi önce yapılacaksa sırayla konuşulup gerçek sayfaya
+// bağlanacak.
+function KisisellestirmeNav() {
+  const mobil = useMobilMi();
+  const [acik, setAcik] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const kapatZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sol = useFlyoutSol(!mobil && acik, btnRef);
+
+  function ac() {
+    if (mobil) return;
+    if (kapatZamanlayici.current) { clearTimeout(kapatZamanlayici.current); kapatZamanlayici.current = null; }
+    setAcik(true);
+  }
+  function kapatGecikmeli() {
+    if (mobil) return;
+    kapatZamanlayici.current = setTimeout(() => setAcik(false), 180);
+  }
+
+  const buton = (
+    <button ref={btnRef} type="button" onClick={() => setAcik((a) => !a)} aria-haspopup="true" aria-expanded={acik}>
+      <Icon name="settings" size={19} /><span>Kişiselleştirme</span><Icon name="chevron" size={14} />
+    </button>
+  );
+
+  if (mobil) {
+    return (
+      <div>
+        {buton}
+        {acik && (
+          <div style={{ padding: "2px 0 6px 4px", display: "grid", gap: 2 }}>
+            {KISISELLESTIRME_ALT_MODULLER.map((m) => <AltModulMobilSatiri key={m.title} m={m} />)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
+      {buton}
+      {acik && sol != null && typeof document !== "undefined" && createPortal(
+        <div
+          onMouseEnter={ac}
+          onMouseLeave={kapatGecikmeli}
+          style={{
+            position: "fixed", top: "50%", left: sol, transform: "translateY(-50%)", width: 290, zIndex: 200,
+            background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
+            border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
+            maxHeight: "calc(100vh - 24px)", overflowY: "auto",
+          }}
+        >
+          <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>KİŞİSELLEŞTİRME</div>
+          {KISISELLESTIRME_ALT_MODULLER.map((m) => <AltModulSatiri key={m.title} m={m} />)}
         </div>,
         document.body
       )}
@@ -1561,6 +1637,7 @@ export default function Home() {
           {role === "student" && <AkademikYonetimNav />}
           {role === "student" && <OgrenciKimlikNav />}
           {role === "student" && <KampusYasamiNav />}
+          {role === "student" && <KisisellestirmeNav />}
           <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
           {role === "faculty" && (
             <button onClick={() => { window.location.href = "/academician/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>

@@ -14,7 +14,10 @@ import { supabase } from "../../lib/supabase";
 // sitesinde kampüs merkez koordinatı var ama bina bazlı otomatik çekilebilecek
 // bir kaynak yok. İç mekan navigasyonu (yol bulma) bilinçli olarak v1 kapsamı
 // dışında bırakıldı; her bina için sadece kat bazlı basit bir mekan listesi
-// gösteriliyor.
+// gösteriliyor. Park Alanları (3.5) da aynı haritada ayrı bir işaretçi tipi
+// (🅿️) olarak gösteriliyor; doluluk oranı /park-alanlari sayfasındaki gibi
+// öğrenci bildirimlerinden hesaplanıyor (bkz. dolulukHesapla) — burada
+// sadece özet gösteriliyor, bildirim gönderme /park-alanlari'nda.
 const LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css";
 const LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
 
@@ -31,6 +34,30 @@ function tipMeta(tip) {
   return TIP_META[tip] || TIP_META.diger;
 }
 const MEKAN_TIP_ETIKET = { sinif: "Sınıf", laboratuvar: "Laboratuvar", ofis: "Ofis", wc: "WC", diger: "Diğer" };
+const PARK_RENK = "#5be0c2";
+
+const BILDIRIM_PENCERESI_DK = 90;
+const DURUM_DEGER = { bos: 0, orta: 0.5, dolu: 1 };
+const DURUM_META = {
+  bos: { etiket: "Boş", emoji: "🟢", renk: "#34d399" },
+  orta: { etiket: "Orta Yoğun", emoji: "🟡", renk: "#ffbf5a" },
+  dolu: { etiket: "Dolu", emoji: "🔴", renk: "#ff6a6a" },
+};
+function dolulukHesapla(bildirimler) {
+  const simdi = Date.now();
+  let toplamAgirlik = 0;
+  let toplamDeger = 0;
+  for (const b of bildirimler) {
+    const dk = (simdi - new Date(b.created_at).getTime()) / 60000;
+    if (dk > BILDIRIM_PENCERESI_DK) continue;
+    const agirlik = Math.max(0, 1 - dk / BILDIRIM_PENCERESI_DK);
+    toplamAgirlik += agirlik;
+    toplamDeger += agirlik * (DURUM_DEGER[b.durum] ?? 0.5);
+  }
+  if (toplamAgirlik === 0) return null;
+  const ortalama = toplamDeger / toplamAgirlik;
+  return ortalama < 0.34 ? "bos" : ortalama < 0.66 ? "orta" : "dolu";
+}
 
 function useLeafletYukle() {
   const [hazir, setHazir] = useState(typeof window !== "undefined" && !!window.L);
@@ -57,17 +84,19 @@ function useLeafletYukle() {
   return hazir;
 }
 
-function KampusHaritasi({ binalar, seciliId, onSecim }) {
+function KampusHaritasi({ binalar, parklar, seciliId, seciliParkId, onSecim, onSecimPark }) {
   const kapRef = useRef(null);
   const haritaRef = useRef(null);
   const markerlarRef = useRef({});
+  const parkMarkerlarRef = useRef({});
   const leafletHazir = useLeafletYukle();
 
   useEffect(() => {
     if (!leafletHazir || !kapRef.current || haritaRef.current) return;
     const L = window.L;
-    const merkez = binalar.length > 0
-      ? [binalar.reduce((s, b) => s + b.lat, 0) / binalar.length, binalar.reduce((s, b) => s + b.lng, 0) / binalar.length]
+    const tumNoktalar = [...binalar, ...parklar];
+    const merkez = tumNoktalar.length > 0
+      ? [tumNoktalar.reduce((s, b) => s + b.lat, 0) / tumNoktalar.length, tumNoktalar.reduce((s, b) => s + b.lng, 0) / tumNoktalar.length]
       : [40.1328489, 32.9440116];
     const harita = L.map(kapRef.current, { zoomControl: true, attributionControl: true }).setView(merkez, 17);
     // Standart OpenStreetMap kutucukları — kesin ücretsiz, API key gerekmez.
@@ -83,7 +112,7 @@ function KampusHaritasi({ binalar, seciliId, onSecim }) {
     }).addTo(harita);
     haritaRef.current = harita;
     return () => { harita.remove(); haritaRef.current = null; };
-  }, [leafletHazir, binalar]);
+  }, [leafletHazir, binalar, parklar]);
 
   useEffect(() => {
     const harita = haritaRef.current;
@@ -114,6 +143,36 @@ function KampusHaritasi({ binalar, seciliId, onSecim }) {
       markerlarRef.current[b.id] = marker;
     });
   }, [binalar, seciliId, leafletHazir, onSecim]);
+
+  useEffect(() => {
+    const harita = haritaRef.current;
+    if (!harita || !leafletHazir) return;
+    const L = window.L;
+
+    Object.values(parkMarkerlarRef.current).forEach((m) => harita.removeLayer(m));
+    parkMarkerlarRef.current = {};
+
+    parklar.forEach((p) => {
+      const secili = seciliParkId === p.id;
+      // Park işaretçileri karesel (binalardan görsel olarak ayrışsın diye)
+      // ve sabit turkuaz renkte — kapasiteye/tipe göre değişmiyor.
+      const ikon = L.divIcon({
+        className: "",
+        html: `<div style="
+          width: ${secili ? 38 : 30}px; height: ${secili ? 38 : 30}px; border-radius: 9px;
+          background: ${PARK_RENK}; border: ${secili ? 3 : 2}px solid #fff;
+          display:flex; align-items:center; justify-content:center; font-size: ${secili ? 17 : 13}px;
+          box-shadow: 0 6px 16px -6px rgba(0,0,0,0.7);
+        ">🅿️</div>`,
+        iconSize: [secili ? 38 : 30, secili ? 38 : 30],
+        iconAnchor: [secili ? 19 : 15, secili ? 19 : 15],
+      });
+      const marker = L.marker([p.lat, p.lng], { icon: ikon }).addTo(harita);
+      marker.on("click", () => onSecimPark(p.id));
+      marker.bindTooltip(p.ad, { direction: "top", offset: [0, -14] });
+      parkMarkerlarRef.current[p.id] = marker;
+    });
+  }, [parklar, seciliParkId, leafletHazir, onSecimPark]);
 
   return (
     <div className="ku-harita-alani" style={{ position: "relative", width: "100%", height: "min(62vh, 520px)", borderRadius: 18, overflow: "hidden", border: "1px solid rgba(255,255,255,0.12)" }}>
@@ -146,10 +205,13 @@ function KampusHaritasi({ binalar, seciliId, onSecim }) {
 
 export default function KampusHaritasiPage() {
   const [binalar, setBinalar] = useState([]);
+  const [parklar, setParklar] = useState([]);
+  const [parkBildirimleri, setParkBildirimleri] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [roleHref, setRoleHref] = useState("/");
   const [seciliId, setSeciliId] = useState(null);
+  const [seciliParkId, setSeciliParkId] = useState(null);
 
   useEffect(() => {
     async function init() {
@@ -161,23 +223,40 @@ export default function KampusHaritasiPage() {
       const isAcademician = session.user.email?.toLowerCase() !== "suko.crc06@gmail.com" && profile?.role === "academician";
       setRoleHref(isAcademician ? "/?role=faculty" : "/?role=student");
 
-      const { data, error: err } = await supabase
-        .from("kampus_binalar")
-        .select("*")
-        .eq("aktif", true)
-        .order("sira", { ascending: true })
-        .order("created_at", { ascending: true });
+      const [{ data, error: err }, { data: parkData, error: parkErr }] = await Promise.all([
+        supabase.from("kampus_binalar").select("*").eq("aktif", true).order("sira", { ascending: true }).order("created_at", { ascending: true }),
+        supabase.from("kampus_park_alanlari").select("*").eq("aktif", true).order("sira", { ascending: true }).order("created_at", { ascending: true }),
+      ]);
 
       if (err) { setError("Kampüs haritası alınamadı: " + err.message); setLoading(false); return; }
       setBinalar((data || []).filter((b) => Number.isFinite(b.lat) && Number.isFinite(b.lng)));
+
+      const parklarGecerli = (parkData || []).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+      setParklar(parklarGecerli);
       setLoading(false);
 
-      // Kampüs Hizmetleri sayfasından "?bina=<id>" ile gelindiyse ilgili
-      // binayı otomatik seçili aç (window.location — Suspense gerektiren
-      // next/navigation useSearchParams yerine, mevcut basit desenle uyumlu).
+      if (!parkErr && parklarGecerli.length > 0) {
+        const cutoff = new Date(Date.now() - BILDIRIM_PENCERESI_DK * 60000).toISOString();
+        const { data: bildirimData } = await supabase
+          .from("kampus_park_bildirimleri")
+          .select("park_id, durum, created_at")
+          .in("park_id", parklarGecerli.map((p) => p.id))
+          .gte("created_at", cutoff);
+        const gruplu = {};
+        for (const b of bildirimData || []) (gruplu[b.park_id] = gruplu[b.park_id] || []).push(b);
+        setParkBildirimleri(gruplu);
+      }
+
+      // Kampüs Hizmetleri / Park Alanları sayfalarından "?bina=<id>" ya da
+      // "?park=<id>" ile gelindiyse ilgili işaretçiyi otomatik seçili aç
+      // (window.location — Suspense gerektiren next/navigation
+      // useSearchParams yerine, mevcut basit desenle uyumlu).
       if (typeof window !== "undefined") {
-        const binaParam = new URLSearchParams(window.location.search).get("bina");
+        const params = new URLSearchParams(window.location.search);
+        const binaParam = params.get("bina");
+        const parkParam = params.get("park");
         if (binaParam) setSeciliId(binaParam);
+        if (parkParam) setSeciliParkId(parkParam);
       }
     }
     init();
@@ -185,6 +264,9 @@ export default function KampusHaritasiPage() {
 
   const seciliBina = binalar.find((b) => b.id === seciliId) || null;
   const seciliMeta = seciliBina ? tipMeta(seciliBina.tip) : null;
+  const seciliPark = parklar.find((p) => p.id === seciliParkId) || null;
+  const seciliParkDurum = seciliPark ? dolulukHesapla(parkBildirimleri[seciliPark.id] || []) : null;
+  const seciliParkDurumMeta = seciliParkDurum ? DURUM_META[seciliParkDurum] : null;
 
   const mekanlarKatGrubu = {};
   if (seciliBina && Array.isArray(seciliBina.mekanlar)) {
@@ -212,14 +294,21 @@ export default function KampusHaritasiPage() {
           <div style={{ padding: "14px 16px", borderRadius: 12, background: "rgba(255,138,92,0.1)", border: "1px solid rgba(255,138,92,0.3)", color: "#ffb59a", fontSize: 13, fontWeight: 600 }}>{error}</div>
         ) : loading ? (
           <p style={{ color: "rgba(232,238,252,0.6)" }}>Yükleniyor…</p>
-        ) : binalar.length === 0 ? (
+        ) : binalar.length === 0 && parklar.length === 0 ? (
           <div style={{ padding: 32, textAlign: "center", border: "1px dashed rgba(255,255,255,0.14)", borderRadius: 16, background: "rgba(255,255,255,0.03)", color: "rgba(232,238,252,0.5)", fontSize: 14 }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>🗺️</div>
             Henüz bina eklenmedi.
           </div>
         ) : (
           <>
-            <KampusHaritasi binalar={binalar} seciliId={seciliId} onSecim={setSeciliId} />
+            <KampusHaritasi
+              binalar={binalar}
+              parklar={parklar}
+              seciliId={seciliId}
+              seciliParkId={seciliParkId}
+              onSecim={(id) => { setSeciliId((prev) => (prev === id ? null : id)); setSeciliParkId(null); }}
+              onSecimPark={(id) => { setSeciliParkId((prev) => (prev === id ? null : id)); setSeciliId(null); }}
+            />
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
               {binalar.map((b) => {
@@ -229,7 +318,7 @@ export default function KampusHaritasiPage() {
                   <button
                     key={b.id}
                     type="button"
-                    onClick={() => setSeciliId(secili ? null : b.id)}
+                    onClick={() => { setSeciliId(secili ? null : b.id); setSeciliParkId(null); }}
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 6,
                       padding: "6px 12px", borderRadius: 999, cursor: "pointer",
@@ -243,7 +332,86 @@ export default function KampusHaritasiPage() {
                   </button>
                 );
               })}
+              {parklar.map((p) => {
+                const secili = seciliParkId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => { setSeciliParkId(secili ? null : p.id); setSeciliId(null); }}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+                      fontSize: 12, fontWeight: 700,
+                      color: secili ? "#0b1220" : "#e8eefc",
+                      background: secili ? PARK_RENK : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${secili ? PARK_RENK : "rgba(255,255,255,0.14)"}`,
+                    }}
+                  >
+                    <span>🅿️</span>{p.ad}
+                  </button>
+                );
+              })}
             </div>
+
+            {seciliPark && (
+              <section
+                style={{
+                  marginTop: 16,
+                  background: "rgba(255,255,255,0.045)",
+                  border: `1px solid ${PARK_RENK}55`,
+                  borderRadius: 18,
+                  padding: "20px 22px",
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 11, background: `${PARK_RENK}22`, display: "grid", placeItems: "center", fontSize: 19, flex: "none" }}>🅿️</div>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "#f4f8ff" }}>{seciliPark.ad}</div>
+                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", color: PARK_RENK, background: `${PARK_RENK}22`, padding: "2px 8px", borderRadius: 999 }}>PARK ALANI</span>
+                    </div>
+                  </div>
+                  {seciliParkDurumMeta ? (
+                    <span style={{ fontSize: 12, fontWeight: 800, color: seciliParkDurumMeta.renk, background: `${seciliParkDurumMeta.renk}18`, border: `1px solid ${seciliParkDurumMeta.renk}55`, padding: "5px 12px", borderRadius: 999 }}>
+                      {seciliParkDurumMeta.emoji} {seciliParkDurumMeta.etiket}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: "rgba(232,238,252,0.45)" }}>Henüz canlı bildirim yok</span>
+                  )}
+                </div>
+
+                {seciliPark.aciklama && <div style={{ fontSize: 12.5, color: "rgba(232,238,252,0.65)", marginTop: 10, lineHeight: 1.5 }}>{seciliPark.aciklama}</div>}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8, fontSize: 11.5, color: "rgba(232,238,252,0.6)" }}>
+                  {seciliPark.kapasite != null && <span>🚗 {seciliPark.kapasite} kapasite</span>}
+                  {seciliPark.engelli_kontenjan > 0 && <span>♿ {seciliPark.engelli_kontenjan} engelli kontenjanı</span>}
+                </div>
+
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${seciliPark.lat},${seciliPark.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10,
+                    fontSize: 11.5, fontWeight: 800, color: PARK_RENK, textDecoration: "none",
+                    padding: "5px 10px", borderRadius: 999, background: "rgba(255,255,255,0.06)", border: `1px solid ${PARK_RENK}55`,
+                  }}
+                >
+                  📍 Google Maps'te Aç / Yol Tarifi Al
+                </a>
+                <Link
+                  href="/park-alanlari"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, marginLeft: 8,
+                    fontSize: 11.5, fontWeight: 800, color: PARK_RENK, textDecoration: "none",
+                    padding: "5px 10px", borderRadius: 999, background: "rgba(255,255,255,0.06)", border: `1px solid ${PARK_RENK}55`,
+                  }}
+                >
+                  🔔 Doluluk Bildir
+                </Link>
+              </section>
+            )}
 
             {seciliBina && (
               <section

@@ -648,6 +648,24 @@ const OGRENCI_KIMLIK_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Kart Yönetimi", desc: "Kart bakiyesi görüntüleme, bakiye yükleme", icon: "settings", durum: "yapim" },
 ];
 
+// "Kampüs Yaşamı" — AYRINTILI TASARIM.docx'teki 3. modül (3.1-3.7). Bu
+// alanların hiçbiri henüz gerçek bir veri kaynağına (yemekhane menü API'si,
+// ring/servis saatleri, kampüs haritası, otopark doluluk sensörü vb.)
+// bağlanmadığından tamamı şimdilik "yapım aşamasında" etiketiyle sadece
+// görüntü amaçlı listeleniyor; sırayla inşa edilecek. Sidebar'da başka bir
+// yerde bu alt maddelerle çakışan ayrı bir buton yoktu (mevcut "Kampüs
+// Duvarı" butonu farklı bir özellik — sosyal duyuru duvarı), o yüzden
+// birleştirme/kaldırma gerekmedi.
+const KAMPUS_YASAMI_ALT_MODULLER: AkademikAltModul[] = [
+  { title: "Yemekhane", desc: "Günlük/haftalık menü, kalori-besin bilgisi", icon: "spark", durum: "yapim" },
+  { title: "Ulaşım", desc: "Ring saatleri, servis saatleri, durak konumları", icon: "arrow", durum: "yapim" },
+  { title: "Kampüs Haritası", desc: "2D/3D harita, bina-sınıf-lab konumları", icon: "home", durum: "yapim" },
+  { title: "Kampüs Hizmetleri", desc: "ATM, market/kırtasiye, spor salonu, medikal, cami, kargo", icon: "settings", durum: "yapim" },
+  { title: "Park Alanları", desc: "Otopark doluluk göstergesi, park noktası detayları", icon: "check", durum: "yapim" },
+  { title: "Bilgilendirme Rehberleri", desc: "Wi-Fi, e-posta kurulumu, OBS/LMS kullanımı", icon: "book", durum: "yapim" },
+  { title: "Sanal Tur", desc: "Kampüs turu, fakülte turları", icon: "search", durum: "yapim" },
+];
+
 function useMobilMi() {
   const [mobil, setMobil] = useState(false);
   useEffect(() => {
@@ -916,6 +934,69 @@ function OgrenciKimlikNav() {
         >
           <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>ÖĞRENCİ KİMLİĞİM</div>
           {OGRENCI_KIMLIK_ALT_MODULLER.map((m) => <AltModulSatiri key={m.title} m={m} />)}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// "Kampüs Yaşamı" flyout menüsü — Akademik Yönetim / Öğrenci Kimliğim ile
+// aynı desen (masaüstünde hover ile açılan flyout, mobilde tıklamayla açılan
+// akordeon). Alt maddelerin tamamı henüz "yapım aşamasında" olduğundan
+// üzerlerine tıklanamıyor, sadece yol haritası olarak listeleniyor.
+function KampusYasamiNav() {
+  const mobil = useMobilMi();
+  const [acik, setAcik] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const kapatZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sol = useFlyoutSol(!mobil && acik, btnRef);
+
+  function ac() {
+    if (mobil) return;
+    if (kapatZamanlayici.current) { clearTimeout(kapatZamanlayici.current); kapatZamanlayici.current = null; }
+    setAcik(true);
+  }
+  function kapatGecikmeli() {
+    if (mobil) return;
+    kapatZamanlayici.current = setTimeout(() => setAcik(false), 180);
+  }
+
+  const buton = (
+    <button ref={btnRef} type="button" onClick={() => setAcik((a) => !a)} aria-haspopup="true" aria-expanded={acik}>
+      <Icon name="sun" size={19} /><span>Kampüs Yaşamı</span><Icon name="chevron" size={14} />
+    </button>
+  );
+
+  if (mobil) {
+    return (
+      <div>
+        {buton}
+        {acik && (
+          <div style={{ padding: "2px 0 6px 4px", display: "grid", gap: 2 }}>
+            {KAMPUS_YASAMI_ALT_MODULLER.map((m) => <AltModulMobilSatiri key={m.title} m={m} />)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
+      {buton}
+      {acik && sol != null && typeof document !== "undefined" && createPortal(
+        <div
+          onMouseEnter={ac}
+          onMouseLeave={kapatGecikmeli}
+          style={{
+            position: "fixed", top: "50%", left: sol, transform: "translateY(-50%)", width: 290, zIndex: 200,
+            background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
+            border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
+            maxHeight: "calc(100vh - 24px)", overflowY: "auto",
+          }}
+        >
+          <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>KAMPÜS YAŞAMI</div>
+          {KAMPUS_YASAMI_ALT_MODULLER.map((m) => <AltModulSatiri key={m.title} m={m} />)}
         </div>,
         document.body
       )}
@@ -1445,6 +1526,7 @@ export default function Home() {
           )}
           {role === "student" && <AkademikYonetimNav />}
           {role === "student" && <OgrenciKimlikNav />}
+          {role === "student" && <KampusYasamiNav />}
           <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
           {role === "faculty" && (
             <button onClick={() => { window.location.href = "/academician/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>

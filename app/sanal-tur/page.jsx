@@ -247,6 +247,35 @@ export default function SanalTurPage() {
       </header>
 
       <main style={{ width: "min(880px, 100%)", margin: "0 auto", padding: "24px 18px 60px" }}>
+        {/* Kendi 360° çekimimiz henüz yok — telifli AYBÜ görsellerini kopyalamak
+            yerine, öğrenciyi gerçek görüntülere Google'ın kendi ücretsiz
+            sayfası ve AYBÜ'nün resmi turu üzerinden yönlendiriyoruz. Aşağıdaki
+            durak listesi zamanla admin panelinden yüklenen gerçek fotoğraflarla
+            dolacak; bu iki link o zamana kadar (ve sonrasında da) yerinde kalır. */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 18, padding: "14px 16px", borderRadius: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ fontSize: 12, color: "rgba(232,238,252,0.6)", flex: "1 1 220px", lineHeight: 1.5 }}>
+            Bu sayfadaki duraklar zamanla admin tarafından eklenen gerçek fotoğraflarla dolacak. O zamana kadar kampüsü şuradan da gezebilirsin:
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <a
+              href="https://aybu.edu.tr/sanaltur/esenboga/index.html"
+              target="_blank"
+              rel="noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 800, color: "#e8eefc", textDecoration: "none", padding: "8px 14px", borderRadius: 999, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.18)" }}
+            >
+              🏛️ AYBÜ Resmi Sanal Turunu Aç
+            </a>
+            <a
+              href="https://www.google.com/maps/search/?api=1&query=40.1328489,32.9440116"
+              target="_blank"
+              rel="noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 800, color: "#0b1220", textDecoration: "none", padding: "8px 14px", borderRadius: 999, background: "#9cc4ff", border: "1px solid #9cc4ff" }}
+            >
+              🌐 Google Maps'te 360° Görüntüle
+            </a>
+          </div>
+        </div>
+
         {error ? (
           <div style={{ padding: "14px 16px", borderRadius: 12, background: "rgba(255,138,92,0.1)", border: "1px solid rgba(255,138,92,0.3)", color: "#ffb59a", fontSize: 13, fontWeight: 600 }}>{error}</div>
         ) : loading ? (

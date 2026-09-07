@@ -197,11 +197,11 @@ export default function BilgilendirmeRehberleriPage() {
         <Link href={roleHref} style={{ minHeight: 40, padding: "0 16px", fontSize: 13, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", borderRadius: 12, border: "1px solid rgba(127,178,255,0.35)", color: "#9cc4ff", background: "rgba(91,157,255,0.08)" }}>Panele dön</Link>
       </header>
 
-      <main style={{ width: "min(720px, 100%)", margin: "0 auto", padding: "24px 18px 60px" }}>
+      <main style={{ width: "min(880px, 100%)", margin: "0 auto", padding: "24px 18px 60px" }}>
         <div style={{ fontSize: 12.5, color: "rgba(232,238,252,0.55)", marginBottom: 16, lineHeight: 1.6 }}>
           Kampüs teknik hizmetleriyle ilgili en sık aranan konular — her başlığa tıklayıp açabilir, ayrıntılı adımlar için AYBÜ Bilgi İşlem Daire Başkanlığı'nın resmi kılavuzuna gidebilirsin.
         </div>
-        <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", alignItems: "start" }}>
           {REHBERLER.map((r, i) => (
             <RehberKarti key={r.id} rehber={r} index={i} acikMi={acikId === r.id} onToggle={() => setAcikId(acikId === r.id ? null : r.id)} />
           ))}

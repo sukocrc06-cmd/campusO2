@@ -701,7 +701,7 @@ const KAMPUS_YASAMI_ALT_MODULLER: AkademikAltModul[] = [
 // eklendi, alt maddeler sırayla (önce hangisi konuşulup kararlaştırılırsa)
 // tek tek gerçek sayfalara bağlanacak.
 const KISISELLESTIRME_ALT_MODULLER: AkademikAltModul[] = [
-  { title: "Ana Ekran Yönetimi", desc: "Widget ekleme/çıkarma, sürükle-bırak düzenleme", icon: "settings", durum: "yapim" },
+  { title: "Ana Ekran Yönetimi", desc: "Widget ekleme/çıkarma, sürükle-bırak düzenleme — ana sayfadaki \"Ana Sayfanı Düzenle\" düğmesinden", icon: "settings", href: "/?role=student", durum: "aktif" },
   { title: "Bildirim Yönetimi", desc: "Etkinlik, sınav, ders iptali bildirimleri", icon: "bell", durum: "yapim" },
   { title: "Tema Yönetimi", desc: "Dark mode / Light mode", icon: "moon", durum: "yapim" },
   { title: "Takvim Yönetimi", desc: "Kişisel takvim + akademik takvim birleşimi, etkinlik ekleme/çıkarma", icon: "calendar", durum: "yapim" },
@@ -1178,6 +1178,318 @@ function BitkiWidget({ userId }: { userId?: string | null }) {
   );
 }
 
+// Kişiselleştirme > Ana Ekran Yönetimi (AYRINTILI TASARIM.docx 4.1: widget
+// ekleme/çıkarma, sürükle-bırak düzenleme). Öğrenci ana sayfasındaki 3
+// mevcut widget (Bitki, Takvim, Hızlı İşlemler) artık gizlenebilir/
+// sıralanabilir hale getirildi; sıra + görünürlük her kullanıcıya özel
+// kampus_ana_ekran_tercihleri tablosunda saklanıyor. "Düzenle" moduna
+// girince kartlar iOS ana ekranı gibi hafif titrer, tutamaçtan basılı
+// tutup sürükleyince en yakın komşusunun ortasını geçtiğinde yer değiştirir
+// (pointer capture ile hem fare hem dokunmatik aynı kodla çalışıyor),
+// kaydırılan diğer kartlar FLIP tekniğiyle yumuşakça kayar. "Kaydet"e
+// basılana kadar hiçbir şey veritabanına yazılmıyor — "Vazgeç" ile taslak
+// atılıyor.
+type AnaEkranWidgetId = "bitki" | "takvim" | "hizli";
+const ANA_EKRAN_VARSAYILAN_SIRA: AnaEkranWidgetId[] = ["bitki", "takvim", "hizli"];
+const ANA_EKRAN_WIDGET_KATALOGU: Record<AnaEkranWidgetId, { baslik: string; aciklama: string; icon: IconName }> = {
+  bitki: { baslik: "Bitki / Odaklanma", aciklama: "Uzun Odaklı Çalışma oturumun ve büyüyen filizin", icon: "leaf" },
+  takvim: { baslik: "Takvim", aciklama: "Aylık takvim önizlemesi ve yaklaşan etkinlikler", icon: "calendar" },
+  hizli: { baslik: "Hızlı İşlemler", aciklama: "En sık kullandığın kısayollar", icon: "spark" },
+};
+
+function anaEkranWidgetGoster(id: AnaEkranWidgetId, userId?: string | null) {
+  if (id === "bitki") return <BitkiWidget userId={userId} />;
+  if (id === "takvim") return <TakvimWidget userId={userId} />;
+  return <HizliIslemler items={OGRENCI_HIZLI_ISLEMLER} />;
+}
+
+// Tercihleri kampus_ana_ekran_tercihleri'nden okur/yazar. DB'de hiç kaydı
+// olmayan (yeni kullanıcı ya da ileride eklenecek yeni widget) id'ler
+// varsayılan sırada ve görünür kabul edilir, böylece geriye dönük uyumlu.
+function useAnaEkranTercihleri(userId?: string | null) {
+  const [sirali, setSirali] = useState<AnaEkranWidgetId[]>(ANA_EKRAN_VARSAYILAN_SIRA);
+  const [gizli, setGizli] = useState<AnaEkranWidgetId[]>([]);
+  const [yuklendi, setYuklendi] = useState(false);
+
+  useEffect(() => {
+    if (!userId || !supabase) { setYuklendi(true); return; }
+    let iptal = false;
+    (async () => {
+      const { data } = await supabase!
+        .from("kampus_ana_ekran_tercihleri")
+        .select("widget_id, sira, gorunur")
+        .eq("kullanici_id", userId)
+        .order("sira", { ascending: true });
+      if (iptal) return;
+      if (data && data.length) {
+        const bilinen = data.filter((r) => (ANA_EKRAN_VARSAYILAN_SIRA as string[]).includes(r.widget_id));
+        const gorunenler = bilinen.filter((r) => r.gorunur).map((r) => r.widget_id as AnaEkranWidgetId);
+        const gizlenenler = bilinen.filter((r) => !r.gorunur).map((r) => r.widget_id as AnaEkranWidgetId);
+        const eksikler = ANA_EKRAN_VARSAYILAN_SIRA.filter((id) => !bilinen.some((r) => r.widget_id === id));
+        setSirali([...gorunenler, ...eksikler]);
+        setGizli(gizlenenler);
+      }
+      setYuklendi(true);
+    })();
+    return () => { iptal = true; };
+  }, [userId]);
+
+  async function kaydet(yeniSirali: AnaEkranWidgetId[], yeniGizli: AnaEkranWidgetId[]) {
+    if (!userId || !supabase) { setSirali(yeniSirali); setGizli(yeniGizli); return; }
+    const satirlar = [
+      ...yeniSirali.map((id, i) => ({ kullanici_id: userId, widget_id: id, sira: i, gorunur: true })),
+      ...yeniGizli.map((id, i) => ({ kullanici_id: userId, widget_id: id, sira: yeniSirali.length + i, gorunur: false })),
+    ];
+    const { error } = await supabase!.from("kampus_ana_ekran_tercihleri").upsert(satirlar, { onConflict: "kullanici_id,widget_id" });
+    if (!error) { setSirali(yeniSirali); setGizli(yeniGizli); }
+  }
+
+  return { sirali, gizli, yuklendi, kaydet };
+}
+
+function AnaEkranYonetimi({ userId }: { userId?: string | null }) {
+  const { sirali, gizli, yuklendi, kaydet } = useAnaEkranTercihleri(userId);
+  const [duzenleModu, setDuzenleModu] = useState(false);
+  const [taslakSirali, setTaslakSirali] = useState<AnaEkranWidgetId[]>(sirali);
+  const [taslakGizli, setTaslakGizli] = useState<AnaEkranWidgetId[]>(gizli);
+  const [surukleId, setSurukleId] = useState<AnaEkranWidgetId | null>(null);
+  const [galeriAcik, setGaleriAcik] = useState(false);
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const suruklemeRef = useRef<AnaEkranWidgetId | null>(null);
+  const oncekiRectler = useRef<Record<string, DOMRect>>({});
+
+  useEffect(() => {
+    if (!duzenleModu) { setTaslakSirali(sirali); setTaslakGizli(gizli); }
+  }, [sirali, gizli, duzenleModu]);
+
+  const gorunenListe = duzenleModu ? taslakSirali : sirali;
+  const gorunenAnahtar = gorunenListe.join("|");
+
+  // FLIP: her yeniden sıralamadan önceki/sonraki konumları karşılaştırıp
+  // farkı transform:translateY olarak uygulayıp sonra 0'a animasyonluyor —
+  // sürüklenen kartın kendisi de dahil, tüm liste birlikte akıcı kayıyor.
+  useLayoutEffect(() => {
+    const yeniRectler: Record<string, DOMRect> = {};
+    gorunenListe.forEach((id) => {
+      const el = itemRefs.current[id];
+      if (el) yeniRectler[id] = el.getBoundingClientRect();
+    });
+    gorunenListe.forEach((id) => {
+      const el = itemRefs.current[id];
+      const eski = oncekiRectler.current[id];
+      const yeni = yeniRectler[id];
+      if (el && eski && yeni) {
+        const dy = eski.top - yeni.top;
+        if (Math.abs(dy) > 1) {
+          el.style.transition = "none";
+          el.style.transform = `translateY(${dy}px)`;
+          requestAnimationFrame(() => {
+            el.style.transition = "transform 240ms cubic-bezier(.2,.8,.2,1)";
+            el.style.transform = "";
+          });
+        }
+      }
+    });
+    oncekiRectler.current = yeniRectler;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gorunenAnahtar]);
+
+  function suruklemeBaslat(e: React.PointerEvent<HTMLButtonElement>, id: AnaEkranWidgetId) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    suruklemeRef.current = id;
+    setSurukleId(id);
+  }
+  function suruklemeDevam(e: React.PointerEvent<HTMLButtonElement>) {
+    const suruklenen = suruklemeRef.current;
+    if (!suruklenen) return;
+    const y = e.clientY;
+    setTaslakSirali((mevcut) => {
+      const suAn = mevcut.indexOf(suruklenen);
+      if (suAn === -1) return mevcut;
+      let enYakinIndex = suAn;
+      let enYakinFark = Infinity;
+      mevcut.forEach((id, i) => {
+        const el = itemRefs.current[id];
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const fark = Math.abs(y - (r.top + r.height / 2));
+        if (fark < enYakinFark) { enYakinFark = fark; enYakinIndex = i; }
+      });
+      if (enYakinIndex === suAn) return mevcut;
+      const yeni = mevcut.slice();
+      yeni.splice(suAn, 1);
+      yeni.splice(enYakinIndex, 0, suruklenen);
+      return yeni;
+    });
+  }
+  function suruklemeBitir() {
+    suruklemeRef.current = null;
+    setSurukleId(null);
+  }
+
+  function kaldir(id: AnaEkranWidgetId) {
+    setTaslakSirali((s) => s.filter((x) => x !== id));
+    setTaslakGizli((g) => [...g, id]);
+  }
+  function geriEkle(id: AnaEkranWidgetId) {
+    setTaslakGizli((g) => g.filter((x) => x !== id));
+    setTaslakSirali((s) => [...s, id]);
+  }
+  async function kaydetVeKapat() {
+    setKaydediliyor(true);
+    await kaydet(taslakSirali, taslakGizli);
+    setKaydediliyor(false);
+    setDuzenleModu(false);
+    setGaleriAcik(false);
+  }
+  function vazgec() {
+    setTaslakSirali(sirali);
+    setTaslakGizli(gizli);
+    setDuzenleModu(false);
+    setGaleriAcik(false);
+  }
+
+  if (!yuklendi) return null;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+        {duzenleModu ? (
+          <>
+            <span style={{ fontSize: 11, color: "#8fa0bc", marginRight: "auto" }}>Widget'ları sürükleyerek sırala, "×" ile kaldır, aşağıdaki "+" ile geri ekle.</span>
+            <button type="button" onClick={vazgec} className="button" style={{ minHeight: 34, padding: "0 14px", fontSize: 12.5 }}>Vazgeç</button>
+            <button type="button" onClick={kaydetVeKapat} disabled={kaydediliyor} className="button button-primary" style={{ minHeight: 34, padding: "0 14px", fontSize: 12.5 }}>
+              {kaydediliyor ? "Kaydediliyor…" : "Kaydet"}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setDuzenleModu(true)}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: "1px solid #e3ebf6", background: "#fff", color: "#175cd3", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+          >
+            <Icon name="settings" size={14} /> Ana Sayfanı Düzenle
+          </button>
+        )}
+      </div>
+
+      {gorunenListe.map((id) => (
+        <div
+          key={id}
+          ref={(el) => { itemRefs.current[id] = el; }}
+          className="ae-widget-item"
+          style={{
+            position: "relative",
+            borderRadius: 18,
+            animation: duzenleModu && surukleId === null ? "aeWiggle 0.26s ease-in-out infinite" : undefined,
+            animationDelay: gorunenListe.indexOf(id) % 2 === 0 ? "0s" : "0.09s",
+            boxShadow: surukleId === id ? "0 16px 32px rgba(15,27,51,.22)" : undefined,
+            zIndex: surukleId === id ? 5 : undefined,
+          }}
+        >
+          {anaEkranWidgetGoster(id, userId)}
+          {duzenleModu && (
+            <>
+              <button
+                type="button"
+                onPointerDown={(e) => suruklemeBaslat(e, id)}
+                onPointerMove={suruklemeDevam}
+                onPointerUp={suruklemeBitir}
+                onPointerCancel={suruklemeBitir}
+                title="Sürükleyerek sırala"
+                style={{
+                  position: "absolute", top: 10, left: 10, width: 30, height: 30, borderRadius: 9,
+                  border: "1px solid rgba(255,255,255,.5)", background: "rgba(15,27,51,.55)", color: "#fff",
+                  display: "grid", placeItems: "center", cursor: surukleId === id ? "grabbing" : "grab", touchAction: "none", zIndex: 6,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="8" cy="6" r="1.6" /><circle cx="16" cy="6" r="1.6" />
+                  <circle cx="8" cy="12" r="1.6" /><circle cx="16" cy="12" r="1.6" />
+                  <circle cx="8" cy="18" r="1.6" /><circle cx="16" cy="18" r="1.6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => kaldir(id)}
+                title="Kaldır"
+                style={{
+                  position: "absolute", top: 10, right: 10, width: 26, height: 26, borderRadius: "50%",
+                  border: "none", background: "#ff6a6a", color: "#fff", display: "grid", placeItems: "center", cursor: "pointer", zIndex: 6,
+                  boxShadow: "0 4px 10px rgba(255,106,106,.4)",
+                }}
+              >
+                <Icon name="close" size={13} />
+              </button>
+            </>
+          )}
+        </div>
+      ))}
+
+      {duzenleModu && (
+        <button
+          type="button"
+          onClick={() => setGaleriAcik(true)}
+          className="dashboard-category"
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+            width: "100%", minHeight: 64, borderRadius: 18, border: "2px dashed #c7d4e8", background: "#f8fafc",
+            color: "#8fa0bc", cursor: "pointer", fontSize: 12.5, fontWeight: 700,
+          }}
+        >
+          <span style={{ fontSize: 20, lineHeight: 1, fontWeight: 800 }}>+</span>
+          Widget Ekle
+        </button>
+      )}
+
+      {galeriAcik && typeof document !== "undefined" && createPortal(
+        <div
+          onClick={() => setGaleriAcik(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,27,51,.45)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 18, width: "min(380px, 100%)", boxShadow: "0 24px 60px rgba(15,27,51,.3)" }}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10, color: "#0f1b33" }}>Widget Ekle</div>
+            {taslakGizli.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: "#8fa0bc", padding: "12px 4px" }}>Eklenebilecek widget kalmadı — hepsi zaten ana sayfanda.</div>
+            ) : (
+              taslakGizli.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => geriEkle(id)}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 10px", borderRadius: 13,
+                    border: "1px solid #e3ebf6", background: "#fff", marginBottom: 8, cursor: "pointer", textAlign: "left",
+                  }}
+                >
+                  <span style={{ width: 34, height: 34, borderRadius: 10, background: "#eef4ff", color: "#175cd3", display: "grid", placeItems: "center", flex: "none" }}>
+                    <Icon name={ANA_EKRAN_WIDGET_KATALOGU[id].icon} size={17} />
+                  </span>
+                  <span style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0f1b33" }}>{ANA_EKRAN_WIDGET_KATALOGU[id].baslik}</div>
+                    <div style={{ fontSize: 10.5, color: "#8fa0bc" }}>{ANA_EKRAN_WIDGET_KATALOGU[id].aciklama}</div>
+                  </span>
+                  <Icon name="arrow" size={15} />
+                </button>
+              ))
+            )}
+            <button type="button" onClick={() => setGaleriAcik(false)} className="button" style={{ width: "100%", marginTop: 4 }}>Kapat</button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      <style>{`
+        @keyframes aeWiggle { 0%, 100% { transform: rotate(-0.6deg); } 50% { transform: rotate(0.6deg); } }
+        @keyframes aePopIn { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+        .ae-widget-item { animation-name: aePopIn; animation-duration: 260ms; animation-timing-function: ease; animation-fill-mode: both; }
+      `}</style>
+    </div>
+  );
+}
+
 function ModuleHome({
   role,
   displayName,
@@ -1219,11 +1531,7 @@ function ModuleHome({
       </section>
 
       {role === "student" ? (
-        <>
-          <BitkiWidget userId={userId} />
-          <TakvimWidget userId={userId} />
-          <HizliIslemler items={OGRENCI_HIZLI_ISLEMLER} />
-        </>
+        <AnaEkranYonetimi userId={userId} />
       ) : (
         <>
           <TakvimWidget userId={userId} />

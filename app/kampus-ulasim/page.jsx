@@ -360,6 +360,10 @@ export default function KampusUlasimPage() {
           0%, 100% { transform: translateX(0); opacity: 0.7; }
           50% { transform: translateX(4px); opacity: 1; }
         }
+        @keyframes kuOneCikanNabiz {
+          0%, 100% { box-shadow: 0 20px 44px -28px rgba(0,0,0,0.7), 0 0 0 0 rgba(255,191,90,0.35); border-color: rgba(255,191,90,0.55); }
+          50% { box-shadow: 0 20px 44px -28px rgba(0,0,0,0.7), 0 0 0 7px rgba(255,191,90,0); border-color: rgba(255,191,90,0.95); }
+        }
       `}</style>
 
       <header
@@ -394,17 +398,20 @@ export default function KampusUlasimPage() {
             {hatlar.map((h) => {
               const meta = tipMeta(h.tip);
               const duraklar = Array.isArray(h.duraklar) ? h.duraklar : [];
+              const altHatlar = Array.isArray(h.alternatif_hatlar) ? h.alternatif_hatlar : [];
               return (
                 <section
                   key={h.id}
                   style={{
-                    background: "rgba(255,255,255,0.045)",
-                    border: `1px solid ${meta.kenar}`,
+                    background: h.one_cikan ? "rgba(255,191,90,0.07)" : "rgba(255,255,255,0.045)",
+                    border: h.one_cikan ? "1px solid rgba(255,191,90,0.55)" : `1px solid ${meta.kenar}`,
                     borderRadius: 18,
                     padding: "20px 22px",
                     boxShadow: "0 20px 44px -28px rgba(0,0,0,0.7)",
                     backdropFilter: "blur(10px)",
                     overflow: "hidden",
+                    position: "relative",
+                    animation: h.one_cikan ? "kuOneCikanNabiz 2.4s ease-in-out infinite" : "none",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -412,6 +419,9 @@ export default function KampusUlasimPage() {
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 800, color: "#f4f8ff" }}>{h.ad}</div>
                       <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", color: meta.renk, background: meta.zemin, padding: "2px 8px", borderRadius: 999 }}>{meta.etiket.toUpperCase()}</span>
+                      {h.one_cikan && (
+                        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em", color: "#3a2400", background: "#ffbf5a", padding: "2px 8px", borderRadius: 999, marginLeft: 6 }}>⚡ EN HIZLI · POPÜLER</span>
+                      )}
                       {duraklar.length > 1 && (
                         <span style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(232,238,252,0.5)", marginLeft: 8 }}>Toplam {duraklar.length} adım</span>
                       )}
@@ -419,6 +429,29 @@ export default function KampusUlasimPage() {
                   </div>
 
                   {h.aciklama && <div style={{ fontSize: 12.5, color: "rgba(232,238,252,0.65)", marginTop: 8, lineHeight: 1.5 }}>{h.aciklama}</div>}
+
+                  {altHatlar.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 10 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: "rgba(232,238,252,0.45)" }}>Alternatif hatlar:</span>
+                      {altHatlar.map((hat, hi) => (
+                        <span
+                          key={hi}
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            color: meta.renk,
+                            background: meta.zemin,
+                            border: `1px solid ${meta.kenar}`,
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          🚍 {hat}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {duraklar.length > 1 ? (
                     <GuzergahSeridi adimlar={duraklar} renk={meta.renk} />

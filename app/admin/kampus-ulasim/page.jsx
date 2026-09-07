@@ -11,7 +11,7 @@ const labelStyle = { fontSize: 11.5, fontWeight: 700, color: "#5b6b85", display:
 const TIP_ETIKET = { ring: "Ring", servis: "Servis", ego: "EGO Otobüs", diger: "Diğer" };
 
 function bosHat() {
-  return { id: null, ad: "", tip: "ring", aciklama: "", notlar: "", aktif: true, sira: 0, duraklar: [{ ad: "", saatler: "", konum: "", hat_no: "" }] };
+  return { id: null, ad: "", tip: "ring", aciklama: "", notlar: "", aktif: true, sira: 0, oneCikan: false, alternatifHatlar: "", duraklar: [{ ad: "", saatler: "", konum: "", hat_no: "" }] };
 }
 
 // duraklar jsonb <-> form arasında dönüştürücüler. Veritabanında
@@ -84,6 +84,8 @@ export default function AdminKampusUlasimPage() {
       notlar: hat.notlar || "",
       aktif: hat.aktif !== false,
       sira: hat.sira ?? 0,
+      oneCikan: hat.one_cikan === true,
+      alternatifHatlar: Array.isArray(hat.alternatif_hatlar) ? hat.alternatif_hatlar.join(", ") : "",
       duraklar: duraklarFormaDonustur(hat.duraklar),
     });
     setMesaj(""); setHata("");
@@ -123,6 +125,8 @@ export default function AdminKampusUlasimPage() {
       notlar: form.notlar.trim() || null,
       aktif: form.aktif,
       sira: Number(form.sira) || 0,
+      one_cikan: form.oneCikan,
+      alternatif_hatlar: form.alternatifHatlar.split(",").map((s) => s.trim()).filter(Boolean),
       duraklar,
     };
 
@@ -230,9 +234,21 @@ export default function AdminKampusUlasimPage() {
                   <input style={inputStyle} value={form.notlar} onChange={(e) => setForm((f) => ({ ...f, notlar: e.target.value }))} placeholder="Örn. Resmi tatillerde çalışmaz" />
                 </label>
 
+                <label style={labelStyle}>Alternatif Hatlar (opsiyonel, virgülle ayır)
+                  <input style={inputStyle} value={form.alternatifHatlar} onChange={(e) => setForm((f) => ({ ...f, alternatifHatlar: e.target.value }))} placeholder="Örn. 486, 477, 474 Ekspres" />
+                </label>
+                <div style={{ marginTop: -6, fontSize: 11, color: "#8fa0bc", lineHeight: 1.5 }}>
+                  Buraya girilen hatlar öğrenci sayfasında kart başlığının hemen altında küçük rozetler olarak gösterilir — notlar metninde anlatmak yerine tek bakışta görülür.
+                </div>
+
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 700, color: "#5b6b85" }}>
                   <input type="checkbox" checked={form.aktif} onChange={(e) => setForm((f) => ({ ...f, aktif: e.target.checked }))} />
                   Aktif (öğrencilere gösterilsin)
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 700, color: "#a15c00" }}>
+                  <input type="checkbox" checked={form.oneCikan} onChange={(e) => setForm((f) => ({ ...f, oneCikan: e.target.checked }))} />
+                  ⚡ Öne çıkan / en hızlı güzergah (öğrenci sayfasında hafifçe yanıp söner)
                 </label>
 
                 <div style={{ display: "flex", gap: 10 }}>
@@ -262,8 +278,12 @@ export default function AdminKampusUlasimPage() {
                             <span style={{ fontSize: 13.5, fontWeight: 800 }}>{h.ad}</span>
                             <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em", padding: "2px 8px", borderRadius: 999, background: "#eaf1ff", color: "#175cd3" }}>{TIP_ETIKET[h.tip] || h.tip}</span>
                             {!h.aktif && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: "#fff4e2", color: "#a15c00" }}>Pasif</span>}
+                            {h.one_cikan && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: "#fff4e2", color: "#a15c00" }}>⚡ Öne Çıkan</span>}
                           </div>
                           {h.aciklama && <div style={{ fontSize: 12, color: "#5b6b85", marginTop: 4 }}>{h.aciklama}</div>}
+                          {Array.isArray(h.alternatif_hatlar) && h.alternatif_hatlar.length > 0 && (
+                            <div style={{ fontSize: 11, color: "#5b6b85", marginTop: 4 }}>Alternatif: {h.alternatif_hatlar.join(" · ")}</div>
+                          )}
                           {Array.isArray(h.duraklar) && h.duraklar.length > 0 && (
                             <div style={{ marginTop: 8, display: "grid", gap: 3 }}>
                               {h.duraklar.map((d, i) => (

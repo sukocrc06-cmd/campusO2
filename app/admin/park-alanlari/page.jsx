@@ -8,15 +8,21 @@ const cardStyle = { background: "#fff", border: "1px solid #e3ebf6", borderRadiu
 const inputStyle = { height: 42, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 10, fontSize: 13, outline: "none", width: "100%", boxSizing: "border-box" };
 const labelStyle = { fontSize: 11.5, fontWeight: 700, color: "#5b6b85", display: "flex", flexDirection: "column", gap: 5 };
 
-function bosPark() {
-  return { id: null, ad: "", aciklama: "", lat: "", lng: "", kapasite: "", engelliKontenjan: 0, aktif: true, sira: 0 };
+// Her park alanı kendi rengiyle haritada/kartlarda gösteriliyor (öğrenciler
+// için birden fazla park alanını ayırt etmeyi kolaylaştırıyor). Renk
+// girilmezse uygulama sabit turkuaz varsayılana düşüyor; burada yeni kayıt
+// formuna otomatik farklı bir başlangıç rengi öneriyoruz.
+const RENK_PALETI = ["#5b9dff", "#f472b6", "#ffbf5a", "#34d399", "#a78bfa", "#5be0c2", "#ff8a5c", "#9fb0d0"];
+
+function bosPark(oncekiSayisi = 0) {
+  return { id: null, ad: "", aciklama: "", lat: "", lng: "", kapasite: "", engelliKontenjan: 0, renk: RENK_PALETI[oncekiSayisi % RENK_PALETI.length], aktif: true, sira: 0 };
 }
 
 export default function AdminParkAlanlariPage() {
   const [yetkili, setYetkili] = useState(null);
   const [parklar, setParklar] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState(bosPark());
+  const [form, setForm] = useState(bosPark(0));
   const [duzenlenenId, setDuzenlenenId] = useState(null);
   const [kaydetBusy, setKaydetBusy] = useState(false);
   const [silBusyId, setSilBusyId] = useState(null);
@@ -55,6 +61,7 @@ export default function AdminParkAlanlariPage() {
       lng: p.lng ?? "",
       kapasite: p.kapasite ?? "",
       engelliKontenjan: p.engelli_kontenjan ?? 0,
+      renk: p.renk || RENK_PALETI[0],
       aktif: p.aktif !== false,
       sira: p.sira ?? 0,
     });
@@ -64,7 +71,7 @@ export default function AdminParkAlanlariPage() {
 
   function formuSifirla() {
     setDuzenlenenId(null);
-    setForm(bosPark());
+    setForm(bosPark(parklar.length));
   }
 
   async function handleKaydet(e) {
@@ -83,6 +90,7 @@ export default function AdminParkAlanlariPage() {
       lng,
       kapasite: form.kapasite === "" ? null : Number(form.kapasite) || 0,
       engelli_kontenjan: Number(form.engelliKontenjan) || 0,
+      renk: form.renk || null,
       aktif: form.aktif,
       sira: Number(form.sira) || 0,
     };
@@ -167,6 +175,27 @@ export default function AdminParkAlanlariPage() {
                   <input style={inputStyle} value={form.aciklama} onChange={(e) => setForm((f) => ({ ...f, aciklama: e.target.value }))} placeholder="Örn. Ana girişin sağındaki açık alan" />
                 </label>
 
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: "#5b6b85", marginBottom: 6 }}>Renk (haritada ve kartlarda bu park alanını ayırt eder)</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input type="color" value={form.renk} onChange={(e) => setForm((f) => ({ ...f, renk: e.target.value }))} style={{ width: 44, height: 42, padding: 2, border: "1px solid #e3ebf6", borderRadius: 8, cursor: "pointer" }} />
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {RENK_PALETI.map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, renk: r }))}
+                          title={r}
+                          style={{
+                            width: 24, height: 24, borderRadius: 7, background: r, cursor: "pointer",
+                            border: form.renk === r ? "2.5px solid #0f1b33" : "1px solid rgba(0,0,0,0.15)",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 700, color: "#5b6b85" }}>
                   <input type="checkbox" checked={form.aktif} onChange={(e) => setForm((f) => ({ ...f, aktif: e.target.checked }))} />
                   Aktif (öğrencilere gösterilsin)
@@ -196,6 +225,7 @@ export default function AdminParkAlanlariPage() {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ width: 13, height: 13, borderRadius: 4, background: p.renk || "#5be0c2", flex: "none", border: "1px solid rgba(0,0,0,0.15)" }} />
                             <span style={{ fontSize: 13.5, fontWeight: 800 }}>{p.ad}</span>
                             {!p.aktif && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: "#fff4e2", color: "#a15c00" }}>Pasif</span>}
                           </div>

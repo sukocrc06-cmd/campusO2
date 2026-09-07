@@ -48,6 +48,7 @@ function dolulukHesapla(bildirimler) {
 function ParkKarti({ park, bildirimler, kullaniciId, index, onBildir }) {
   const { durum, enSonDk, bildirimSayisi } = dolulukHesapla(bildirimler);
   const meta = durum ? DURUM_META[durum] : null;
+  const parkRenk = park.renk || "#5be0c2";
   const [gonderBusy, setGonderBusy] = useState(false);
   const [bekleme, setBekleme] = useState(0);
 
@@ -78,7 +79,8 @@ function ParkKarti({ park, bildirimler, kullaniciId, index, onBildir }) {
   return (
     <section
       style={{
-        border: `1px solid ${meta ? meta.renk + "55" : "rgba(255,255,255,0.1)"}`,
+        border: `1px solid ${parkRenk}55`,
+        borderLeft: `4px solid ${parkRenk}`,
         borderRadius: 18,
         background: "rgba(255,255,255,0.045)",
         backdropFilter: "blur(10px)",
@@ -144,8 +146,8 @@ function ParkKarti({ park, bildirimler, kullaniciId, index, onBildir }) {
         href={`/kampus-haritasi?park=${park.id}`}
         style={{
           display: "inline-flex", alignItems: "center", gap: 4, marginTop: 14,
-          fontSize: 11.5, fontWeight: 800, color: "#9cc4ff", textDecoration: "none",
-          padding: "6px 12px", borderRadius: 999, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)",
+          fontSize: 11.5, fontWeight: 800, color: parkRenk, textDecoration: "none",
+          padding: "6px 12px", borderRadius: 999, background: `${parkRenk}18`, border: `1px solid ${parkRenk}55`,
         }}
       >
         🗺️ Haritada Gör

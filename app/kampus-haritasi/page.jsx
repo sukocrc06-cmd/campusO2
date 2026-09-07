@@ -154,13 +154,15 @@ function KampusHaritasi({ binalar, parklar, seciliId, seciliParkId, onSecim, onS
 
     parklar.forEach((p) => {
       const secili = seciliParkId === p.id;
-      // Park işaretçileri karesel (binalardan görsel olarak ayrışsın diye)
-      // ve sabit turkuaz renkte — kapasiteye/tipe göre değişmiyor.
+      const renk = p.renk || PARK_RENK;
+      // Park işaretçileri karesel (binalardan görsel olarak ayrışsın diye);
+      // her park admin panelinden girilen kendi rengiyle gösteriliyor, renk
+      // girilmediyse sabit turkuaza düşüyor.
       const ikon = L.divIcon({
         className: "",
         html: `<div style="
           width: ${secili ? 38 : 30}px; height: ${secili ? 38 : 30}px; border-radius: 9px;
-          background: ${PARK_RENK}; border: ${secili ? 3 : 2}px solid #fff;
+          background: ${renk}; border: ${secili ? 3 : 2}px solid #fff;
           display:flex; align-items:center; justify-content:center; font-size: ${secili ? 17 : 13}px;
           box-shadow: 0 6px 16px -6px rgba(0,0,0,0.7);
         ">🅿️</div>`,
@@ -267,6 +269,7 @@ export default function KampusHaritasiPage() {
   const seciliPark = parklar.find((p) => p.id === seciliParkId) || null;
   const seciliParkDurum = seciliPark ? dolulukHesapla(parkBildirimleri[seciliPark.id] || []) : null;
   const seciliParkDurumMeta = seciliParkDurum ? DURUM_META[seciliParkDurum] : null;
+  const seciliParkRenk = seciliPark ? seciliPark.renk || PARK_RENK : PARK_RENK;
 
   const mekanlarKatGrubu = {};
   if (seciliBina && Array.isArray(seciliBina.mekanlar)) {
@@ -334,6 +337,7 @@ export default function KampusHaritasiPage() {
               })}
               {parklar.map((p) => {
                 const secili = seciliParkId === p.id;
+                const renk = p.renk || PARK_RENK;
                 return (
                   <button
                     key={p.id}
@@ -344,8 +348,8 @@ export default function KampusHaritasiPage() {
                       padding: "6px 12px", borderRadius: 999, cursor: "pointer",
                       fontSize: 12, fontWeight: 700,
                       color: secili ? "#0b1220" : "#e8eefc",
-                      background: secili ? PARK_RENK : "rgba(255,255,255,0.06)",
-                      border: `1px solid ${secili ? PARK_RENK : "rgba(255,255,255,0.14)"}`,
+                      background: secili ? renk : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${secili ? renk : "rgba(255,255,255,0.14)"}`,
                     }}
                   >
                     <span>🅿️</span>{p.ad}
@@ -359,7 +363,7 @@ export default function KampusHaritasiPage() {
                 style={{
                   marginTop: 16,
                   background: "rgba(255,255,255,0.045)",
-                  border: `1px solid ${PARK_RENK}55`,
+                  border: `1px solid ${seciliParkRenk}55`,
                   borderRadius: 18,
                   padding: "20px 22px",
                   backdropFilter: "blur(10px)",
@@ -367,10 +371,10 @@ export default function KampusHaritasiPage() {
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 11, background: `${PARK_RENK}22`, display: "grid", placeItems: "center", fontSize: 19, flex: "none" }}>🅿️</div>
+                    <div style={{ width: 38, height: 38, borderRadius: 11, background: `${seciliParkRenk}22`, display: "grid", placeItems: "center", fontSize: 19, flex: "none" }}>🅿️</div>
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 800, color: "#f4f8ff" }}>{seciliPark.ad}</div>
-                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", color: PARK_RENK, background: `${PARK_RENK}22`, padding: "2px 8px", borderRadius: 999 }}>PARK ALANI</span>
+                      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", color: seciliParkRenk, background: `${seciliParkRenk}22`, padding: "2px 8px", borderRadius: 999 }}>PARK ALANI</span>
                     </div>
                   </div>
                   {seciliParkDurumMeta ? (
@@ -394,8 +398,8 @@ export default function KampusHaritasiPage() {
                   rel="noreferrer"
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10,
-                    fontSize: 11.5, fontWeight: 800, color: PARK_RENK, textDecoration: "none",
-                    padding: "5px 10px", borderRadius: 999, background: "rgba(255,255,255,0.06)", border: `1px solid ${PARK_RENK}55`,
+                    fontSize: 11.5, fontWeight: 800, color: seciliParkRenk, textDecoration: "none",
+                    padding: "5px 10px", borderRadius: 999, background: "rgba(255,255,255,0.06)", border: `1px solid ${seciliParkRenk}55`,
                   }}
                 >
                   📍 Google Maps'te Aç / Yol Tarifi Al
@@ -404,8 +408,8 @@ export default function KampusHaritasiPage() {
                   href="/park-alanlari"
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, marginLeft: 8,
-                    fontSize: 11.5, fontWeight: 800, color: PARK_RENK, textDecoration: "none",
-                    padding: "5px 10px", borderRadius: 999, background: "rgba(255,255,255,0.06)", border: `1px solid ${PARK_RENK}55`,
+                    fontSize: 11.5, fontWeight: 800, color: seciliParkRenk, textDecoration: "none",
+                    padding: "5px 10px", borderRadius: 999, background: "rgba(255,255,255,0.06)", border: `1px solid ${seciliParkRenk}55`,
                   }}
                 >
                   🔔 Doluluk Bildir

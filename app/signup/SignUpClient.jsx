@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
@@ -20,6 +20,28 @@ export default function SignUpClient() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  // Admin panelinden yönetilen kurumsal e-posta uzantısı listesi (2.1 Hesap
+  // Yönetimi). Liste boşsa (admin henüz hiç domain eklememişse) herhangi bir
+  // e-postayla kayıt olunabiliyor — kısıtlama sadece admin en az bir domain
+  // ekledikten sonra devreye giriyor. Gerçek güvenlik sınırı bir veritabanı
+  // trigger'ıyla da uygulanıyor (bkz. 20260923 migration); buradaki kontrol
+  // kullanıcıya anında ve anlaşılır bir hata göstermek içindir.
+  const [izinliDomainler, setIzinliDomainler] = useState(null);
+
+  useEffect(() => {
+    let iptal = false;
+    async function domainleriYukle() {
+      try {
+        const supabase = getSupabase();
+        const { data } = await supabase.from("izinli_email_domainleri").select("domain");
+        if (!iptal) setIzinliDomainler((data || []).map((d) => d.domain));
+      } catch {
+        if (!iptal) setIzinliDomainler([]);
+      }
+    }
+    domainleriYukle();
+    return () => { iptal = true; };
+  }, []);
 
   async function handleSignUp(e) {
     e.preventDefault();
@@ -33,6 +55,15 @@ export default function SignUpClient() {
       setErrorMsg("Bu e-posta adresi kayıt için kullanılamaz.");
       setLoading(false);
       return;
+    }
+
+    if (izinliDomainler && izinliDomainler.length > 0) {
+      const girilenDomain = cleanEmail.split("@")[1] || "";
+      if (!izinliDomainler.includes(girilenDomain)) {
+        setErrorMsg(`Bu e-posta uzantısıyla kayıt olunamaz. Kurumsal e-posta adresini kullan (${izinliDomainler.map((d) => "@" + d).join(", ")}).`);
+        setLoading(false);
+        return;
+      }
     }
 
     try {
@@ -109,8 +140,11 @@ export default function SignUpClient() {
                 <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} required placeholder="Adın Soyadın" style={{ height: 46, padding: "0 14px", border: "1px solid #e3ebf6", borderRadius: 12, fontSize: 14, outline: "none" }} />
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, fontWeight: 700, color: "#5b6b85" }}>
-                E-posta
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="ornek@email.com" style={{ height: 46, padding: "0 14px", border: "1px solid #e3ebf6", borderRadius: 12, fontSize: 14, outline: "none" }} />
+                Kurumsal E-posta
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="ornek@ogrenci.xxx.edu.tr" style={{ height: 46, padding: "0 14px", border: "1px solid #e3ebf6", borderRadius: 12, fontSize: 14, outline: "none" }} />
+                {izinliDomainler && izinliDomainler.length > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#8fa0bc" }}>İzinli uzantılar: {izinliDomainler.map((d) => "@" + d).join(", ")}</span>
+                )}
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, fontWeight: 700, color: "#5b6b85" }}>
                 Şifre

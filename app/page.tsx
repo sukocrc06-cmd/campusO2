@@ -1088,6 +1088,7 @@ function AdminPanel({ onExit }: { onExit: () => void }) {
           <button onClick={() => { window.location.href = "/admin/kampus-duvari"; }}><Icon name="message" size={19} /><span>Kampüs Duvarı</span></button>
           <button onClick={() => { window.location.href = "/admin/davet"; }}><Icon name="users" size={19} /><span>Yetki Ver</span></button>
           <button onClick={() => { window.location.href = "/admin/kullanicilar"; }}><Icon name="user" size={19} /><span>Kullanıcılar</span></button>
+          <button onClick={() => { window.location.href = "/admin/kurumsal-domainler"; }}><Icon name="shield" size={19} /><span>Kurumsal E-posta Domainleri</span></button>
         </nav>
 
         <div className="admin-sidebar-empty">

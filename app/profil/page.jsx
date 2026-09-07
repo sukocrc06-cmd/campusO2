@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import QRCode from "qrcode";
 import { supabase } from "../../lib/supabase";
 import { HERO_PALETI, HERO_ANAHTARLARI, heroGradient, SINIF_SECENEKLERI, ROL_ETIKET } from "../../lib/profil-secenekleri";
 
@@ -64,6 +65,10 @@ export default function ProfilAyarlariPage() {
   const [heroRenk, setHeroRenk] = useState("mavi");
   const [unvan, setUnvan] = useState("");
   const [ofisSaatleri, setOfisSaatleri] = useState("");
+  const [ogrenciNo, setOgrenciNo] = useState("");
+  const [telefon, setTelefon] = useState("");
+  const [telefonDogrulandi, setTelefonDogrulandi] = useState(false);
+  const [kimlikQr, setKimlikQr] = useState("");
 
   const [bildirimTercihleri, setBildirimTercihleri] = useState({ ders_kaydi: true, yorum: true, duyuru: true, etiket: true });
   const [emailBildirimDersKaydi, setEmailBildirimDersKaydi] = useState(false);
@@ -103,6 +108,9 @@ export default function ProfilAyarlariPage() {
         setHeroRenk(profile.hero_renk || "mavi");
         setUnvan(profile.unvan || "");
         setOfisSaatleri(profile.ofis_saatleri || "");
+        setOgrenciNo(profile.ogrenci_no || "");
+        setTelefon(profile.telefon || "");
+        setTelefonDogrulandi(!!profile.telefon_dogrulandi);
         setBildirimTercihleri({ ders_kaydi: true, yorum: true, duyuru: true, etiket: true, ...(profile.bildirim_tercihleri || {}) });
         setEmailBildirimDersKaydi(!!profile.email_bildirim_ders_kaydi);
         setGizli(profile.gorunurluk === "gizli");
@@ -120,6 +128,21 @@ export default function ProfilAyarlariPage() {
       return "Bilinmiyor";
     }
   }, [sonGiris]);
+
+  // Sanal öğrenci kimliği kartındaki QR kod — kimliği kanıtlayan bir sunucu
+  // doğrulaması (turnike/kütüphane taraması) henüz kurulmadığı için şimdilik
+  // sadece kimlik bilgilerini encode eden görsel bir kod üretiliyor; ileride
+  // bir tarama sistemi eklenirse aynı QR, sunucu tarafında öğrenci id'sini
+  // doğrulayan bir uç noktaya yönlendirilecek şekilde genişletilebilir.
+  useEffect(() => {
+    if (role !== "student" || !userId) { setKimlikQr(""); return; }
+    let iptal = false;
+    const veri = JSON.stringify({ tip: "campuso_ogrenci_kimlik", id: userId, no: ogrenciNo || null });
+    QRCode.toDataURL(veri, { width: 200, margin: 1, color: { dark: "#0f1b33", light: "#ffffff" } })
+      .then((url) => { if (!iptal) setKimlikQr(url); })
+      .catch(() => { if (!iptal) setKimlikQr(""); });
+    return () => { iptal = true; };
+  }, [role, userId, ogrenciNo]);
 
   async function handleAvatarSec(e) {
     const file = e.target.files?.[0];
@@ -141,10 +164,11 @@ export default function ProfilAyarlariPage() {
   async function handleProfilKaydet() {
     if (!userId) return;
     setSavingProfil(true); setError(""); setMessage("");
-    const guncelleme = { full_name: fullName.trim(), hero_renk: heroRenk };
+    const guncelleme = { full_name: fullName.trim(), hero_renk: heroRenk, telefon: telefon.trim() || null };
     if (role === "student") {
       guncelleme.bolum = bolum || null;
       guncelleme.sinif = sinif || null;
+      guncelleme.ogrenci_no = ogrenciNo.trim() || null;
     }
     if (role === "academician") {
       guncelleme.unvan = unvan.trim() || null;
@@ -274,6 +298,9 @@ export default function ProfilAyarlariPage() {
                         {SINIF_SECENEKLERI.map((s) => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </label>
+                    <label style={{ fontSize: 11.5, fontWeight: 700, color: "#5b6b85", display: "flex", flexDirection: "column", gap: 5 }}>Öğrenci No
+                      <input style={inputStyle} value={ogrenciNo} onChange={(e) => setOgrenciNo(e.target.value)} placeholder="Örn. 2023123456" maxLength={30} />
+                    </label>
                   </>
                 )}
                 {role === "academician" && (
@@ -289,10 +316,64 @@ export default function ProfilAyarlariPage() {
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: "#5b6b85", display: "flex", flexDirection: "column", gap: 5 }}>Rol
                   <span style={{ fontSize: 11.5, fontWeight: 800, padding: "9px 12px", borderRadius: 10, background: "#eef5ff", color: "#0e4bae", width: "fit-content" }}>{ROL_ETIKET[role] || role}</span>
                 </div>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: "#5b6b85", display: "flex", flexDirection: "column", gap: 5 }}>Telefon
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input style={inputStyle} value={telefon} onChange={(e) => setTelefon(e.target.value)} placeholder="05xx xxx xx xx" maxLength={20} />
+                    <button
+                      type="button"
+                      disabled
+                      title="Telefon doğrulaması için SMS altyapısı henüz bağlanmadı — yapım aşamasında"
+                      style={{ minHeight: 42, padding: "0 12px", fontSize: 11, fontWeight: 800, borderRadius: 10, border: "1px solid #f0d9ab", background: "#fdf1dc", color: "#b7853f", cursor: "not-allowed", flex: "none", whiteSpace: "nowrap" }}
+                    >
+                      {telefonDogrulandi ? "Doğrulandı ✓" : "Doğrula"}
+                    </button>
+                  </div>
+                </label>
               </div>
 
               <button onClick={handleProfilKaydet} disabled={savingProfil} className="button button-primary" style={{ marginTop: 16, minHeight: 40, padding: "0 18px", fontSize: 12.5 }}>{savingProfil ? "Kaydediliyor…" : "Profili Kaydet"}</button>
             </section>
+
+            {/* Sanal Öğrenci Kimliği — turnike/kütüphane/yemekhane QR taraması
+                henüz hiçbir yerde kurulu değil, bu yüzden şimdilik yalnızca
+                görsel bir kimlik kartı + kişisel QR kod gösteriliyor. */}
+            {role === "student" && (
+              <section style={cardStyle}>
+                <div style={sectionTitleStyle}>Sanal Öğrenci Kimliğim</div>
+                <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center" }}>
+                  <div style={{
+                    width: 260, borderRadius: 18, padding: 18, flex: "none",
+                    background: "linear-gradient(150deg, #0e4bae, #175cd3 55%, #2f7ff0)", color: "#fff",
+                    boxShadow: "0 18px 40px -22px rgba(14,75,174,0.55)",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                      <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: "-0.02em" }}>Campus<span style={{ color: "#bfe0ff" }}>O</span></span>
+                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.08em", background: "rgba(255,255,255,0.18)", padding: "3px 8px", borderRadius: 999 }}>ÖĞRENCİ KİMLİĞİ</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                      <div style={{ width: 48, height: 48, borderRadius: "50%", overflow: "hidden", background: "rgba(255,255,255,0.18)", display: "grid", placeItems: "center", flex: "none" }}>
+                        {avatarUrl ? <img src={avatarUrl} alt={fullName} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontWeight: 800 }}>{(fullName || "?").trim().charAt(0).toUpperCase()}</span>}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fullName || "İsimsiz Öğrenci"}</div>
+                        <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.75)" }}>{bolum || "Bölüm belirtilmedi"}{sinif ? ` · ${sinif}. Sınıf` : ""}</div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.65)", letterSpacing: "0.08em", fontWeight: 700 }}>ÖĞRENCİ NO</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: "0.04em" }}>{ogrenciNo || "—"}</div>
+                  </div>
+
+                  <div style={{ textAlign: "center", flex: "none" }}>
+                    {kimlikQr ? (
+                      <img src={kimlikQr} alt="Öğrenci kimlik QR kodu" style={{ width: 150, height: 150, borderRadius: 12, border: "1px solid #e3ebf6" }} />
+                    ) : (
+                      <div style={{ width: 150, height: 150, borderRadius: 12, border: "1px dashed #e3ebf6", display: "grid", placeItems: "center", color: "#8fa0bc", fontSize: 11 }}>Hazırlanıyor…</div>
+                    )}
+                    <div style={{ fontSize: 10.5, color: "#8fa0bc", marginTop: 8, maxWidth: 150 }}>Bu QR şu an sadece kimlik bilgilerini taşır; turnike/kütüphane taraması ileride eklenecek.</div>
+                  </div>
+                </div>
+              </section>
+            )}
 
             {/* Bildirim tercihleri */}
             <section style={cardStyle}>

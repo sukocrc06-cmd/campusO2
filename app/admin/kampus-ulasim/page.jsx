@@ -11,21 +11,26 @@ const labelStyle = { fontSize: 11.5, fontWeight: 700, color: "#5b6b85", display:
 const TIP_ETIKET = { ring: "Ring", servis: "Servis", ego: "EGO Otobüs", diger: "Diğer" };
 
 function bosHat() {
-  return { id: null, ad: "", tip: "ring", aciklama: "", notlar: "", aktif: true, sira: 0, duraklar: [{ ad: "", saatler: "" }] };
+  return { id: null, ad: "", tip: "ring", aciklama: "", notlar: "", aktif: true, sira: 0, duraklar: [{ ad: "", saatler: "", konum: "" }] };
 }
 
 // duraklar jsonb <-> form arasında dönüştürücüler. Veritabanında
-// [{ ad, saatler: ["07:30","08:15"] }] olarak saklanıyor; formda her durağın
-// saatleri tek bir virgülle-ayrılmış metin alanı olarak düzenleniyor.
+// [{ ad, saatler: ["07:30","08:15"], konum }] olarak saklanıyor; formda her
+// durağın saatleri tek bir virgülle-ayrılmış metin alanı olarak
+// düzenleniyor. "konum" tamamen opsiyonel — koordinat ("39.9756,32.8623")
+// ya da düz bir yer adı ("AYBÜ Esenboğa Kampüsü Ana Kapı") olabilir; öğrenci
+// sayfasında bu, API key gerektirmeyen düz bir Google Maps arama linkine
+// (google.com/maps/search) dönüştürülüyor — tamamen ücretsiz.
 function duraklarFormaDonustur(duraklar) {
-  if (!Array.isArray(duraklar) || duraklar.length === 0) return [{ ad: "", saatler: "" }];
-  return duraklar.map((d) => ({ ad: d.ad || "", saatler: (d.saatler || []).join(", ") }));
+  if (!Array.isArray(duraklar) || duraklar.length === 0) return [{ ad: "", saatler: "", konum: "" }];
+  return duraklar.map((d) => ({ ad: d.ad || "", saatler: (d.saatler || []).join(", "), konum: d.konum || "" }));
 }
 function duraklarKaydaDonustur(duraklarForm) {
   return duraklarForm
     .map((d) => ({
       ad: d.ad.trim(),
       saatler: d.saatler.split(",").map((s) => s.trim()).filter(Boolean),
+      konum: d.konum.trim() || null,
     }))
     .filter((d) => d.ad);
 }
@@ -187,14 +192,26 @@ export default function AdminKampusUlasimPage() {
 
                 <div>
                   <div style={{ fontSize: 11.5, fontWeight: 700, color: "#5b6b85", marginBottom: 6 }}>Duraklar ve Kalkış Saatleri</div>
-                  <div style={{ display: "grid", gap: 8 }}>
+                  <div style={{ display: "grid", gap: 10 }}>
                     {form.duraklar.map((d, idx) => (
-                      <div key={idx} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1.4fr auto", alignItems: "center" }}>
-                        <input style={inputStyle} value={d.ad} onChange={(e) => durakGuncelle(idx, "ad", e.target.value)} placeholder="Durak adı (örn. Kızılay)" />
-                        <input style={inputStyle} value={d.saatler} onChange={(e) => durakGuncelle(idx, "saatler", e.target.value)} placeholder="Saatler, virgülle (07:30, 08:15)" />
-                        <button type="button" onClick={() => durakSil(idx)} disabled={form.duraklar.length <= 1} style={{ minHeight: 42, padding: "0 12px", fontSize: 12, fontWeight: 700, borderRadius: 9, border: "1px solid #f2c5ba", background: "#fff", color: "#984333", cursor: form.duraklar.length <= 1 ? "not-allowed" : "pointer", opacity: form.duraklar.length <= 1 ? 0.5 : 1 }}>Sil</button>
+                      <div key={idx} style={{ padding: 10, borderRadius: 11, border: "1px solid #eef2f8", display: "grid", gap: 8 }}>
+                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1.3fr auto", alignItems: "center" }}>
+                          <input style={inputStyle} value={d.ad} onChange={(e) => durakGuncelle(idx, "ad", e.target.value)} placeholder="Durak adı (örn. Kızılay)" />
+                          <input style={inputStyle} value={d.saatler} onChange={(e) => durakGuncelle(idx, "saatler", e.target.value)} placeholder="Saatler, virgülle (07:30, 08:15)" />
+                          <button type="button" onClick={() => durakSil(idx)} disabled={form.duraklar.length <= 1} style={{ minHeight: 42, padding: "0 12px", fontSize: 12, fontWeight: 700, borderRadius: 9, border: "1px solid #f2c5ba", background: "#fff", color: "#984333", cursor: form.duraklar.length <= 1 ? "not-allowed" : "pointer", opacity: form.duraklar.length <= 1 ? 0.5 : 1 }}>Sil</button>
+                        </div>
+                        <input
+                          style={inputStyle}
+                          value={d.konum}
+                          onChange={(e) => durakGuncelle(idx, "konum", e.target.value)}
+                          placeholder={'Konum (opsiyonel) — örn. "AYBÜ Esenboğa Kampüsü Ana Kapı" ya da koordinat "39.9756,32.8623"'}
+                        />
                       </div>
                     ))}
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 11, color: "#8fa0bc", lineHeight: 1.5 }}>
+                    Konum girilirse öğrenci sayfasında o durağın yanında "Haritada Aç" butonu çıkar ve Google Maps'te açılır — API key gerekmez, tamamen ücretsiz.
+                    Koordinatı bulmak için Google Maps'te durağa sağ tıklayıp koordinatları kopyalayabilirsin.
                   </div>
                   <button type="button" onClick={durakEkle} style={{ marginTop: 8, minHeight: 36, padding: "0 14px", fontSize: 12, fontWeight: 700, borderRadius: 9, border: "1px dashed #c7deff", background: "#f5f9ff", color: "#175cd3", cursor: "pointer" }}>+ Durak Ekle</button>
                 </div>
@@ -242,6 +259,9 @@ export default function AdminKampusUlasimPage() {
                               {h.duraklar.map((d, i) => (
                                 <div key={i} style={{ fontSize: 11.5, color: "#0f1b33" }}>
                                   <b>{d.ad}</b>{d.saatler?.length ? ` — ${d.saatler.join(", ")}` : ""}
+                                  {d.konum && (
+                                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.konum)}`} target="_blank" rel="noreferrer" style={{ marginLeft: 6, fontSize: 10.5, color: "#175cd3", fontWeight: 700 }}>📍 haritada gör</a>
+                                  )}
                                 </div>
                               ))}
                             </div>

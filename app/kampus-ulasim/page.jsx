@@ -7,7 +7,12 @@ import { supabase } from "../../lib/supabase";
 // Kampüs Yaşamı > Ulaşım (3.2). AYBÜ'nün resmi sitesinde ring/servis
 // saatleri için otomatik senkronize edilebilecek bir kaynak yok — bu yüzden
 // veri admin panelinden (/admin/kampus-ulasim) elle giriliyor. Bu sayfa o
-// veriyi öğrencilere/akademisyenlere gösteriyor.
+// veriyi öğrencilere/akademisyenlere gösteriyor. Durak konumu: EGO Cepte'nin
+// web'den erişilebilir bir API'si olmadığı için gerçek zamanlı EGO verisi
+// gömülemiyor — bunun yerine her durak için admin panelinde girilen
+// opsiyonel "konum" metni (koordinat ya da yer adı), API key gerektirmeyen
+// düz bir Google Maps arama linkine (google.com/maps/search) dönüştürülüp
+// "Haritada Aç" butonu olarak gösteriliyor — tamamen ücretsiz.
 const TIP_META = {
   ring: { etiket: "Ring", emoji: "🚌", renk: "#175cd3", zemin: "#eaf1ff", kenar: "#c7deff" },
   servis: { etiket: "Servis", emoji: "🚐", renk: "#0b8a5c", zemin: "#e9faf1", kenar: "#a9e8c8" },
@@ -100,8 +105,24 @@ export default function KampusUlasimPage() {
                     <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
                       {h.duraklar.map((d, i) => (
                         <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 11, background: meta.zemin }}>
-                          <span style={{ fontSize: 13, fontWeight: 700 }}>{d.ad}</span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: meta.renk, textAlign: "right" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700 }}>{d.ad}</span>
+                            {d.konum && (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.konum)}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  fontSize: 10.5, fontWeight: 800, color: meta.renk, textDecoration: "none",
+                                  display: "inline-flex", alignItems: "center", gap: 3, padding: "3px 8px",
+                                  borderRadius: 999, background: "#fff", border: `1px solid ${meta.kenar}`, whiteSpace: "nowrap",
+                                }}
+                              >
+                                📍 Haritada Aç
+                              </a>
+                            )}
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: meta.renk, textAlign: "right", whiteSpace: "nowrap" }}>
                             {d.saatler?.length ? d.saatler.join(" · ") : "—"}
                           </span>
                         </div>

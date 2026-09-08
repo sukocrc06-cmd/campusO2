@@ -1107,7 +1107,7 @@ const SOSYAL_TOPLULUKLAR_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Üniversite Resmî Kulüpleri", desc: "Kulüp profili, üyelik başvurusu (etkinlik takvimi hariç)", icon: "shield", href: "/student/kulupler", durum: "aktif" },
   { title: "Yeni Öğrenci Kulüpleri", desc: "Türkiye geneli kulüp oluşturma, workshop duyuruları, kulüp özel mesajlaşma", icon: "users", durum: "yapim" },
   { title: "Forumlar", desc: "Üniversite, fakülte, Türkiye geneli forum ve konu bazlı tartışmalar", icon: "message", durum: "yapim" },
-  { title: "Etkinlik Planlama", desc: "Halı saha, grup çalışma, film gecesi ilanları — ücretli/ücretsiz, konum/detay ayarlanabilir", icon: "calendar", durum: "yapim" },
+  { title: "Etkinlik Planlama", desc: "Halı saha, grup çalışma, film gecesi ilanları — ücretli/ücretsiz, konum/detay ayarlanabilir", icon: "calendar", href: "/student/etkinlikler", durum: "aktif" },
 ];
 
 function useMobilMi() {

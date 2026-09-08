@@ -1089,6 +1089,27 @@ const KISISELLESTIRME_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Takvim Yönetimi", desc: "Kişisel takvim + akademik takvim (ders/sınav) birleşimi, etkinlik ekleme/çıkarma", icon: "calendar", href: "/?role=student&widget_ac=takvim", durum: "aktif" },
 ];
 
+// "Sosyal Etkileşim & Topluluklar" — AYRINTILI TASARIM.docx'teki 7. modül
+// (7.1-7.4). 7.1 Üniversite Resmî Kulüpleri zaten var olan /student/kulupler
+// sayfasına bağlandı (kulüp profili + üyelik başvurusu gerçekten çalışıyor;
+// etkinlik takvimi henüz yok, o yüzden "aktif" ama açıklamasında hangi
+// kısmın eksik olduğu görülebiliyor) — sidebar'daki eski bağımsız
+// "Kulüpler" butonu artık öğrenci tarafında burada olduğu için kaldırıldı
+// (akademisyen tarafında danışmanlık paneline giden ayrı bir buton olarak
+// kalmaya devam ediyor, o farklı bir sayfa/işlev). 7.2 (öğrencinin kendi
+// kulübünü kurması, workshop duyuruları, kulüp özel mesajlaşma), 7.3
+// (üniversite/fakülte/Türkiye geneli forumlar ve konu bazlı tartışmalar) ve
+// 7.4 (halı saha/grup çalışma/film gecesi gibi öğrenciler arası etkinlik
+// ilanları, ücretli/ücretsiz ve konum ayarlarıyla) için gerçek bir altyapı
+// henüz kurulmadı, "yapım aşamasında" etiketiyle yol haritası olarak
+// listeleniyor.
+const SOSYAL_TOPLULUKLAR_ALT_MODULLER: AkademikAltModul[] = [
+  { title: "Üniversite Resmî Kulüpleri", desc: "Kulüp profili, üyelik başvurusu (etkinlik takvimi hariç)", icon: "shield", href: "/student/kulupler", durum: "aktif" },
+  { title: "Yeni Öğrenci Kulüpleri", desc: "Türkiye geneli kulüp oluşturma, workshop duyuruları, kulüp özel mesajlaşma", icon: "users", durum: "yapim" },
+  { title: "Forumlar", desc: "Üniversite, fakülte, Türkiye geneli forum ve konu bazlı tartışmalar", icon: "message", durum: "yapim" },
+  { title: "Etkinlik Planlama", desc: "Halı saha, grup çalışma, film gecesi ilanları — ücretli/ücretsiz, konum/detay ayarlanabilir", icon: "calendar", durum: "yapim" },
+];
+
 function useMobilMi() {
   const [mobil, setMobil] = useState(false);
   useEffect(() => {
@@ -1484,6 +1505,66 @@ function KisisellestirmeNav() {
         >
           <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>KİŞİSELLEŞTİRME</div>
           {KISISELLESTIRME_ALT_MODULLER.map((m) => <AltModulSatiri key={m.title} m={m} />)}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// "Sosyal Etkileşim & Topluluklar" flyout menüsü — diğerleriyle aynı desen.
+function SosyalTopluluklarNav() {
+  const mobil = useMobilMi();
+  const [acik, setAcik] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const kapatZamanlayici = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sol = useFlyoutSol(!mobil && acik, btnRef);
+
+  function ac() {
+    if (mobil) return;
+    if (kapatZamanlayici.current) { clearTimeout(kapatZamanlayici.current); kapatZamanlayici.current = null; }
+    setAcik(true);
+  }
+  function kapatGecikmeli() {
+    if (mobil) return;
+    kapatZamanlayici.current = setTimeout(() => setAcik(false), 180);
+  }
+
+  const buton = (
+    <button ref={btnRef} type="button" onClick={() => setAcik((a) => !a)} aria-haspopup="true" aria-expanded={acik}>
+      <Icon name="message" size={19} /><span>Sosyal Etkileşim &amp; Topluluklar</span><Icon name="chevron" size={14} />
+    </button>
+  );
+
+  if (mobil) {
+    return (
+      <div>
+        {buton}
+        {acik && (
+          <div style={{ padding: "2px 0 6px 4px", display: "grid", gap: 2 }}>
+            {SOSYAL_TOPLULUKLAR_ALT_MODULLER.map((m) => <AltModulMobilSatiri key={m.title} m={m} />)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div onMouseEnter={ac} onMouseLeave={kapatGecikmeli}>
+      {buton}
+      {acik && sol != null && typeof document !== "undefined" && createPortal(
+        <div
+          onMouseEnter={ac}
+          onMouseLeave={kapatGecikmeli}
+          style={{
+            position: "fixed", top: "50%", left: sol, transform: "translateY(-50%)", width: 290, zIndex: 200,
+            background: "#fff", borderRadius: 16, boxShadow: "0 18px 40px rgba(15,27,51,0.28)",
+            border: "1px solid #e3ebf6", padding: 8, color: "#0f1b33",
+            maxHeight: "calc(100vh - 24px)", overflowY: "auto",
+          }}
+        >
+          <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: "#8fa0bc" }}>SOSYAL ETKİLEŞİM &amp; TOPLULUKLAR</div>
+          {SOSYAL_TOPLULUKLAR_ALT_MODULLER.map((m) => <AltModulSatiri key={m.title} m={m} />)}
         </div>,
         document.body
       )}
@@ -2485,12 +2566,15 @@ export default function Home() {
           {role === "student" && <OgrenciKimlikNav />}
           {role === "student" && <KampusYasamiNav />}
           {role === "student" && <KisisellestirmeNav />}
+          {role === "student" && <SosyalTopluluklarNav />}
           <button onClick={() => window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/staj" : "/academician/staj"}><Icon name="briefcase" size={19} /><span>Staj Takip</span></button>
           {role === "faculty" && (
             <button onClick={() => { window.location.href = "/academician/tesvik"; }}><Icon name="graduation" size={19} /><span>Akademik Teşvik</span></button>
           )}
           <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/sosyal-sorumluluk" : "/academician/sosyal-sorumluluk"; }}><Icon name="users" size={19} /><span>Sosyal Sorumluluk</span></button>
-          <button onClick={() => { window.location.href = (typeof role !== "undefined" && role === "student") ? "/student/kulupler" : "/academician/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
+          {role === "faculty" && (
+            <button onClick={() => { window.location.href = "/academician/kulupler"; }}><Icon name="shield" size={19} /><span>Kulüpler</span></button>
+          )}
           {role === "faculty" && (
             <button onClick={() => { window.location.href = "/yemek-menusu"; }}><Icon name="calendar" size={19} /><span>Yemek Menüsü</span></button>
           )}

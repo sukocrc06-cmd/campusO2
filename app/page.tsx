@@ -1086,7 +1086,7 @@ const KISISELLESTIRME_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Ana Ekran Yönetimi", desc: "Widget ekleme/çıkarma, sürükle-bırak düzenleme", icon: "settings", href: "/?role=student&ae_duzenle=1", durum: "aktif" },
   { title: "Bildirim Yönetimi", desc: "Bildirim geldiğinde gerçek zamanlı ses + toast, sesi aç/kapat", icon: "bell", href: "/?role=student&bildirim_ac=1", durum: "aktif" },
   { title: "Tema Yönetimi", desc: "Koyu / açık tema (Faz 1: sayfa zemini) — header'daki ay/güneş ikonundan", icon: "moon", href: "/?role=student", durum: "aktif" },
-  { title: "Takvim Yönetimi", desc: "Kişisel takvim + akademik takvim (ders/sınav) birleşimi, etkinlik ekleme/çıkarma", icon: "calendar", href: "/?role=student", durum: "aktif" },
+  { title: "Takvim Yönetimi", desc: "Kişisel takvim + akademik takvim (ders/sınav) birleşimi, etkinlik ekleme/çıkarma", icon: "calendar", href: "/?role=student&widget_ac=takvim", durum: "aktif" },
 ];
 
 function useMobilMi() {
@@ -1675,6 +1675,37 @@ function AnaEkranYonetimi({ userId }: { userId?: string | null }) {
     }
   }, []);
 
+  // Sol menüdeki "Kişiselleştirme > Takvim Yönetimi" gibi tek bir widget'a
+  // işaret eden linkler (?widget_ac=takvim) ana sayfaya gelip sadece
+  // "yönlendirmekle" kalmasın diye — o widget'a kaydırıp kısaca vurguluyor.
+  // Widget henüz DOM'a basılmamış olabileceğinden (veri yükleniyor) birkaç
+  // kez kısa aralıklarla deniyor, bulunamazsa (ör. kullanıcı o widget'ı
+  // gizlemişse) sessizce vazgeçiyor.
+  const [vurgulananId, setVurgulananId] = useState<AnaEkranWidgetId | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const hedef = params.get("widget_ac");
+    if (!hedef || !(ANA_EKRAN_TUM_WIDGETLER as string[]).includes(hedef)) return;
+    params.delete("widget_ac");
+    const kalan = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (kalan ? `?${kalan}` : ""));
+    let deneme = 0;
+    const zamanlayici = setInterval(() => {
+      deneme += 1;
+      const el = itemRefs.current[hedef as AnaEkranWidgetId];
+      if (el) {
+        clearInterval(zamanlayici);
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setVurgulananId(hedef as AnaEkranWidgetId);
+        setTimeout(() => setVurgulananId(null), 1800);
+      } else if (deneme > 20) {
+        clearInterval(zamanlayici);
+      }
+    }, 150);
+    return () => clearInterval(zamanlayici);
+  }, []);
+
   const gorunenListe = duzenleModu ? taslakSirali : sirali;
   const gorunenAnahtar = gorunenListe.join("|");
 
@@ -1795,9 +1826,9 @@ function AnaEkranYonetimi({ userId }: { userId?: string | null }) {
           style={{
             position: "relative",
             borderRadius: 18,
-            animation: duzenleModu && surukleId === null ? "aeWiggle 0.26s ease-in-out infinite" : undefined,
+            animation: duzenleModu && surukleId === null ? "aeWiggle 0.26s ease-in-out infinite" : vurgulananId === id ? "aeVurguNabiz 0.6s ease-in-out 2" : undefined,
             animationDelay: gorunenListe.indexOf(id) % 2 === 0 ? "0s" : "0.09s",
-            boxShadow: surukleId === id ? "0 16px 32px rgba(15,27,51,.22)" : undefined,
+            boxShadow: surukleId === id ? "0 16px 32px rgba(15,27,51,.22)" : vurgulananId === id ? "0 0 0 3px rgba(23,92,211,.45)" : undefined,
             zIndex: surukleId === id ? 5 : undefined,
           }}
         >
@@ -1896,6 +1927,7 @@ function AnaEkranYonetimi({ userId }: { userId?: string | null }) {
       <style>{`
         @keyframes aeWiggle { 0%, 100% { transform: rotate(-0.6deg); } 50% { transform: rotate(0.6deg); } }
         @keyframes aePopIn { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+        @keyframes aeVurguNabiz { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012); } }
         .ae-widget-item { animation-name: aePopIn; animation-duration: 260ms; animation-timing-function: ease; animation-fill-mode: both; }
       `}</style>
     </div>

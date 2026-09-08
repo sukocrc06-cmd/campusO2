@@ -994,7 +994,7 @@ const KAMPUS_YASAMI_ALT_MODULLER: AkademikAltModul[] = [
 // tek tek gerçek sayfalara bağlanacak.
 const KISISELLESTIRME_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Ana Ekran Yönetimi", desc: "Widget ekleme/çıkarma, sürükle-bırak düzenleme", icon: "settings", href: "/?role=student&ae_duzenle=1", durum: "aktif" },
-  { title: "Bildirim Yönetimi", desc: "Etkinlik, sınav, ders iptali bildirimleri", icon: "bell", durum: "yapim" },
+  { title: "Bildirim Yönetimi", desc: "Bildirim geldiğinde gerçek zamanlı ses + toast, sesi aç/kapat", icon: "bell", href: "/?role=student&bildirim_ac=1", durum: "aktif" },
   { title: "Tema Yönetimi", desc: "Dark mode / Light mode", icon: "moon", durum: "yapim" },
   { title: "Takvim Yönetimi", desc: "Kişisel takvim + akademik takvim birleşimi, etkinlik ekleme/çıkarma", icon: "calendar", durum: "yapim" },
 ];
@@ -1840,7 +1840,6 @@ function ModuleHome({
         <div className="banner-cta">
           <span className="banner-cta-icon"><Icon name="qr" size={22} /></span>
           <div className="banner-cta-copy">
-            <small>VOL 1</small>
             <b>QR Kodla Ders Yoklaması</b>
           </div>
           <button
@@ -1989,7 +1988,7 @@ function AdminPanel({ onExit }: { onExit: () => void }) {
 
         <div className="admin-sidebar-empty">
           <span><Icon name="qr" size={18} /></span>
-          <div><b>Vol 1</b><small>QR Yoklama aktif</small></div>
+          <div><b>QR Yoklama</b><small>Aktif</small></div>
         </div>
 
         <button className="exit-button" onClick={onExit}>
@@ -2016,7 +2015,7 @@ function AdminPanel({ onExit }: { onExit: () => void }) {
           <section className="admin-module panel" aria-label="Yoklama Takibi'ne git">
             <div className="admin-module-heading">
               <span><Icon name="qr" size={26} /></span>
-              <div><small>VOL 1</small><h2>QR Kodla Ders Yoklaması</h2><p>QR ile alınan yoklamalar, akademisyenlerin elle aldığı yoklamalarla aynı Yoklama Takibi panelinde toplanır.</p></div>
+              <div><h2>QR Kodla Ders Yoklaması</h2><p>QR ile alınan yoklamalar, akademisyenlerin elle aldığı yoklamalarla aynı Yoklama Takibi panelinde toplanır.</p></div>
               <button className="button button-primary" onClick={() => { window.location.href = "/admin/yoklama"; }}>Yoklama Takibi'ni aç</button>
             </div>
           </section>
@@ -2273,6 +2272,20 @@ export default function Home() {
     return () => clearTimeout(id);
   }, [canliToast]);
 
+  // Sol menüdeki "Kişiselleştirme > Bildirim Yönetimi" linki (?bildirim_ac=1)
+  // ana sayfaya gelip bildirim panelini otomatik açsın diye.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("bildirim_ac") === "1") {
+      void openNotifDropdown();
+      params.delete("bildirim_ac");
+      const kalan = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (kalan ? `?${kalan}` : ""));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function returnToLanding() {
     setRole(null);
     setAdminOpen(false);
@@ -2341,10 +2354,15 @@ export default function Home() {
                     <button onClick={() => { if (role === "faculty") { goToAcadexTeacherPanel(); } else { window.open("https://acadex-1lku.vercel.app", "_blank"); } }}><Icon name="spark" size={19} /><span>Acadex</span></button>
         </nav>
 
-        <div className="clean-sidebar-empty">
-          <span><Icon name="qr" size={18} /></span>
-          <div><b>Vol 1 aktif</b><small>QR Kodla Ders Yoklaması</small></div>
-        </div>
+        <button
+          type="button"
+          className="clean-sidebar-acadex"
+          onClick={() => { if (role === "faculty") { goToAcadexTeacherPanel(); } else { window.open("https://acadex-1lku.vercel.app", "_blank"); } }}
+        >
+          <span className="clean-sidebar-acadex-icon"><Icon name="spark" size={18} /></span>
+          <div><b>Acadex</b><small>Eğitim platformuna geç</small></div>
+          <span className="clean-sidebar-acadex-dot" aria-hidden="true" />
+        </button>
 
         <button className="exit-button" onClick={returnToLanding}><Icon name="arrow" size={17} /> Ana sayfaya dön</button>
       </aside>

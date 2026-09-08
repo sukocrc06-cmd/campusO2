@@ -6868,6 +6868,73 @@ input:focus-visible {
   font-size: 10px;
 }
 
+/* Sidebar'ın altındaki, artık "Vol 1 aktif" değil belirgin bir Acadex
+   kısayolu — dashed/soluk placeholder yerine sıcak turuncu-mercan gradyanla
+   dikkat çeksin diye tasarlandı, sağ üstteki yeşil nokta "aktif/canlı"
+   hissini pekiştiriyor. */
+.clean-sidebar-acadex {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  padding: 12px 13px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ff8a5c, #e0663a);
+  box-shadow: 0 10px 24px rgba(224, 102, 58, .32);
+  cursor: pointer;
+  text-align: left;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.clean-sidebar-acadex:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(224, 102, 58, .4);
+}
+
+.clean-sidebar-acadex-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: #fff;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .2);
+}
+
+.clean-sidebar-acadex > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  color: #fff;
+}
+
+.clean-sidebar-acadex b {
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.clean-sidebar-acadex small {
+  margin-top: 2px;
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, .78);
+}
+
+.clean-sidebar-acadex-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, .28);
+  animation: clean-sidebar-acadex-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes clean-sidebar-acadex-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .55; transform: scale(.8); }
+}
+
 .clean-sidebar-empty small {
   margin-top: 3px;
   color: rgba(255, 255, 255, .42);

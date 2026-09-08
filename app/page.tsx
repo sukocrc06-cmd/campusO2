@@ -428,6 +428,16 @@ function TakvimWidget({ userId }: { userId?: string | null }) {
   const [yeniTur, setYeniTur] = useState("ders");
   const [yeniBaslik, setYeniBaslik] = useState("");
   const [yeniSaat, setYeniSaat] = useState("");
+  // Kişiselleştirme > Takvim Yönetimi: kişisel takvim + akademik takvim
+  // (kayıtlı olduğun dersler + sınavlar) tek ızgarada birleşiyor. Dersler
+  // ders_programi'nda belirli bir tarihe değil haftanın gününe bağlı olduğu
+  // için burada görüntülenen aya göre HER AY YENİDEN "projekte" ediliyor
+  // (bkz. otomatikGunEtkinlikleri). Bu satırlar silinemez/düzenlenemez —
+  // "OTOMATİK" rozetiyle işaretlenip kaynak sayfaya link veriyor. Tür
+  // etiketine tıklayarak (legend) o türü geçici olarak gizleyebilirsin.
+  const [kayitliDersler, setKayitliDersler] = useState<any[]>([]);
+  const [kayitliSinavlar, setKayitliSinavlar] = useState<any[]>([]);
+  const [gizliTurler, setGizliTurler] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -442,6 +452,32 @@ function TakvimWidget({ userId }: { userId?: string | null }) {
     return () => { cancelled = true; };
   }, [userId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function akademikTakvimiYukle() {
+      if (!supabase || !userId) return;
+      const { data: donemSatiri } = await supabase.from("aktif_donem").select("donem").eq("id", true).maybeSingle();
+      const guncelDonem = donemSatiri?.donem || "bahar";
+      const { data: kayitli } = await supabase
+        .from("ders_kayitlari")
+        .select("ders_programi:ders_programi_id(id, ders_adi, ders_kodu, bolum, gun, baslangic_saat, derslik)")
+        .eq("ogrenci_id", userId)
+        .eq("donem", guncelDonem);
+      if (cancelled) return;
+      const dersRows = (kayitli || []).map((r: any) => r.ders_programi).filter(Boolean);
+      setKayitliDersler(dersRows);
+      const kayitliSet = new Set(dersRows.filter((d: any) => d.ders_kodu).map((d: any) => `${d.ders_kodu}||${d.bolum}`));
+      const { data: sinavRows } = await supabase
+        .from("sinav_takvimi")
+        .select("ders_adi, ders_kodu, bolum, sinav_turu, tarih, saat, derslik")
+        .eq("donem", guncelDonem);
+      if (cancelled) return;
+      setKayitliSinavlar((sinavRows || []).filter((s: any) => kayitliSet.has(`${s.ders_kodu}||${s.bolum}`)));
+    }
+    akademikTakvimiYukle();
+    return () => { cancelled = true; };
+  }, [userId]);
+
   const takvimGunEtkinlikleri = useMemo(() => {
     const map = new Map<string, any[]>();
     takvimEtkinlikleri.forEach((e) => {
@@ -451,8 +487,44 @@ function TakvimWidget({ userId }: { userId?: string | null }) {
     return map;
   }, [takvimEtkinlikleri]);
 
+  // Görüntülenen ay için ders_programi'ndaki haftalık dersleri o ayın
+  // gerçek tarihlerine projekte eder, sınavları da (donem içindeki tüm
+  // kayıtlı sınavlar) doğrudan tarihine yerleştirir.
+  const otomatikGunEtkinlikleri = useMemo(() => {
+    const map = new Map<string, any[]>();
+    const gunSayisi = new Date(takvimYil, takvimAy + 1, 0).getDate();
+    for (let gun = 1; gun <= gunSayisi; gun++) {
+      const iso = tarihIso(takvimYil, takvimAy, gun);
+      const haftaGunu = GUN_ADLARI[new Date(takvimYil, takvimAy, gun).getDay()];
+      kayitliDersler.forEach((d: any) => {
+        if (d.gun !== haftaGunu) return;
+        if (!map.has(iso)) map.set(iso, []);
+        map.get(iso)!.push({ id: `ders-${d.id}-${iso}`, tarih: iso, tur: "ders", baslik: d.ders_adi, saat: d.baslangic_saat, resmi: true });
+      });
+    }
+    kayitliSinavlar.forEach((s: any, i: number) => {
+      if (!map.has(s.tarih)) map.set(s.tarih, []);
+      map.get(s.tarih)!.push({ id: `sinav-${i}-${s.tarih}`, tarih: s.tarih, tur: "sinav", baslik: `${s.ders_adi} (${s.sinav_turu})`, saat: s.saat, resmi: true });
+    });
+    return map;
+  }, [kayitliDersler, kayitliSinavlar, takvimYil, takvimAy]);
+
+  function gunEtkinlikleriBirlesik(iso: string) {
+    const otomatik = (otomatikGunEtkinlikleri.get(iso) || []).filter((e) => !gizliTurler.has(e.tur));
+    const kisisel = (takvimGunEtkinlikleri.get(iso) || []).filter((e) => !gizliTurler.has(e.tur));
+    return [...otomatik, ...kisisel];
+  }
+
+  function turGizleAc(tur: string) {
+    setGizliTurler((mevcut) => {
+      const yeni = new Set(mevcut);
+      if (yeni.has(tur)) yeni.delete(tur); else yeni.add(tur);
+      return yeni;
+    });
+  }
+
   const takvimIzgara = useMemo(() => ayIzgarasiUret(takvimYil, takvimAy), [takvimYil, takvimAy]);
-  const secilenGunEtkinlikleri = takvimGunEtkinlikleri.get(secilenGun) || [];
+  const secilenGunEtkinlikleri = gunEtkinlikleriBirlesik(secilenGun);
 
   function ayDegistir(fark: number) {
     let yeniAy = takvimAy + fark;
@@ -508,13 +580,26 @@ function TakvimWidget({ userId }: { userId?: string | null }) {
               <button type="button" onClick={() => ayDegistir(1)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #e3ebf6", background: "#fff", cursor: "pointer", fontSize: 14 }}>→</button>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-              {Object.entries(TAKVIM_TURLERI).map(([anahtar, tur]) => (
-                <div key={anahtar} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#5b6b85" }}>
-                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: tur.color, display: "inline-block" }} />
-                  {tur.label}
-                </div>
-              ))}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              {Object.entries(TAKVIM_TURLERI).map(([anahtar, tur]) => {
+                const gizli = gizliTurler.has(anahtar);
+                return (
+                  <button
+                    key={anahtar}
+                    type="button"
+                    onClick={() => turGizleAc(anahtar)}
+                    title={gizli ? `${tur.label} takvimde gizli — göstermek için tıkla` : `${tur.label} görünüyor — gizlemek için tıkla`}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700,
+                      color: gizli ? "#c3cee0" : "#5b6b85", border: "none", background: "transparent", cursor: "pointer", padding: "2px 4px",
+                      opacity: gizli ? 0.55 : 1, textDecoration: gizli ? "line-through" : "none",
+                    }}
+                  >
+                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: tur.color, display: "inline-block" }} />
+                    {tur.label}
+                  </button>
+                );
+              })}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
@@ -526,7 +611,7 @@ function TakvimWidget({ userId }: { userId?: string | null }) {
               {takvimIzgara.flat().map((gun, idx) => {
                 if (gun === null) return <div key={idx} />;
                 const iso = tarihIso(takvimYil, takvimAy, gun);
-                const etkinlikler = takvimGunEtkinlikleri.get(iso) || [];
+                const etkinlikler = gunEtkinlikleriBirlesik(iso);
                 const buGunMu = iso === bugunIso();
                 const seciliMi = iso === secilenGun;
                 const baskinTur = etkinlikler.length ? (TUR_ONCELIK.find((t) => etkinlikler.some((e) => e.tur === t)) || etkinlikler[0].tur) as keyof typeof TAKVIM_TURLERI : null;
@@ -573,9 +658,14 @@ function TakvimWidget({ userId }: { userId?: string | null }) {
                     <div key={e.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: tur.bg, flexWrap: "wrap" }}>
                       <div>
                         <span style={{ fontSize: 10.5, fontWeight: 800, color: tur.color, textTransform: "uppercase", letterSpacing: "0.04em" }}>{tur.label}</span>
+                        {e.resmi && <span style={{ fontSize: 8.5, fontWeight: 800, color: "#5b6b85", background: "rgba(255,255,255,.65)", padding: "1px 6px", borderRadius: 999, marginLeft: 6 }}>OTOMATİK</span>}
                         <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{e.baslik}{e.saat ? <span style={{ fontWeight: 500, color: "#5b6b85" }}> · {e.saat}</span> : null}</div>
                       </div>
-                      <button onClick={() => handleEtkinlikSil(e.id)} disabled={busy} style={{ minHeight: 26, padding: "0 10px", fontSize: 10.5, fontWeight: 700, borderRadius: 7, border: "1px solid #f2c5ba", background: "#fff", color: "#984333", cursor: "pointer" }}>Sil</button>
+                      {e.resmi ? (
+                        <a href={e.tur === "sinav" ? "/ders-programi-sinav-takvimi?tab=sinav" : "/ders-programi-sinav-takvimi"} style={{ fontSize: 10.5, fontWeight: 700, color: tur.color, textDecoration: "none" }}>Kaynağa git →</a>
+                      ) : (
+                        <button onClick={() => handleEtkinlikSil(e.id)} disabled={busy} style={{ minHeight: 26, padding: "0 10px", fontSize: 10.5, fontWeight: 700, borderRadius: 7, border: "1px solid #f2c5ba", background: "#fff", color: "#984333", cursor: "pointer" }}>Sil</button>
+                      )}
                     </div>
                   );
                 })}
@@ -995,8 +1085,8 @@ const KAMPUS_YASAMI_ALT_MODULLER: AkademikAltModul[] = [
 const KISISELLESTIRME_ALT_MODULLER: AkademikAltModul[] = [
   { title: "Ana Ekran Yönetimi", desc: "Widget ekleme/çıkarma, sürükle-bırak düzenleme", icon: "settings", href: "/?role=student&ae_duzenle=1", durum: "aktif" },
   { title: "Bildirim Yönetimi", desc: "Bildirim geldiğinde gerçek zamanlı ses + toast, sesi aç/kapat", icon: "bell", href: "/?role=student&bildirim_ac=1", durum: "aktif" },
-  { title: "Tema Yönetimi", desc: "Dark mode / Light mode", icon: "moon", durum: "yapim" },
-  { title: "Takvim Yönetimi", desc: "Kişisel takvim + akademik takvim birleşimi, etkinlik ekleme/çıkarma", icon: "calendar", durum: "yapim" },
+  { title: "Tema Yönetimi", desc: "Koyu / açık tema (Faz 1: sayfa zemini) — header'daki ay/güneş ikonundan", icon: "moon", href: "/?role=student", durum: "aktif" },
+  { title: "Takvim Yönetimi", desc: "Kişisel takvim + akademik takvim (ders/sınav) birleşimi, etkinlik ekleme/çıkarma", icon: "calendar", href: "/?role=student", durum: "aktif" },
 ];
 
 function useMobilMi() {
@@ -2102,6 +2192,34 @@ export default function Home() {
     });
   }
 
+  // Kişiselleştirme > Tema Yönetimi — Faz 1: sadece sayfa zemini (boş alan,
+  // kenar çubuğu) koyulaşıyor; kartların/widget'ların kendi beyaz zemini ve
+  // koyu metni ŞİMDİLİK değişmiyor (uygulamada kart-zemini için ayrı bir
+  // renk değişkeni yok — hepsini birden koyu yapmaya çalışmak yazıların
+  // beyaz kart üzerinde okunmaz hale gelmesine yol açardı; bu, kullanıcıyla
+  // konuşulup bilinçli olarak Faz 1 kapsamına alındı, Faz 2'de kart renkleri
+  // için ayrı bir sistem kurulacak). Tercih cihaza özel (localStorage).
+  const [koyuTema, setKoyuTema] = useState(false);
+
+  useEffect(() => {
+    try {
+      const kayitli = window.localStorage.getItem("co_tema") === "dark";
+      setKoyuTema(kayitli);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", koyuTema ? "dark" : "light");
+  }, [koyuTema]);
+
+  function temaToggle() {
+    setKoyuTema((mevcut) => {
+      const yeni = !mevcut;
+      try { window.localStorage.setItem("co_tema", yeni ? "dark" : "light"); } catch {}
+      return yeni;
+    });
+  }
+
   const refreshNotifCount = useCallback(async (userId: string) => {
     if (!supabase) return;
     const { count } = await supabase
@@ -2351,7 +2469,6 @@ export default function Home() {
             <button onClick={() => { window.location.href = "/academician/yoklama"; }}><Icon name="check" size={19} /><span>Yoklama Takibi</span></button>
           )}
           <button onClick={() => { window.location.href = "/student/kampus-duvari"; }}><Icon name="message" size={19} /><span>Kampüs Duvarı</span></button>
-                    <button onClick={() => { if (role === "faculty") { goToAcadexTeacherPanel(); } else { window.open("https://acadex-1lku.vercel.app", "_blank"); } }}><Icon name="spark" size={19} /><span>Acadex</span></button>
         </nav>
 
         <button
@@ -2383,6 +2500,14 @@ export default function Home() {
           </label>
           <button className="header-icon" aria-label="Profilim" title="Profilim" onClick={() => { window.location.href = "/profil"; }}>
             <Icon name="user" size={19} />
+          </button>
+          <button
+            className="header-icon"
+            aria-label={koyuTema ? "Açık temaya geç" : "Koyu temaya geç"}
+            title={koyuTema ? "Koyu tema açık" : "Açık tema"}
+            onClick={temaToggle}
+          >
+            <Icon name={koyuTema ? "sun" : "moon"} size={18} />
           </button>
           <button
             className="header-icon"

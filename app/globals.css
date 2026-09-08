@@ -25,6 +25,22 @@
   --shadow: 0 18px 45px -28px rgba(15, 43, 90, .28);
 }
 
+/* Kişiselleştirme > Tema Yönetimi — Faz 1: bilinçli olarak SADECE sayfa
+   zemini (--bg, body/.app-shell/.page-body'nin arka planı) koyulaşıyor.
+   --ink, --white ve kart bileşenlerinin (header, dashboard-category
+   içindeki widget'lar, modaller) kendi rengi kasıtlı olarak DEĞİŞTİRİLMEDİ
+   — bunlar uygulamanın her yerinde hem "kart üzerindeki koyu metin" hem
+   "koyu zemin üzerindeki açık metin" için aynı değişkenle karışık
+   kullanılıyor; ayrıştırılmadan hepsini koyulaştırmak beyaz kartların
+   içindeki yazıları okunmaz hale getirir. Kart renkleri için ayrı bir
+   sistem Faz 2'de kurulacak (kullanıcıyla konuşulup kapsam bilinçli olarak
+   böyle daraltıldı).
+   [data-theme="dark"] <html>'e JS ile ekleniyor (bkz. app/page.tsx
+   temaToggle), tercih cihaza özel localStorage'da tutuluyor. */
+:root[data-theme="dark"] {
+  --bg: #0b1220;
+}
+
 
 /* Ortak akademik dönem sistemi */
 .period-toolbar {
@@ -6869,9 +6885,9 @@ input:focus-visible {
 }
 
 /* Sidebar'ın altındaki, artık "Vol 1 aktif" değil belirgin bir Acadex
-   kısayolu — dashed/soluk placeholder yerine sıcak turuncu-mercan gradyanla
-   dikkat çeksin diye tasarlandı, sağ üstteki yeşil nokta "aktif/canlı"
-   hissini pekiştiriyor. */
+   kısayolu — dashed/soluk placeholder yerine CampusO'nun kendi marka
+   mavisiyle (blue-700/blue-800) dikkat çeksin diye tasarlandı, sağ üstteki
+   yeşil nokta "aktif/canlı" hissini pekiştiriyor. */
 .clean-sidebar-acadex {
   display: grid;
   grid-template-columns: 34px 1fr auto;
@@ -6881,8 +6897,8 @@ input:focus-visible {
   padding: 12px 13px;
   border: none;
   border-radius: 14px;
-  background: linear-gradient(135deg, #ff8a5c, #e0663a);
-  box-shadow: 0 10px 24px rgba(224, 102, 58, .32);
+  background: linear-gradient(135deg, var(--blue-600), var(--blue-800));
+  box-shadow: 0 10px 24px rgba(14, 75, 174, .38);
   cursor: pointer;
   text-align: left;
   transition: transform .15s ease, box-shadow .15s ease;
@@ -6890,7 +6906,7 @@ input:focus-visible {
 
 .clean-sidebar-acadex:hover {
   transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(224, 102, 58, .4);
+  box-shadow: 0 14px 28px rgba(14, 75, 174, .48);
 }
 
 .clean-sidebar-acadex-icon {

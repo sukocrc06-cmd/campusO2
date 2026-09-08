@@ -194,30 +194,28 @@ function KulupDetayModal({ kulup, uyelik, kurul, onClose, onGonder, busy, motiva
   return (
     <div className="ke-modal-backdrop" onClick={onClose}>
       <div className="ke-modal-buyuk" onClick={(e) => e.stopPropagation()}>
-        <div style={{ height: 110, background: stil.grad, position: "relative", overflow: "hidden", flex: "none" }}>
-          {kulup.logo_url ? (
-            <img src={kulup.logo_url} alt="" aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.3, filter: "blur(9px) saturate(1.3)", transform: "scale(1.25)" }} />
-          ) : null}
+        <div className="ke-cover-anim" style={{ height: 110, background: stil.grad, backgroundSize: "220% 220%", position: "relative", overflow: "hidden", flex: "none" }}>
+          <div className="ke-cover-sheen" />
           <div className="ke-card-cover-glow" />
-          <button type="button" onClick={onClose} style={{ position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 10, border: "none", background: "rgba(255,255,255,.25)", color: "#fff", fontSize: 15, cursor: "pointer" }}>✕</button>
+          <button type="button" onClick={onClose} className="ke-close-btn" style={{ position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 10, border: "none", background: "rgba(255,255,255,.25)", color: "#fff", fontSize: 15, cursor: "pointer" }}>✕</button>
         </div>
 
         <div style={{ padding: "0 26px 26px", marginTop: -46, overflowY: "auto" }}>
-          <div style={{ width: 92, height: 92, borderRadius: 22, border: "4px solid #fff", background: kulup.logo_url ? "#fff" : stil.grad, display: "grid", placeItems: "center", overflow: "hidden", boxShadow: "0 14px 28px -14px rgba(15,43,90,.5)" }}>
+          <div className="ke-modal-item" style={{ "--i": 0, width: 92, height: 92, borderRadius: 22, border: "4px solid #fff", background: kulup.logo_url ? "#fff" : stil.grad, display: "grid", placeItems: "center", overflow: "hidden", boxShadow: "0 14px 28px -14px rgba(15,43,90,.5)" }}>
             {kulup.logo_url ? <img src={kulup.logo_url} alt={kulup.ad} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 32 }}>{stil.icon}</span>}
           </div>
 
-          <div style={{ marginTop: 14, fontWeight: 800, fontSize: 20 }}>{kulup.ad}</div>
+          <div className="ke-modal-item" style={{ "--i": 1, marginTop: 14, fontWeight: 800, fontSize: 20 }}>{kulup.ad}</div>
           {kulup.kategori ? (
-            <span style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: stil.solid, background: `${stil.solid}17`, padding: "4px 11px", borderRadius: 999 }}>
+            <span className="ke-modal-item" style={{ "--i": 1, marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: stil.solid, background: `${stil.solid}17`, padding: "4px 11px", borderRadius: 999 }}>
               <span>{stil.icon}</span>{kulup.kategori}
             </span>
           ) : null}
 
-          {kulup.aciklama ? <div style={{ fontSize: 13.5, color: "#3c4b66", marginTop: 14, lineHeight: 1.7 }}>{kulup.aciklama}</div> : null}
+          {kulup.aciklama ? <div className="ke-modal-item" style={{ "--i": 2, fontSize: 13.5, color: "#3c4b66", marginTop: 14, lineHeight: 1.7 }}>{kulup.aciklama}</div> : null}
 
           {kulup.one_cikan_etkinlik_baslik ? (
-            <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 14, background: `${stil.solid}14`, border: `1px solid ${stil.solid}33`, fontSize: 13, fontWeight: 700, color: stil.solid }}>
+            <div className="ke-modal-item" style={{ "--i": 3, marginTop: 14, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 14, background: `${stil.solid}14`, border: `1px solid ${stil.solid}33`, fontSize: 13, fontWeight: 700, color: stil.solid }}>
               <span style={{ fontSize: 16 }}>📅</span>
               <span>
                 {kulup.one_cikan_etkinlik_baslik}
@@ -227,19 +225,19 @@ function KulupDetayModal({ kulup, uyelik, kurul, onClose, onGonder, busy, motiva
           ) : null}
 
           {(kulup.website_url || kulup.sosyal_medya_url || kulup.iletisim_email) ? (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
+            <div className="ke-modal-item" style={{ "--i": 4, display: "flex", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
               {kulup.website_url ? (
-                <a href={kulup.website_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, fontWeight: 700, color: stil.solid, textDecoration: "none", padding: "8px 13px", borderRadius: 10, border: `1px solid ${stil.solid}33`, background: `${stil.solid}0d` }}>
+                <a href={kulup.website_url} target="_blank" rel="noopener noreferrer" className="ke-link-chip" style={{ fontSize: 12.5, fontWeight: 700, color: stil.solid, textDecoration: "none", padding: "8px 13px", borderRadius: 10, border: `1px solid ${stil.solid}33`, background: `${stil.solid}0d` }}>
                   🌐 Site ↗
                 </a>
               ) : null}
               {kulup.sosyal_medya_url ? (
-                <a href={kulup.sosyal_medya_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, fontWeight: 700, color: stil.solid, textDecoration: "none", padding: "8px 13px", borderRadius: 10, border: `1px solid ${stil.solid}33`, background: `${stil.solid}0d` }}>
+                <a href={kulup.sosyal_medya_url} target="_blank" rel="noopener noreferrer" className="ke-link-chip" style={{ fontSize: 12.5, fontWeight: 700, color: stil.solid, textDecoration: "none", padding: "8px 13px", borderRadius: 10, border: `1px solid ${stil.solid}33`, background: `${stil.solid}0d` }}>
                   🔗 Sosyal medya ↗
                 </a>
               ) : null}
               {kulup.iletisim_email ? (
-                <a href={`mailto:${kulup.iletisim_email}`} style={{ fontSize: 12.5, fontWeight: 700, color: stil.solid, textDecoration: "none", padding: "8px 13px", borderRadius: 10, border: `1px solid ${stil.solid}33`, background: `${stil.solid}0d` }}>
+                <a href={`mailto:${kulup.iletisim_email}`} className="ke-link-chip" style={{ fontSize: 12.5, fontWeight: 700, color: stil.solid, textDecoration: "none", padding: "8px 13px", borderRadius: 10, border: `1px solid ${stil.solid}33`, background: `${stil.solid}0d` }}>
                   ✉️ İletişim
                 </a>
               ) : null}
@@ -247,7 +245,7 @@ function KulupDetayModal({ kulup, uyelik, kurul, onClose, onGonder, busy, motiva
           ) : null}
 
           {kurul.length > 0 && (
-            <div style={{ marginTop: 16 }}>
+            <div className="ke-modal-item" style={{ "--i": 5, marginTop: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: "#5b6b85", letterSpacing: "0.06em", marginBottom: 8 }}>YÖNETİM KURULU</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {[...kurul].sort((a, b) => (a.unvan === "Başkan" ? -1 : b.unvan === "Başkan" ? 1 : 0)).map((m) => (
@@ -260,7 +258,7 @@ function KulupDetayModal({ kulup, uyelik, kurul, onClose, onGonder, busy, motiva
             </div>
           )}
 
-          <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid #eef3fa" }}>
+          <div className="ke-modal-item" style={{ "--i": 6, marginTop: 20, paddingTop: 18, borderTop: "1px solid #eef3fa" }}>
             {!uyelik ? (
               <div style={{ display: "grid", gap: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: "#5b6b85", letterSpacing: "0.06em" }}>KATILIM FORMU</div>
@@ -272,7 +270,7 @@ function KulupDetayModal({ kulup, uyelik, kurul, onClose, onGonder, busy, motiva
                   Hangi alanda katkı sağlamak istersin? (opsiyonel)
                   <input style={{ ...inputStyle, height: 42 }} placeholder="örn. Etkinlik, Tasarım, Sosyal medya" value={ilgiAlani} onChange={(e) => setIlgiAlani(e.target.value)} />
                 </label>
-                <button onClick={onGonder} disabled={busy} className="ke-btn-join" style={{ minHeight: 44, padding: "0 18px", fontSize: 13, fontWeight: 800, borderRadius: 12, border: "none", color: "#fff", background: stil.grad, cursor: busy ? "default" : "pointer", marginTop: 4 }}>
+                <button onClick={onGonder} disabled={busy} className="ke-btn-join ke-btn-join-glow" style={{ minHeight: 44, padding: "0 18px", fontSize: 13, fontWeight: 800, borderRadius: 12, border: "none", color: "#fff", background: stil.grad, cursor: busy ? "default" : "pointer", marginTop: 4 }}>
                   {busy ? "Gönderiliyor…" : "Başvuruyu Gönder"}
                 </button>
               </div>
@@ -532,13 +530,19 @@ export default function StudentKuluplerPage() {
         @keyframes keBackdropIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes keCheckPop { 0% { transform: scale(0.3); opacity: 0; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes keChipPop { from { transform: scale(.9); } to { transform: scale(1); } }
+        @keyframes keCoverShift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+        @keyframes keSheenSweep { 0% { transform: translateX(-60%) rotate(12deg); } 100% { transform: translateX(160%) rotate(12deg); } }
+        @keyframes keItemIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes keJoinGlow { 0%,100% { box-shadow: 0 8px 20px -10px rgba(23,92,211,.55); } 50% { box-shadow: 0 8px 26px -6px rgba(23,92,211,.85); } }
+        @keyframes keSpinIn { from { transform: rotate(-90deg) scale(.6); opacity: 0; } to { transform: rotate(0) scale(1); opacity: 1; } }
 
         .ke-hero-blob-a { position: absolute; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.16), transparent 70%); top: -70px; right: -40px; animation: keBlobDrift 9s ease-in-out infinite; pointer-events: none; }
         .ke-hero-blob-b { position: absolute; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.13), transparent 70%); bottom: -60px; left: 8%; animation: keBlobDrift2 11s ease-in-out infinite; pointer-events: none; }
 
         .ke-tile { animation: keCardIn .45s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i, 0) * 35ms); }
-        .ke-tile-kare { transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s ease; }
-        .ke-tile:hover .ke-tile-kare, .ke-tile:focus-visible .ke-tile-kare { transform: scale(1.1); box-shadow: 0 18px 34px -16px rgba(15,43,90,.45); }
+        .ke-tile-kare { transition: transform .28s cubic-bezier(.34,1.56,.64,1), box-shadow .22s ease; }
+        .ke-tile:hover .ke-tile-kare, .ke-tile:focus-visible .ke-tile-kare { transform: scale(1.14) rotate(-2deg); box-shadow: 0 20px 38px -16px rgba(15,43,90,.5); }
+        .ke-tile:active .ke-tile-kare { transform: scale(.94) rotate(0deg); transition-duration: .08s; }
         .ke-card-cover-glow { position: absolute; inset: 0; background: radial-gradient(120px 60px at 20% 0%, rgba(255,255,255,.35), transparent 70%); }
 
         .ke-shimmer { background: linear-gradient(90deg, #eef2f9 25%, #f8fafd 37%, #eef2f9 63%); background-size: 400px 100%; animation: keShimmer 1.4s ease infinite; }
@@ -549,8 +553,20 @@ export default function StudentKuluplerPage() {
         .ke-modal { width: min(420px, 100%); background: #fff; border-radius: 20px; overflow: hidden; box-shadow: 0 30px 70px -20px rgba(8,20,50,.45); animation: keModalIn .22s cubic-bezier(.2,.8,.2,1); }
         .ke-modal-buyuk { width: min(620px, 100%); max-height: 88vh; background: #fff; border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 40px 90px -24px rgba(8,20,50,.5); animation: keModalIn .24s cubic-bezier(.2,.8,.2,1); }
 
+        .ke-cover-anim { animation: keCoverShift 6s ease-in-out infinite; }
+        .ke-cover-sheen { position: absolute; top: -40%; left: 0; width: 34%; height: 180%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.28), transparent); animation: keSheenSweep 3.2s ease-in-out infinite; pointer-events: none; }
+        .ke-close-btn { transition: transform .18s cubic-bezier(.34,1.56,.64,1), background .15s ease; }
+        .ke-close-btn:hover { transform: rotate(90deg) scale(1.08); background: rgba(255,255,255,.4) !important; }
+
+        .ke-modal-item { animation: keItemIn .4s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(60ms + var(--i, 0) * 55ms); }
+
+        .ke-link-chip { display: inline-flex; transition: transform .15s cubic-bezier(.34,1.56,.64,1), filter .15s ease; }
+        .ke-link-chip:hover { transform: translateY(-2px) scale(1.04); filter: brightness(1.05); }
+
         .ke-btn-join { transition: filter .15s ease, transform .15s ease; }
-        .ke-btn-join:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        .ke-btn-join:hover { filter: brightness(1.08); transform: translateY(-1px) scale(1.015); }
+        .ke-btn-join:active { transform: translateY(0) scale(.98); }
+        .ke-btn-join-glow { animation: keJoinGlow 2.4s ease-in-out infinite; }
 
         .ke-chip { transition: transform .15s ease, background .15s ease, color .15s ease, border-color .15s ease; }
         .ke-chip:hover { transform: translateY(-1px); }

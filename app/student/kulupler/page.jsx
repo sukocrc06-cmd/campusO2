@@ -132,15 +132,11 @@ function AnimatedCounter({ value, duration = 900 }) {
 const inputStyle = { height: 44, padding: "0 12px", border: "1px solid #e3ebf6", borderRadius: 11, fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" };
 const labelStyle = { display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 700, color: "#5b6b85" };
 
-function SkeletonCard() {
+function SkeletonTile() {
   return (
-    <div style={{ borderRadius: 20, border: "1px solid #e3ebf6", background: "#fff", overflow: "hidden" }}>
-      <div className="ke-shimmer" style={{ height: 78 }} />
-      <div style={{ padding: "34px 18px 18px" }}>
-        <div className="ke-shimmer" style={{ height: 14, width: "60%", borderRadius: 6, marginBottom: 10 }} />
-        <div className="ke-shimmer" style={{ height: 10, width: "90%", borderRadius: 6, marginBottom: 6 }} />
-        <div className="ke-shimmer" style={{ height: 10, width: "70%", borderRadius: 6 }} />
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div className="ke-shimmer" style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 22 }} />
+      <div className="ke-shimmer" style={{ height: 10, width: "70%", borderRadius: 6 }} />
     </div>
   );
 }
@@ -154,126 +150,143 @@ function EtkinlikTarihiFormatla(tarih) {
   }
 }
 
-function ClubCard({ k, uyelik, kurul, index, onKatilAc }) {
+// Sadece logo — "karo" (uygulama ikonu) tarzı kare kutu. Üzerine gelince
+// büyüyor, tıklanınca tüm detaylar büyük bir pop-up'ta açılıyor.
+function ClubTile({ k, index, onAc }) {
   const stil = kulupStil(k);
   return (
-    <div
-      className="ke-card"
-      style={{ "--i": index, background: "#fff", border: "1px solid #e3ebf6", borderRadius: 20, overflow: "hidden", display: "flex", flexDirection: "column" }}
+    <button
+      type="button"
+      onClick={() => onAc(k)}
+      className="ke-tile"
+      style={{ "--i": index, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer" }}
+      title={k.ad}
     >
-      <div style={{ height: 78, background: stil.grad, position: "relative", overflow: "hidden" }}>
+      <div
+        className="ke-tile-kare"
+        style={{
+          width: "100%",
+          aspectRatio: "1 / 1",
+          borderRadius: 22,
+          background: k.logo_url ? "#fff" : stil.grad,
+          border: "1px solid #e3ebf6",
+          display: "grid",
+          placeItems: "center",
+          overflow: "hidden",
+          boxShadow: "0 10px 24px -16px rgba(15,43,90,.35)",
+          position: "relative",
+        }}
+      >
         {k.logo_url ? (
-          <img src={k.logo_url} alt="" aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.32, filter: "blur(7px) saturate(1.3)", transform: "scale(1.2)" }} />
-        ) : null}
-        <div className="ke-card-cover-glow" />
-      </div>
-      <div style={{ padding: "0 18px 18px", marginTop: -34, display: "flex", flexDirection: "column", flex: 1 }}>
-        <div
-          style={{
-            width: 68,
-            height: 68,
-            borderRadius: 18,
-            border: "3px solid #fff",
-            background: k.logo_url ? "#f5f8fc" : stil.grad,
-            display: "grid",
-            placeItems: "center",
-            overflow: "hidden",
-            boxShadow: "0 10px 22px -12px rgba(15,43,90,.45)",
-            flex: "none",
-          }}
-        >
-          {k.logo_url ? <img src={k.logo_url} alt={k.ad} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{stil.icon}</span>}
-        </div>
-
-        <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ fontWeight: 800, fontSize: 15.5 }}>{k.ad}</div>
-        </div>
-        {k.kategori ? (
-          <span style={{ marginTop: 6, alignSelf: "flex-start", fontSize: 10, fontWeight: 700, color: stil.solid, background: `${stil.solid}17`, padding: "3px 10px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <span>{stil.icon}</span>{k.kategori}
-          </span>
-        ) : null}
-
-        {k.aciklama ? <div style={{ fontSize: 12.5, color: "#5b6b85", marginTop: 10, lineHeight: 1.6, flex: 1 }}>{k.aciklama}</div> : <div style={{ flex: 1 }} />}
-
-        {k.one_cikan_etkinlik_baslik ? (
-          <div style={{ marginTop: 10, display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, background: `${stil.solid}14`, border: `1px solid ${stil.solid}33`, fontSize: 11, fontWeight: 700, color: stil.solid }}>
-            <span>📅</span>
-            {k.one_cikan_etkinlik_baslik}
-            {k.one_cikan_etkinlik_tarihi ? <span style={{ opacity: 0.75 }}>· {EtkinlikTarihiFormatla(k.one_cikan_etkinlik_tarihi)}</span> : null}
-          </div>
-        ) : null}
-
-        {(k.website_url || k.sosyal_medya_url || k.iletisim_email) ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
-            {k.website_url ? (
-              <a href={k.website_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: stil.solid, fontWeight: 700, textDecoration: "none" }}>
-                Site ↗
-              </a>
-            ) : null}
-            {k.sosyal_medya_url ? (
-              <a href={k.sosyal_medya_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: stil.solid, fontWeight: 700, textDecoration: "none" }}>
-                Sosyal medya ↗
-              </a>
-            ) : null}
-            {k.iletisim_email ? (
-              <a href={`mailto:${k.iletisim_email}`} style={{ fontSize: 12, color: stil.solid, fontWeight: 700, textDecoration: "none" }}>
-                ✉️ İletişim
-              </a>
-            ) : null}
-          </div>
-        ) : null}
-
-        {kurul.length > 0 && (
-          <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {[...kurul].sort((a, b) => (a.unvan === "Başkan" ? -1 : b.unvan === "Başkan" ? 1 : 0)).slice(0, 4).map((m) => (
-              <span key={m.student_id} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: "#f5f8fc", border: "1px solid #e3ebf6", fontSize: 10.5 }}>
-                <b>{m.full_name}</b>
-                <span style={{ color: stil.solid, fontWeight: 700 }}>{m.unvan || "Yönetici"}</span>
-              </span>
-            ))}
-          </div>
+          <img src={k.logo_url} alt={k.ad} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <span style={{ fontSize: "clamp(26px, 6vw, 40px)" }}>{stil.icon}</span>
         )}
-
-        <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid #eef3fa", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          {!uyelik ? (
-            <button type="button" onClick={() => onKatilAc(k)} className="ke-btn-join" style={{ minHeight: 40, padding: "0 18px", fontSize: 12.5, fontWeight: 800, borderRadius: 12, border: "none", color: "#fff", background: stil.grad, cursor: "pointer", width: "100%" }}>
-              Kulübe Katıl →
-            </button>
-          ) : (
-            <StatusBadge status={uyelik.durum} />
-          )}
-        </div>
       </div>
-    </div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#0f1b33", textAlign: "center", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{k.ad}</div>
+    </button>
   );
 }
 
-function KatilModal({ kulup, onClose, onGonder, busy, motivasyon, setMotivasyon, ilgiAlani, setIlgiAlani }) {
+function KulupDetayModal({ kulup, uyelik, kurul, onClose, onGonder, busy, motivasyon, setMotivasyon, ilgiAlani, setIlgiAlani, onVazgec, onAyril }) {
   if (!kulup) return null;
   const stil = kulupStil(kulup);
   return (
     <div className="ke-modal-backdrop" onClick={onClose}>
-      <div className="ke-modal" onClick={(e) => e.stopPropagation()}>
-        <div style={{ height: 64, background: stil.grad, borderRadius: "20px 20px 0 0", display: "flex", alignItems: "center", padding: "0 20px", gap: 12 }}>
-          <span style={{ fontSize: 24 }}>{stil.icon}</span>
-          <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>{kulup.ad}</div>
-          <button type="button" onClick={onClose} style={{ marginLeft: "auto", width: 30, height: 30, borderRadius: 9, border: "none", background: "rgba(255,255,255,.22)", color: "#fff", fontSize: 15, cursor: "pointer" }}>✕</button>
+      <div className="ke-modal-buyuk" onClick={(e) => e.stopPropagation()}>
+        <div style={{ height: 110, background: stil.grad, position: "relative", overflow: "hidden", flex: "none" }}>
+          {kulup.logo_url ? (
+            <img src={kulup.logo_url} alt="" aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.3, filter: "blur(9px) saturate(1.3)", transform: "scale(1.25)" }} />
+          ) : null}
+          <div className="ke-card-cover-glow" />
+          <button type="button" onClick={onClose} style={{ position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 10, border: "none", background: "rgba(255,255,255,.25)", color: "#fff", fontSize: 15, cursor: "pointer" }}>✕</button>
         </div>
-        <div style={{ padding: 20 }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: "#5b6b85", marginBottom: 10, letterSpacing: "0.06em" }}>KATILIM FORMU</div>
-          <div style={{ display: "grid", gap: 10 }}>
-            <label style={labelStyle}>
-              Neden katılmak istiyorsun? (opsiyonel)
-              <textarea style={{ ...inputStyle, height: 70, padding: 10, resize: "vertical" }} placeholder="Kısaca anlat…" value={motivasyon} onChange={(e) => setMotivasyon(e.target.value)} />
-            </label>
-            <label style={labelStyle}>
-              Hangi alanda katkı sağlamak istersin? (opsiyonel)
-              <input style={{ ...inputStyle, height: 42 }} placeholder="örn. Etkinlik, Tasarım, Sosyal medya" value={ilgiAlani} onChange={(e) => setIlgiAlani(e.target.value)} />
-            </label>
-            <button onClick={onGonder} disabled={busy} className="ke-btn-join" style={{ minHeight: 44, padding: "0 18px", fontSize: 13, fontWeight: 800, borderRadius: 12, border: "none", color: "#fff", background: stil.grad, cursor: busy ? "default" : "pointer", marginTop: 4 }}>
-              {busy ? "Gönderiliyor…" : "Başvuruyu Gönder"}
-            </button>
+
+        <div style={{ padding: "0 26px 26px", marginTop: -46, overflowY: "auto" }}>
+          <div style={{ width: 92, height: 92, borderRadius: 22, border: "4px solid #fff", background: kulup.logo_url ? "#fff" : stil.grad, display: "grid", placeItems: "center", overflow: "hidden", boxShadow: "0 14px 28px -14px rgba(15,43,90,.5)" }}>
+            {kulup.logo_url ? <img src={kulup.logo_url} alt={kulup.ad} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 32 }}>{stil.icon}</span>}
+          </div>
+
+          <div style={{ marginTop: 14, fontWeight: 800, fontSize: 20 }}>{kulup.ad}</div>
+          {kulup.kategori ? (
+            <span style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: stil.solid, background: `${stil.solid}17`, padding: "4px 11px", borderRadius: 999 }}>
+              <span>{stil.icon}</span>{kulup.kategori}
+            </span>
+          ) : null}
+
+          {kulup.aciklama ? <div style={{ fontSize: 13.5, color: "#3c4b66", marginTop: 14, lineHeight: 1.7 }}>{kulup.aciklama}</div> : null}
+
+          {kulup.one_cikan_etkinlik_baslik ? (
+            <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 14, background: `${stil.solid}14`, border: `1px solid ${stil.solid}33`, fontSize: 13, fontWeight: 700, color: stil.solid }}>
+              <span style={{ fontSize: 16 }}>📅</span>
+              <span>
+                {kulup.one_cikan_etkinlik_baslik}
+                {kulup.one_cikan_etkinlik_tarihi ? <span style={{ opacity: 0.75, fontWeight: 600 }}> · {EtkinlikTarihiFormatla(kulup.one_cikan_etkinlik_tarihi)}</span> : null}
+              </span>
+            </div>
+          ) : null}
+
+          {(kulup.website_url || kulup.sosyal_medya_url || kulup.iletisim_email) ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
+              {kulup.website_url ? (
+                <a href={kulup.website_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, fontWeight: 700, color: stil.solid, textDecoration: "none", padding: "8px 13px", borderRadius: 10, border: `1px solid ${stil.solid}33`, background: `${stil.solid}0d` }}>
+                  🌐 Site ↗
+                </a>
+              ) : null}
+              {kulup.sosyal_medya_url ? (
+                <a href={kulup.sosyal_medya_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, fontWeight: 700, color: stil.solid, textDecoration: "none", padding: "8px 13px", borderRadius: 10, border: `1px solid ${stil.solid}33`, background: `${stil.solid}0d` }}>
+                  🔗 Sosyal medya ↗
+                </a>
+              ) : null}
+              {kulup.iletisim_email ? (
+                <a href={`mailto:${kulup.iletisim_email}`} style={{ fontSize: 12.5, fontWeight: 700, color: stil.solid, textDecoration: "none", padding: "8px 13px", borderRadius: 10, border: `1px solid ${stil.solid}33`, background: `${stil.solid}0d` }}>
+                  ✉️ İletişim
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+
+          {kurul.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#5b6b85", letterSpacing: "0.06em", marginBottom: 8 }}>YÖNETİM KURULU</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {[...kurul].sort((a, b) => (a.unvan === "Başkan" ? -1 : b.unvan === "Başkan" ? 1 : 0)).map((m) => (
+                  <span key={m.student_id} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 999, background: "#f5f8fc", border: "1px solid #e3ebf6", fontSize: 11.5 }}>
+                    <b>{m.full_name}</b>
+                    <span style={{ color: stil.solid, fontWeight: 700 }}>{m.unvan || "Yönetici"}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid #eef3fa" }}>
+            {!uyelik ? (
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#5b6b85", letterSpacing: "0.06em" }}>KATILIM FORMU</div>
+                <label style={labelStyle}>
+                  Neden katılmak istiyorsun? (opsiyonel)
+                  <textarea style={{ ...inputStyle, height: 70, padding: 10, resize: "vertical" }} placeholder="Kısaca anlat…" value={motivasyon} onChange={(e) => setMotivasyon(e.target.value)} />
+                </label>
+                <label style={labelStyle}>
+                  Hangi alanda katkı sağlamak istersin? (opsiyonel)
+                  <input style={{ ...inputStyle, height: 42 }} placeholder="örn. Etkinlik, Tasarım, Sosyal medya" value={ilgiAlani} onChange={(e) => setIlgiAlani(e.target.value)} />
+                </label>
+                <button onClick={onGonder} disabled={busy} className="ke-btn-join" style={{ minHeight: 44, padding: "0 18px", fontSize: 13, fontWeight: 800, borderRadius: 12, border: "none", color: "#fff", background: stil.grad, cursor: busy ? "default" : "pointer", marginTop: 4 }}>
+                  {busy ? "Gönderiliyor…" : "Başvuruyu Gönder"}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <StatusBadge status={uyelik.durum} />
+                {uyelik.durum === "beklemede" && (
+                  <button onClick={() => onVazgec(uyelik.id)} disabled={busy} style={{ minHeight: 34, padding: "0 12px", fontSize: 11.5, fontWeight: 700, borderRadius: 9, border: "1px solid #f2c5ba", background: "#fff4f0", color: "#984333", cursor: "pointer" }}>Başvuruyu Geri Çek</button>
+                )}
+                {uyelik.durum === "aktif" && (
+                  <button onClick={() => onAyril(uyelik.id)} disabled={busy} style={{ minHeight: 34, padding: "0 12px", fontSize: 11.5, fontWeight: 700, borderRadius: 9, border: "1px solid #e3ebf6", background: "#fff", color: "#5b6b85", cursor: "pointer" }}>Kulüpten Ayrıl</button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -294,7 +307,7 @@ export default function StudentKuluplerPage() {
   const [kategoriFilter, setKategoriFilter] = useState("all");
   const [kurulMap, setKurulMap] = useState({}); // kulup_id -> [{student_id, full_name, unvan, rol}]
 
-  const [katilModalKulup, setKatilModalKulup] = useState(null);
+  const [acikKulupId, setAcikKulupId] = useState(null);
   const [modalMotivasyon, setModalMotivasyon] = useState("");
   const [modalIlgiAlani, setModalIlgiAlani] = useState("");
   const [basariPop, setBasariPop] = useState(null); // { ad } | null
@@ -384,16 +397,18 @@ export default function StudentKuluplerPage() {
   const kategoriSayisi = useMemo(() => new Set(kulupler.map((k) => k.kategori).filter(Boolean)).size, [kulupler]);
   const aktifUyelikSayisi = useMemo(() => uyelikler.filter((u) => u.durum === "aktif").length, [uyelikler]);
 
-  function katilAc(kulup) {
-    setKatilModalKulup(kulup);
+  const acikKulup = useMemo(() => kulupler.find((k) => k.id === acikKulupId) || null, [kulupler, acikKulupId]);
+
+  function kulupAc(kulup) {
+    setAcikKulupId(kulup.id);
     setModalMotivasyon("");
     setModalIlgiAlani("");
   }
 
   async function handleKatil() {
-    if (!userId || !katilModalKulup) return;
-    const kulupId = katilModalKulup.id;
-    const kulupAd = katilModalKulup.ad;
+    if (!userId || !acikKulup) return;
+    const kulupId = acikKulup.id;
+    const kulupAd = acikKulup.ad;
     setBusy(true); setError(""); setMessage("");
     const { error: err } = await supabase.from("kulup_uyelikleri").insert([{
       kulup_id: kulupId,
@@ -406,7 +421,7 @@ export default function StudentKuluplerPage() {
     if (err) {
       setError("Başvuru gönderilemedi: " + err.message);
     } else {
-      setKatilModalKulup(null);
+      setAcikKulupId(null);
       setBasariPop({ ad: kulupAd });
       setTimeout(() => setBasariPop(null), 2400);
       await loadAll(userId);
@@ -521,16 +536,18 @@ export default function StudentKuluplerPage() {
         .ke-hero-blob-a { position: absolute; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.16), transparent 70%); top: -70px; right: -40px; animation: keBlobDrift 9s ease-in-out infinite; pointer-events: none; }
         .ke-hero-blob-b { position: absolute; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.13), transparent 70%); bottom: -60px; left: 8%; animation: keBlobDrift2 11s ease-in-out infinite; pointer-events: none; }
 
-        .ke-card { animation: keCardIn .5s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i, 0) * 55ms); transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease; }
-        .ke-card:hover { transform: translateY(-6px); box-shadow: 0 24px 48px -26px rgba(15,43,90,.35); }
+        .ke-tile { animation: keCardIn .45s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i, 0) * 35ms); }
+        .ke-tile-kare { transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s ease; }
+        .ke-tile:hover .ke-tile-kare, .ke-tile:focus-visible .ke-tile-kare { transform: scale(1.1); box-shadow: 0 18px 34px -16px rgba(15,43,90,.45); }
         .ke-card-cover-glow { position: absolute; inset: 0; background: radial-gradient(120px 60px at 20% 0%, rgba(255,255,255,.35), transparent 70%); }
 
         .ke-shimmer { background: linear-gradient(90deg, #eef2f9 25%, #f8fafd 37%, #eef2f9 63%); background-size: 400px 100%; animation: keShimmer 1.4s ease infinite; }
 
         .ke-pulse-dot { animation: kePulse 1.8s infinite; }
 
-        .ke-modal-backdrop { position: fixed; inset: 0; background: rgba(10,20,40,.45); backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 60; padding: 16px; animation: keBackdropIn .18s ease; }
+        .ke-modal-backdrop { position: fixed; inset: 0; background: rgba(10,20,40,.45); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 16px; animation: keBackdropIn .18s ease; }
         .ke-modal { width: min(420px, 100%); background: #fff; border-radius: 20px; overflow: hidden; box-shadow: 0 30px 70px -20px rgba(8,20,50,.45); animation: keModalIn .22s cubic-bezier(.2,.8,.2,1); }
+        .ke-modal-buyuk { width: min(620px, 100%); max-height: 88vh; background: #fff; border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 40px 90px -24px rgba(8,20,50,.5); animation: keModalIn .24s cubic-bezier(.2,.8,.2,1); }
 
         .ke-btn-join { transition: filter .15s ease, transform .15s ease; }
         .ke-btn-join:hover { filter: brightness(1.08); transform: translateY(-1px); }
@@ -605,8 +622,8 @@ export default function StudentKuluplerPage() {
         {message ? <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 12, background: "#effbf6", border: "1px solid #bde5d5", color: "#0b5c42", fontSize: 13, fontWeight: 600 }}>{message}</div> : null}
 
         {fetching ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
-            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 18 }}>
+            {Array.from({ length: 12 }).map((_, i) => <SkeletonTile key={i} />)}
           </div>
         ) : (
           <>
@@ -628,9 +645,9 @@ export default function StudentKuluplerPage() {
                 {gorunenKulupler.length === 0 ? (
                   <div style={{ padding: 32, textAlign: "center", border: "1px dashed #e3ebf6", borderRadius: 16, background: "#fff", color: "#8fa0bc", fontSize: 14 }}>Bu kategoride kulüp bulunamadı.</div>
                 ) : (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 18 }}>
                     {gorunenKulupler.map((k, i) => (
-                      <ClubCard key={k.id} k={k} uyelik={uyelikMap[k.id]} kurul={kurulMap[k.id] || []} index={i} onKatilAc={katilAc} />
+                      <ClubTile key={k.id} k={k} index={i} onAc={kulupAc} />
                     ))}
                   </div>
                 )}
@@ -810,15 +827,19 @@ export default function StudentKuluplerPage() {
         )}
       </main>
 
-      <KatilModal
-        kulup={katilModalKulup}
-        onClose={() => setKatilModalKulup(null)}
+      <KulupDetayModal
+        kulup={acikKulup}
+        uyelik={acikKulup ? uyelikMap[acikKulup.id] : null}
+        kurul={acikKulup ? (kurulMap[acikKulup.id] || []) : []}
+        onClose={() => setAcikKulupId(null)}
         onGonder={handleKatil}
         busy={busy}
         motivasyon={modalMotivasyon}
         setMotivasyon={setModalMotivasyon}
         ilgiAlani={modalIlgiAlani}
         setIlgiAlani={setModalIlgiAlani}
+        onVazgec={handleVazgec}
+        onAyril={handleAyril}
       />
 
       {basariPop && (

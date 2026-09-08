@@ -61,6 +61,36 @@ function bugunIso() {
 
 type ProfileInfo = { fullName: string; bolum: string; sinif: string; avatarUrl: string; heroRenk: string };
 
+// Bildirim geldiğinde çalan kısa "çift ton" sesi — bir ses dosyası
+// yüklemek/host etmek yerine Web Audio API ile anlık üretiliyor (iki kısa
+// sinüs tonu, aralarında hafif gecikme). Tarayıcılar kullanıcı etkileşimi
+// olmadan ses çalmayı engelleyebilir; kullanıcı zaten oturum açıp panelde
+// gezindiği için (tıklama vb.) AudioContext genelde açılabiliyor, yine de
+// olası bir engelleme sessizce yutuluyor (uygulamayı bozmasın diye).
+function bildirimSesiCal() {
+  try {
+    const AudioCtx: typeof AudioContext | undefined = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const simdi = ctx.currentTime;
+    [880, 1318.5].forEach((frekans, i) => {
+      const osc = ctx.createOscillator();
+      const kazanc = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = frekans;
+      osc.connect(kazanc);
+      kazanc.connect(ctx.destination);
+      const baslangic = simdi + i * 0.11;
+      kazanc.gain.setValueAtTime(0, baslangic);
+      kazanc.gain.linearRampToValueAtTime(0.16, baslangic + 0.015);
+      kazanc.gain.exponentialRampToValueAtTime(0.0008, baslangic + 0.26);
+      osc.start(baslangic);
+      osc.stop(baslangic + 0.28);
+    });
+    setTimeout(() => { try { ctx.close(); } catch {} }, 700);
+  } catch {}
+}
+
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const common = {
     width: size,
@@ -963,7 +993,7 @@ const KAMPUS_YASAMI_ALT_MODULLER: AkademikAltModul[] = [
 // eklendi, alt maddeler sırayla (önce hangisi konuşulup kararlaştırılırsa)
 // tek tek gerçek sayfalara bağlanacak.
 const KISISELLESTIRME_ALT_MODULLER: AkademikAltModul[] = [
-  { title: "Ana Ekran Yönetimi", desc: "Widget ekleme/çıkarma, sürükle-bırak düzenleme — ana sayfadaki \"Ana Sayfanı Düzenle\" düğmesinden", icon: "settings", href: "/?role=student", durum: "aktif" },
+  { title: "Ana Ekran Yönetimi", desc: "Widget ekleme/çıkarma, sürükle-bırak düzenleme", icon: "settings", href: "/?role=student&ae_duzenle=1", durum: "aktif" },
   { title: "Bildirim Yönetimi", desc: "Etkinlik, sınav, ders iptali bildirimleri", icon: "bell", durum: "yapim" },
   { title: "Tema Yönetimi", desc: "Dark mode / Light mode", icon: "moon", durum: "yapim" },
   { title: "Takvim Yönetimi", desc: "Kişisel takvim + akademik takvim birleşimi, etkinlik ekleme/çıkarma", icon: "calendar", durum: "yapim" },
@@ -1541,6 +1571,20 @@ function AnaEkranYonetimi({ userId }: { userId?: string | null }) {
     if (!duzenleModu) { setTaslakSirali(sirali); setTaslakGizli(gizli); }
   }, [sirali, gizli, duzenleModu]);
 
+  // Sol menüdeki "Kişiselleştirme > Ana Ekran Yönetimi" linki (?ae_duzenle=1)
+  // ana sayfaya gelip düzenleme modunu OTOMATİK açsın diye — daha önce
+  // sadece ana sayfaya dönüyor, "Düzenle"ye tekrar basmak gerekiyordu.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("ae_duzenle") === "1") {
+      setDuzenleModu(true);
+      params.delete("ae_duzenle");
+      const kalan = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (kalan ? `?${kalan}` : ""));
+    }
+  }, []);
+
   const gorunenListe = duzenleModu ? taslakSirali : sirali;
   const gorunenAnahtar = gorunenListe.join("|");
 
@@ -2034,6 +2078,30 @@ export default function Home() {
   const [todaySummary, setTodaySummary] = useState<string | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifItems, setNotifItems] = useState<Array<{ id: string; tip: string; created_at: string; okundu: boolean; ogrenciAdi?: string; dersAdi?: string }>>([]);
+  // Bildirim sesi: kişiselleştirme > bildirim yönetiminin ilk adımı — gerçek
+  // zamanlı (Supabase Realtime) yeni bildirim geldiğinde çalıyor, cihaza özel
+  // açık/kapalı tercihi localStorage'da tutuluyor (sunucuya yazılmıyor,
+  // her tarayıcı kendi tercihini hatırlıyor).
+  const [sesKapali, setSesKapali] = useState(false);
+  const sesKapaliRef = useRef(false);
+  const [canliToast, setCanliToast] = useState<{ id: string; tip: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const kayitli = window.localStorage.getItem("co_bildirim_sesi_kapali") === "1";
+      setSesKapali(kayitli);
+      sesKapaliRef.current = kayitli;
+    } catch {}
+  }, []);
+
+  function sesToggle() {
+    setSesKapali((mevcut) => {
+      const yeni = !mevcut;
+      sesKapaliRef.current = yeni;
+      try { window.localStorage.setItem("co_bildirim_sesi_kapali", yeni ? "1" : "0"); } catch {}
+      return yeni;
+    });
+  }
 
   const refreshNotifCount = useCallback(async (userId: string) => {
     if (!supabase) return;
@@ -2175,6 +2243,36 @@ export default function Home() {
     return () => { cancelled = true; };
   }, []);
 
+  // Gerçek zamanlı bildirim: kampus_duvari_bildirimleri'ne kullanıcıya ait
+  // yeni bir satır eklendiği an (RLS zaten select'i kullanici_id=auth.uid()
+  // ile sınırlıyor, o yüzden burada da sadece kendi satırları dinleniyor)
+  // sayaç 1 artıyor, kısa bir "yeni bildirim" toast'ı beliriyor ve — sessize
+  // alınmadıysa — bildirim sesi çalıyor. Sayfa açık kaldığı sürece çalışır;
+  // sekme kapalıyken push bildirimi göndermek servis worker + push
+  // aboneliği gerektirir, bu ilk adımın kapsamı dışında.
+  useEffect(() => {
+    if (!userId || !supabase) return;
+    const kanal = supabase
+      .channel(`co-bildirim-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "kampus_duvari_bildirimleri", filter: `kullanici_id=eq.${userId}` },
+        (payload: any) => {
+          setUnreadCount((c) => c + 1);
+          setCanliToast({ id: payload.new?.id, tip: payload.new?.tip });
+          if (!sesKapaliRef.current) bildirimSesiCal();
+        }
+      )
+      .subscribe();
+    return () => { supabase!.removeChannel(kanal); };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!canliToast) return;
+    const id = setTimeout(() => setCanliToast(null), 5000);
+    return () => clearTimeout(id);
+  }, [canliToast]);
+
   function returnToLanding() {
     setRole(null);
     setAdminOpen(false);
@@ -2268,6 +2366,22 @@ export default function Home() {
           <button className="header-icon" aria-label="Profilim" title="Profilim" onClick={() => { window.location.href = "/profil"; }}>
             <Icon name="user" size={19} />
           </button>
+          <button
+            className="header-icon"
+            aria-label={sesKapali ? "Bildirim sesini aç" : "Bildirim sesini kapat"}
+            title={sesKapali ? "Bildirim sesi kapalı" : "Bildirim sesi açık"}
+            onClick={sesToggle}
+          >
+            {sesKapali ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5 6 9H3v6h3l5 4V5Z" /><path d="m17 9 5 6M22 9l-5 6" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5 6 9H3v6h3l5 4V5Z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M18.3 6a9 9 0 0 1 0 12" />
+              </svg>
+            )}
+          </button>
           <div className="notif-wrap" style={{ position: "relative" }}>
             <button className="header-icon" aria-label={unreadCount ? `${unreadCount} okunmamış bildirim` : "Bildirimler"} onClick={openNotifDropdown}>
               <Icon name="bell" size={20} />
@@ -2306,6 +2420,26 @@ export default function Home() {
             <Icon name="switch" size={15} />
           </button>
         </header>
+
+        {canliToast && (
+          <div
+            role="status"
+            onClick={() => { setCanliToast(null); void openNotifDropdown(); }}
+            style={{
+              position: "fixed", top: 18, right: 18, zIndex: 500, display: "flex", alignItems: "center", gap: 10,
+              background: "#0f1b33", color: "#fff", padding: "12px 16px", borderRadius: 14, boxShadow: "0 18px 40px rgba(15,27,51,.35)",
+              cursor: "pointer", maxWidth: 300, animation: "toastAnaSayfaGir 260ms ease",
+            }}
+          >
+            <span style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(255,255,255,.14)", display: "grid", placeItems: "center", flex: "none" }}>
+              <Icon name="bell" size={15} />
+            </span>
+            <span style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.4 }}>
+              {canliToast.tip === "duyuru" ? "Yeni bir duyuru paylaşıldı." : canliToast.tip === "ders_kaydi" ? "Bir öğrenci dersine kayıt oldu." : "Yeni bir bildirimin var."}
+            </span>
+            <style>{`@keyframes toastAnaSayfaGir { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }`}</style>
+          </div>
+        )}
 
         <div className="page-body">
           <ModuleHome role={role} displayName={profileInfo?.fullName} unreadCount={unreadCount} todaySummary={todaySummary} userId={userId} bolum={profileInfo?.bolum} sinif={profileInfo?.sinif} />

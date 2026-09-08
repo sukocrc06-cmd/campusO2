@@ -21,6 +21,74 @@ function katStil(kategori) {
   return KATEGORI_STIL[kategori] || KATEGORI_STIL["Diğer"];
 }
 
+// Hex rengi koyulaştırıp kategori paletindekiyle aynı 2 tonlu gradyan
+// mantığını kulübe özel renklere de uygular.
+function hexKoyulastir(hex, faktor = 0.62) {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((hex || "").trim());
+  if (!m) return hex;
+  let h = m[1];
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const r = Math.round(parseInt(h.slice(0, 2), 16) * faktor);
+  const g = Math.round(parseInt(h.slice(2, 4), 16) * faktor);
+  const b = Math.round(parseInt(h.slice(4, 6), 16) * faktor);
+  return `#${[r, g, b].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0")).join("")}`;
+}
+
+// Kulübün görsel kimliği: yönetici elle bir renk seçtiyse o kullanılır;
+// seçmediyse (renk boşsa) kategori rengine düşülür — logodan otomatik
+// çıkarılan renk zaten yüklenme anında "renk" alanına yazılıyor
+// (bkz. handleLogoUpload), o yüzden burada ayrıca bir mantık gerekmiyor.
+function kulupStil(k) {
+  const kat = katStil(k?.kategori);
+  if (k?.renk && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(k.renk)) {
+    return { grad: `linear-gradient(135deg, ${k.renk}, ${hexKoyulastir(k.renk)})`, solid: k.renk, icon: kat.icon };
+  }
+  return kat;
+}
+
+// Yüklenen logo görselinden istemci tarafında bir "baskın renk" tahmini
+// çıkarır (küçük bir canvas'a çizip piksel ortalaması alarak) — kulüp
+// yöneticisi elle bir renk seçmediyse otomatik yedek olarak kullanılır.
+function logodanRenkCikar(file) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        try {
+          const boyut = 24;
+          const canvas = document.createElement("canvas");
+          canvas.width = boyut; canvas.height = boyut;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, boyut, boyut);
+          const { data } = ctx.getImageData(0, 0, boyut, boyut);
+          let r = 0, g = 0, b = 0, n = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            const alpha = data[i + 3];
+            if (alpha < 80) continue;
+            const rr = data[i], gg = data[i + 1], bb = data[i + 2];
+            // Neredeyse beyaz/siyah pikselleri (genelde logo zemini) dışla,
+            // asıl marka rengine daha yakın bir ortalama elde etmek için.
+            const parlaklik = (rr + gg + bb) / 3;
+            if (parlaklik > 245 || parlaklik < 12) continue;
+            r += rr; g += gg; b += bb; n++;
+          }
+          URL.revokeObjectURL(url);
+          if (n === 0) { resolve(null); return; }
+          const hex = `#${[r / n, g / n, b / n].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+          resolve(hex);
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 function StatusBadge({ status }) {
   const s = KULUP_UYELIK_DURUM[status] || { label: status, color: "#5b6b85", bg: "#f5f8fc" };
   return (
@@ -77,14 +145,26 @@ function SkeletonCard() {
   );
 }
 
+function EtkinlikTarihiFormatla(tarih) {
+  if (!tarih) return "";
+  try {
+    return new Date(tarih + "T00:00:00").toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
+  } catch {
+    return tarih;
+  }
+}
+
 function ClubCard({ k, uyelik, kurul, index, onKatilAc }) {
-  const stil = katStil(k.kategori);
+  const stil = kulupStil(k);
   return (
     <div
       className="ke-card"
       style={{ "--i": index, background: "#fff", border: "1px solid #e3ebf6", borderRadius: 20, overflow: "hidden", display: "flex", flexDirection: "column" }}
     >
-      <div style={{ height: 78, background: stil.grad, position: "relative" }}>
+      <div style={{ height: 78, background: stil.grad, position: "relative", overflow: "hidden" }}>
+        {k.logo_url ? (
+          <img src={k.logo_url} alt="" aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.32, filter: "blur(7px) saturate(1.3)", transform: "scale(1.2)" }} />
+        ) : null}
         <div className="ke-card-cover-glow" />
       </div>
       <div style={{ padding: "0 18px 18px", marginTop: -34, display: "flex", flexDirection: "column", flex: 1 }}>
@@ -116,10 +196,32 @@ function ClubCard({ k, uyelik, kurul, index, onKatilAc }) {
 
         {k.aciklama ? <div style={{ fontSize: 12.5, color: "#5b6b85", marginTop: 10, lineHeight: 1.6, flex: 1 }}>{k.aciklama}</div> : <div style={{ flex: 1 }} />}
 
-        {k.website_url ? (
-          <a href={k.website_url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 10, fontSize: 12, color: stil.solid, fontWeight: 700, textDecoration: "none" }}>
-            Kulübün kendi sitesi ↗
-          </a>
+        {k.one_cikan_etkinlik_baslik ? (
+          <div style={{ marginTop: 10, display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, background: `${stil.solid}14`, border: `1px solid ${stil.solid}33`, fontSize: 11, fontWeight: 700, color: stil.solid }}>
+            <span>📅</span>
+            {k.one_cikan_etkinlik_baslik}
+            {k.one_cikan_etkinlik_tarihi ? <span style={{ opacity: 0.75 }}>· {EtkinlikTarihiFormatla(k.one_cikan_etkinlik_tarihi)}</span> : null}
+          </div>
+        ) : null}
+
+        {(k.website_url || k.sosyal_medya_url || k.iletisim_email) ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
+            {k.website_url ? (
+              <a href={k.website_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: stil.solid, fontWeight: 700, textDecoration: "none" }}>
+                Site ↗
+              </a>
+            ) : null}
+            {k.sosyal_medya_url ? (
+              <a href={k.sosyal_medya_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: stil.solid, fontWeight: 700, textDecoration: "none" }}>
+                Sosyal medya ↗
+              </a>
+            ) : null}
+            {k.iletisim_email ? (
+              <a href={`mailto:${k.iletisim_email}`} style={{ fontSize: 12, color: stil.solid, fontWeight: 700, textDecoration: "none" }}>
+                ✉️ İletişim
+              </a>
+            ) : null}
+          </div>
         ) : null}
 
         {kurul.length > 0 && (
@@ -149,7 +251,7 @@ function ClubCard({ k, uyelik, kurul, index, onKatilAc }) {
 
 function KatilModal({ kulup, onClose, onGonder, busy, motivasyon, setMotivasyon, ilgiAlani, setIlgiAlani }) {
   if (!kulup) return null;
-  const stil = katStil(kulup.kategori);
+  const stil = kulupStil(kulup);
   return (
     <div className="ke-modal-backdrop" onClick={onClose}>
       <div className="ke-modal" onClick={(e) => e.stopPropagation()}>
@@ -200,7 +302,7 @@ export default function StudentKuluplerPage() {
   const [yonetilenKulup, setYonetilenKulup] = useState(null);
   const [yonetimUyeler, setYonetimUyeler] = useState([]);
   const [profileMap, setProfileMap] = useState({});
-  const [editForm, setEditForm] = useState({ ad: "", aciklama: "", kategori: "", website_url: "" });
+  const [editForm, setEditForm] = useState({ ad: "", aciklama: "", kategori: "", website_url: "", renk: "", sosyal_medya_url: "", iletisim_email: "", one_cikan_etkinlik_baslik: "", one_cikan_etkinlik_tarihi: "" });
   const [logoFile, setLogoFile] = useState(null);
   const [unvanTaslak, setUnvanTaslak] = useState({});
 
@@ -230,7 +332,17 @@ export default function StudentKuluplerPage() {
       const kulup = (kData || []).find((k) => k.id === yonetici.kulup_id);
       if (kulup) {
         setYonetilenKulup(kulup);
-        setEditForm({ ad: kulup.ad, aciklama: kulup.aciklama || "", kategori: kulup.kategori || KULUP_KATEGORILERI[0], website_url: kulup.website_url || "" });
+        setEditForm({
+          ad: kulup.ad,
+          aciklama: kulup.aciklama || "",
+          kategori: kulup.kategori || KULUP_KATEGORILERI[0],
+          website_url: kulup.website_url || "",
+          renk: kulup.renk || "",
+          sosyal_medya_url: kulup.sosyal_medya_url || "",
+          iletisim_email: kulup.iletisim_email || "",
+          one_cikan_etkinlik_baslik: kulup.one_cikan_etkinlik_baslik || "",
+          one_cikan_etkinlik_tarihi: kulup.one_cikan_etkinlik_tarihi || "",
+        });
         await loadYonetimUyeler(kulup.id);
       }
     }
@@ -345,7 +457,17 @@ export default function StudentKuluplerPage() {
     e.preventDefault();
     if (!yonetilenKulup) return;
     setBusy(true); setError(""); setMessage("");
-    const { error: err } = await supabase.from("kulupler").update({ ad: editForm.ad.trim(), aciklama: editForm.aciklama.trim() || null, kategori: editForm.kategori, website_url: editForm.website_url.trim() || null }).eq("id", yonetilenKulup.id);
+    const { error: err } = await supabase.from("kulupler").update({
+      ad: editForm.ad.trim(),
+      aciklama: editForm.aciklama.trim() || null,
+      kategori: editForm.kategori,
+      website_url: editForm.website_url.trim() || null,
+      renk: editForm.renk || null,
+      sosyal_medya_url: editForm.sosyal_medya_url.trim() || null,
+      iletisim_email: editForm.iletisim_email.trim() || null,
+      one_cikan_etkinlik_baslik: editForm.one_cikan_etkinlik_baslik.trim() || null,
+      one_cikan_etkinlik_tarihi: editForm.one_cikan_etkinlik_tarihi || null,
+    }).eq("id", yonetilenKulup.id);
     if (err) setError("Güncellenemedi: " + err.message);
     else { setMessage("Kulüp bilgileri güncellendi."); await loadAll(userId); }
     setBusy(false);
@@ -359,9 +481,19 @@ export default function StudentKuluplerPage() {
     const { error: upErr } = await supabase.storage.from("kulup-logolari").upload(path, logoFile, { upsert: true });
     if (upErr) { setError("Logo yüklenemedi: " + upErr.message); setBusy(false); return; }
     const { data: pub } = supabase.storage.from("kulup-logolari").getPublicUrl(path);
-    const { error: updErr } = await supabase.from("kulupler").update({ logo_url: pub.publicUrl }).eq("id", yonetilenKulup.id);
+
+    // Yönetici elle bir renk seçmediyse (editForm.renk boşsa), yeni logodan
+    // otomatik bir yedek renk çıkarıp aynı kayıtla birlikte kaydediyoruz —
+    // böylece kart/sayfa hemen kulübün kendi rengine bürünüyor.
+    const guncelleme = { logo_url: pub.publicUrl };
+    if (!editForm.renk) {
+      const otomatikRenk = await logodanRenkCikar(logoFile);
+      if (otomatikRenk) guncelleme.renk = otomatikRenk;
+    }
+
+    const { error: updErr } = await supabase.from("kulupler").update(guncelleme).eq("id", yonetilenKulup.id);
     if (updErr) setError("Logo kaydedilemedi: " + updErr.message);
-    else { setMessage("Logo güncellendi."); setLogoFile(null); await loadAll(userId); }
+    else { setMessage("Logo güncellendi." + (guncelleme.renk ? " Kart rengi logodan otomatik ayarlandı." : "")); setLogoFile(null); await loadAll(userId); }
     setBusy(false);
   }
 
@@ -515,7 +647,7 @@ export default function StudentKuluplerPage() {
                   <div style={{ display: "grid", gap: 12 }}>
                     {uyelikler.map((u) => {
                       const k = kulupler.find((x) => x.id === u.kulup_id);
-                      const stil = katStil(k?.kategori);
+                      const stil = k ? kulupStil(k) : katStil(null);
                       return (
                         <div key={u.id} style={{ background: "#fff", border: "1px solid #e3ebf6", borderRadius: 14, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -563,6 +695,39 @@ export default function StudentKuluplerPage() {
                     <label style={labelStyle}>Açıklama
                       <textarea style={{ ...inputStyle, height: 70, padding: 12, resize: "vertical" }} value={editForm.aciklama} onChange={(e) => setEditForm((f) => ({ ...f, aciklama: e.target.value }))} />
                     </label>
+
+                    <div style={{ padding: 14, borderRadius: 14, background: "#f5f8fc", border: "1px solid #e3ebf6", display: "grid", gap: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: "#5b6b85", letterSpacing: "0.06em" }}>KULÜBÜN GÖRSEL KİMLİĞİ</div>
+                      <label style={labelStyle}>
+                        Kart / sayfa rengi
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <input type="color" value={editForm.renk || kulupStil(yonetilenKulup).solid} onChange={(e) => setEditForm((f) => ({ ...f, renk: e.target.value }))} style={{ width: 46, height: 38, border: "1px solid #e3ebf6", borderRadius: 8, padding: 2, cursor: "pointer", background: "#fff" }} />
+                          <span style={{ fontSize: 12, color: "#5b6b85" }}>
+                            {editForm.renk ? "Elle seçildi" : "Otomatik (logodan / kategoriden)"}
+                          </span>
+                          {editForm.renk ? (
+                            <button type="button" onClick={() => setEditForm((f) => ({ ...f, renk: "" }))} style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, border: "none", background: "none", color: "#175cd3", cursor: "pointer" }}>Sıfırla</button>
+                          ) : null}
+                        </div>
+                      </label>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+                        <label style={labelStyle}>Sosyal medya linki
+                          <input style={inputStyle} value={editForm.sosyal_medya_url} onChange={(e) => setEditForm((f) => ({ ...f, sosyal_medya_url: e.target.value }))} placeholder="https://instagram.com/kulubun" />
+                        </label>
+                        <label style={labelStyle}>İletişim e-postası
+                          <input style={inputStyle} type="email" value={editForm.iletisim_email} onChange={(e) => setEditForm((f) => ({ ...f, iletisim_email: e.target.value }))} placeholder="kulup@ornek.edu.tr" />
+                        </label>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+                        <label style={labelStyle}>Öne çıkan etkinlik (başlık)
+                          <input style={inputStyle} value={editForm.one_cikan_etkinlik_baslik} onChange={(e) => setEditForm((f) => ({ ...f, one_cikan_etkinlik_baslik: e.target.value }))} placeholder="örn. Tanışma Etkinliği" />
+                        </label>
+                        <label style={labelStyle}>Etkinlik tarihi
+                          <input style={inputStyle} type="date" value={editForm.one_cikan_etkinlik_tarihi} onChange={(e) => setEditForm((f) => ({ ...f, one_cikan_etkinlik_tarihi: e.target.value }))} />
+                        </label>
+                      </div>
+                    </div>
+
                     <button type="submit" disabled={busy} className="button button-primary" style={{ minHeight: 42, padding: "0 18px", width: "fit-content" }}>{busy ? "…" : "Bilgileri Kaydet"}</button>
                   </form>
                 </section>
